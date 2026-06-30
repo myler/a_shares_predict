@@ -13,7 +13,7 @@ ROOT = os.path.dirname(os.path.abspath(__file__))
 from fetcher import fetch_kline, get_name, fetch_dividends, enrich_trades_with_dividends
 from db import save_stock_name
 from engine import (calc_macd, detect_regime, find_divergences, backtest, predict,
-                    backtest_multifactor, predict_multifactor)
+                    backtest_multifactor, predict_multifactor, plot_multifactor)
 
 import numpy as np
 import matplotlib
@@ -460,12 +460,17 @@ class Handler(BaseHTTPRequestHandler):
           {div_rows}
         </table>"""
 
+        # 图表
+        dates_dt = np.array([datetime.strptime(d, '%Y-%m-%d') for d in dates])
+        img_b64 = plot_multifactor(code, name, dates_dt, closes, highs, lows, trades)
+
         return f"""
         <div class="result">
           {conclusion_html}
           {top_section}
           {dividend_history}
           {trade_table}
+          <img src="data:image/png;base64,{img_b64}" alt="MultiFactor Chart" loading="lazy">
         </div>"""
 
     def log_message(self, format, *args):

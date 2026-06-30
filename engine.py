@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """核心引擎：MACD计算、背离检测、回测、预测、画图"""
 
-import os, sys
+import os, sys, io, base64
 from datetime import datetime
 import numpy as np
 import matplotlib
@@ -533,6 +533,67 @@ def backtest(dates, closes, dif, dea, tops, bottoms, regimes, cooldown=25):
             trades.append({'buy_date':pos['bd'],'sell_date':s['date'],'buy_price':pos['bp'],'sell_price':s['price'],'profit_pct':pct,'buy_reason':pos['br'],'sell_reason':s['reason'],'hold_days':s['idx']-pos['bi']})
             pos=None
     return trades
+
+
+def plot_multifactor(code, name, dates, closes, highs, lows, trades):
+    """多因子共振图表：价格+布林带/RSI/KDJ+买卖点"""
+    fig = plt.figure(figsize=(18, 14))
+    import matplotlib.lines as mlines
+
+    # ── 子图1: 价格 + 布林带 ──
+    ax1 = plt.subplot(3, 1, 1)
+    ax1.plot(dates, closes, color='#1565C0', linewidth=1, alpha=0.8, label='收盘价')
+    bb_upper, bb_mid, bb_lower = calc_bollinger(closes)
+    ax1.plot(dates, bb_upper, color='#FF6F00', linewidth=0.8, alpha=0.5, linestyle='--', label='布林上轨')
+    ax1.plot(dates, bb_mid, color='#FF6F00', linewidth=1, alpha=0.6, label='布林中轨')
+    ax1.plot(dates, bb_lower, color='#FF6F00', linewidth=0.8, alpha=0.5, linestyle='--', label='布林下轨')
+    dt_idx = {d.strftime('%Y-%m-%d'): i for i, d in enumerate(dates)}
+    for t in trades:
+        bi = dt_idx.get(t['buy_date']); si = dt_idx.get(t['sell_date'])
+        if bi is not None: ax1.scatter(dates[bi], closes[bi], color='lime', s=80, marker='o', zorder=6, edgecolors='black')
+        if si is not None: ax1.scatter(dates[si], closes[si], color='orange', s=80, marker='s', zorder=6, edgecolors='black')
+    h1, _ = ax1.get_legend_handles_labels()
+    h1 += [mlines.Line2D([],[],color='lime',marker='o',linestyle='',markersize=8,markeredgecolor='black',label='买入'),
+           mlines.Line2D([],[],color='orange',marker='s',linestyle='',markersize=8,markeredgecolor='black',label='卖出')]
+    ax1.legend(handles=h1, loc='upper left', fontsize=7, ncol=2)
+    ax1.set_title(f'{name}({code}) — 多因子共振', fontsize=13, fontweight='bold')
+    ax1.grid(True, alpha=0.3); ax1.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m'))
+    plt.setp(ax1.xaxis.get_majorticklabels(), rotation=45, ha='right', fontsize=8)
+
+    # ── 子图2: RSI ──
+    ax2 = plt.subplot(3, 1, 2)
+    rsi = calc_rsi(closes)
+    ax2.plot(dates, rsi, color='#7B1FA2', linewidth=1, label='RSI(14)')
+    ax2.axhline(y=70, color='#ef5350', linewidth=0.8, linestyle='--', alpha=0.5)
+    ax2.axhline(y=30, color='#26a69a', linewidth=0.8, linestyle='--', alpha=0.5)
+    ax2.fill_between(range(len(dates)), 70, 100, alpha=0.08, color='#ef5350')
+    ax2.fill_between(range(len(dates)), 0, 30, alpha=0.08, color='#26a69a')
+    ax2.set_ylim(0, 100)
+    ax2.legend(loc='upper left', fontsize=8)
+    ax2.set_title('RSI(14) — 红区超买 / 绿区超卖', fontsize=12, fontweight='bold')
+    ax2.grid(True, alpha=0.3); ax2.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m'))
+    plt.setp(ax2.xaxis.get_majorticklabels(), rotation=45, ha='right', fontsize=8)
+
+    # ── 子图3: KDJ ──
+    ax3 = plt.subplot(3, 1, 3)
+    k_line, d_line, j_line = calc_kdj(highs, lows, closes)
+    ax3.plot(dates, k_line, color='#1565C0', linewidth=1, label='K')
+    ax3.plot(dates, d_line, color='#FF6F00', linewidth=1, label='D')
+    ax3.plot(dates, j_line, color='#E91E63', linewidth=0.8, alpha=0.6, label='J')
+    ax3.axhline(y=80, color='#ef5350', linewidth=0.8, linestyle='--', alpha=0.5)
+    ax3.axhline(y=20, color='#26a69a', linewidth=0.8, linestyle='--', alpha=0.5)
+    ax3.set_ylim(-20, 120)
+    ax3.legend(loc='upper left', fontsize=8, ncol=3)
+    ax3.set_title('KDJ(9,3,3) — K蓝 D橙 J粉', fontsize=12, fontweight='bold')
+    ax3.grid(True, alpha=0.3); ax3.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m'))
+    plt.setp(ax3.xaxis.get_majorticklabels(), rotation=45, ha='right', fontsize=8)
+
+    plt.tight_layout()
+    buf = io.BytesIO()
+    fig.savefig(buf, format='png', dpi=120, bbox_inches='tight')
+    plt.close()
+    return base64.b64encode(buf.getvalue()).decode()
+
 
 # ═══════════════════════════
 # 画图 (CLI用)
