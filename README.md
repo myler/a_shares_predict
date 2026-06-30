@@ -103,6 +103,10 @@ a_shares_predict/
 ├── engine.py           # 核心引擎（MACD、背离、回测、预测、画图）
 ├── fetcher.py          # 数据层（K线抓取、分红抓取、多源降级）
 ├── db.py               # SQLite缓存模块
+├── unittests/           # 单元测试 (38个用例)
+│   ├── test_engine.py
+│   ├── test_fetcher.py
+│   └── test_db.py
 ├── templates/
 │   └── page.html       # Web页面模板
 ├── requirements.txt
