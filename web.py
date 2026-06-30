@@ -12,7 +12,8 @@ ROOT = os.path.dirname(os.path.abspath(__file__))
 # ── 导入数据层和引擎 ──
 from fetcher import fetch_kline, get_name, fetch_dividends, enrich_trades_with_dividends
 from db import save_stock_name
-from engine import calc_macd, detect_regime, find_divergences, backtest, predict, backtest_multifactor
+from engine import (calc_macd, detect_regime, find_divergences, backtest, predict,
+                    backtest_multifactor, predict_multifactor)
 
 import numpy as np
 import matplotlib
@@ -375,6 +376,7 @@ class Handler(BaseHTTPRequestHandler):
         vols = np.array([float(d['volume']) for d in data])
 
         trades = backtest_multifactor(dates, closes, highs, lows, vols)
+        pred = predict_multifactor(dates, closes, highs, lows, vols, holding=False)
         dividends = []
         if calc_dividend:
             dividends = fetch_dividends(code)
@@ -406,6 +408,17 @@ class Handler(BaseHTTPRequestHandler):
           <tr style="background:#c8e6c9"><td>总收益</td><td style="font-weight:bold;font-size:1.1em">{total_pnl:+.1f}%</td></tr>"""
         overview += """
         </table>"""
+
+        # ── 结论横幅 ──
+        conclusion_html = ''
+        for line in pred:
+            s = line.strip()
+            if s.startswith('✅') or s.startswith('❌') or s.startswith('⚠'):
+                cls = 'buy' if '✅' in s else ('sell' if '❌' in s else 'warn')
+                conclusion_html = f'<div class="conclusion {cls}">{s.replace(" ","&nbsp;")}</div>'
+
+        pred_table = self.make_pred_table(pred)
+        top_section = f'<div class="top-row"><div>{overview}</div><div>{pred_table}</div></div>'
 
         trade_rows = ''
         show_div = calc_dividend and dividends and any(t.get('dividend_total', 0) > 0 for t in trades)
@@ -449,7 +462,8 @@ class Handler(BaseHTTPRequestHandler):
 
         return f"""
         <div class="result">
-          {overview}
+          {conclusion_html}
+          {top_section}
           {dividend_history}
           {trade_table}
         </div>"""
