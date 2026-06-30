@@ -235,6 +235,98 @@ def backtest_multifactor(dates, closes, highs, lows, volumes):
     return trades
 
 
+def predict_multifactor(dates, closes, highs, lows, volumes, holding=False):
+    """多因子共振当前状态预测"""
+    n = len(closes)
+    if n < 35:
+        return ["数据不足，无法预测"]
+
+    rsi = calc_rsi(closes)
+    k_line, d_line, j_line = calc_kdj(highs, lows, closes)
+    bb_upper, bb_mid, bb_lower = calc_bollinger(closes)
+    wr = calc_wr(highs, lows, closes)
+    ma20 = np.full(n, np.nan)
+    vol_ma20 = np.full(n, np.nan)
+    for i in range(19, n):
+        ma20[i] = np.mean(closes[i-19:i+1])
+        vol_ma20[i] = np.mean(volumes[i-19:i+1])
+
+    i = n - 1
+    while i >= 0 and np.isnan(rsi[i]): i -= 1
+    if i < 35: return ["数据不足，无法预测"]
+
+    cur = {
+        'date': dates[i], 'close': closes[i],
+        'rsi': rsi[i], 'k': k_line[i], 'd': d_line[i], 'j': j_line[i],
+        'bb_upper': bb_upper[i], 'bb_mid': bb_mid[i], 'bb_lower': bb_lower[i],
+        'wr': wr[i], 'ma20': ma20[i],
+    }
+
+    lines = []
+    lines.append(f"{'='*50}")
+    lines.append(f"  多因子共振预测 — {dates[i]}")
+    lines.append(f"{'='*50}")
+
+    lines.append(f"\n── 当前指标 ──")
+    lines.append(f"  收盘: {cur['close']:.2f}  |  MA20: {cur['ma20']:.1f}" if not np.isnan(cur['ma20']) else f"  收盘: {cur['close']:.2f}")
+    lines.append(f"  RSI: {cur['rsi']:.1f}  |  KDJ: K={cur['k']:.1f} D={cur['d']:.1f} J={cur['j']:.1f}")
+    lines.append(f"  布林: 上{cur['bb_upper']:.2f} 中{cur['bb_mid']:.2f} 下{cur['bb_lower']:.2f}")
+    lines.append(f"  WR: {cur['wr']:.1f}")
+
+    score = 0
+    reasons = []
+    if cur['rsi'] < 35: score += 2; reasons.append('RSI超卖')
+    elif cur['rsi'] > 70: score -= 2; reasons.append('RSI超买')
+    elif cur['rsi'] < 50: score += 1; reasons.append('RSI偏弱')
+    else: score -= 1; reasons.append('RSI偏强')
+
+    if cur['k'] > cur['d']: score += 2; reasons.append('KDJ金叉')
+    else: score -= 2; reasons.append('KDJ死叉')
+
+    if not np.isnan(cur['j']):
+        if cur['j'] < 0: score += 2; reasons.append('J<0超卖')
+        elif cur['j'] > 100: score -= 2; reasons.append('J>100超买')
+
+    if cur['close'] < cur['bb_lower']: score += 2; reasons.append('跌破布林下轨')
+    elif cur['close'] > cur['bb_upper']: score -= 1; reasons.append('突破布林上轨')
+
+    if cur['wr'] > 80: score += 1; reasons.append('WR超卖')
+    elif cur['wr'] < 20: score -= 1; reasons.append('WR超买')
+
+    if not np.isnan(cur['ma20']) and cur['close'] > cur['ma20']:
+        score += 1; reasons.append('MA20之上')
+    else:
+        score -= 1; reasons.append('MA20之下')
+
+    # 量能
+    if not np.isnan(vol_ma20[i]) and volumes[i] > vol_ma20[i] * 1.3:
+        reasons.append('放量')
+
+    lines.append(f"\n── 综合判断 ──")
+    if score >= 4: signal = '🟢 强烈看多'; action = '增持' if holding else '买入'
+    elif score >= 2: signal = '🟢 偏多'; action = '拿住' if holding else '买入'
+    elif score >= 0: signal = '🟡 中性'; action = '减持' if holding else '观望'
+    elif score >= -2: signal = '🟠 偏空'; action = '减持' if holding else '不买'
+    else: signal = '🔴 看空'; action = '卖出' if holding else '不买'
+
+    lines.append(f"  评分: {score:+d}  |  信号: {signal}")
+    lines.append(f"  建议: {action}")
+    lines.append(f"  依据: {', '.join(reasons) if reasons else '无明确信号'}")
+
+    lines.append(f"\n{'='*50}")
+    n_icon = max(1, min(10, abs(score)))
+    if holding:
+        if action == '卖出':       lines.append(f"  {'❌' * n_icon}  {action}")
+        elif action in ('增持','拿住'): lines.append(f"  {'✅' * n_icon}  {action}")
+        else:                     lines.append(f"  {'⚠️' * n_icon}  {action}")
+    else:
+        if action == '买入':       lines.append(f"  {'✅' * n_icon}  {action}")
+        else:                     lines.append(f"  {'❌' * n_icon}  {action}")
+    lines.append(f"{'='*50}")
+
+    return lines
+
+
 # ═══════════════════════════
 # 背离 + 牛熊
 # ═══════════════════════════

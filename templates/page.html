@@ -1,3 +1,4 @@
+<!DOCTYPE html>
 <html lang="zh">
 <head>
 <meta charset="utf-8">
@@ -8,7 +9,7 @@
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:-apple-system,system-ui,sans-serif;background:#f5f5f5;color:#333;padding:20px}
 h1{font-size:20px;margin-bottom:16px}
-form{display:flex;flex-direction:column;gap:8px;margin-bottom:20px;max-width:400px}
+form{display:flex;flex-direction:column;gap:8px;margin-bottom:16px;max-width:400px}
 input{width:100%;padding:10px 14px;font-size:16px;border:2px solid #ddd;border-radius:6px;outline:none}
 input:focus{border-color:#1565C0}
 button{padding:10px 24px;font-size:16px;background:#1565C0;color:#fff;border:none;border-radius:6px;cursor:pointer}
@@ -46,9 +47,9 @@ table.pred td{padding:6px 10px;border-bottom:1px solid #f5f5f5}
 table.pred td:first-child{font-weight:bold;color:#555;width:120px}
 h3{margin:16px 0 8px;font-size:16px}
 h4{margin:0 0 4px;font-size:13px;color:#555}
-.strategy{background:#fff;border-radius:8px;padding:16px 20px;margin-top:20px;box-shadow:0 1px 3px rgba(0,0,0,.1)}
-.strategy h3{font-size:15px;margin-bottom:8px}
-.strategy pre{background:#fafafa;padding:12px;border-radius:4px;font-size:12px;line-height:1.8;overflow-x:auto}
+.strategy{background:#fff;border-radius:8px;padding:12px 16px;box-shadow:0 1px 3px rgba(0,0,0,.1)}
+.strategy h3{font-size:14px;margin-bottom:6px;color:#555}
+.strategy pre{background:#fafafa;padding:10px;border-radius:4px;font-size:11px;line-height:1.7;overflow-x:auto;white-space:pre-wrap}
 </style>
 </head>
 <body>
@@ -68,33 +69,41 @@ h4{margin:0 0 4px;font-size:13px;color:#555}
   <label class="holding" id="divLabel" style="display:none">
     <input type="checkbox" id="calcDividend"> 计算分红（含每股分红收益）
   </label>
-  <button id="btn" type="submit">分析</button>
-</form>
-<div id="result"></div>
-<div class="strategy">
-  <h3>📐 策略公式</h3>
-  <pre>买入信号 = 零轴上金叉(DIF>0 ∧ DIF↑ ∧ 确认2天) ∨ 底背离(股价↓ DIF↑)
+  <div class="strategy" id="formulaBox">
+    <h3>📐 策略公式 — MACD择时策略</h3>
+    <pre id="formulaText">买入信号 = 零轴上金叉(DIF>0 ∧ DIF↑ ∧ 确认2天) ∨ 底背离(股价↓ DIF↑)
 卖出信号 = 顶背离(股价↑ DIF↓) ∨ (熊市 ∧ 死叉)
 牛熊判定 = 价格>MA60 ∧ MA60(10日斜率)>0 → 牛，连续5日确认
 评分    = 金叉+2 死叉-2 | 零轴上+1 零轴下-1 | 牛+2 熊-2 | DIF↑+1 DIF↓-1 | 顶背离-3
-结论    = 评分≥2→买入/拿住 | 评分≥0→中性/减持 | 评分≥-2→不买/减持 | 评分&lt;-2→卖出</pre>
-</div>
+结论    = 评分≥2→买入/拿住 | 评分≥0→中性/减持 | 评分≥-2→不买/减持 | 评分<-2→卖出</pre>
+  </div>
+  <button id="btn" type="submit">分析</button>
+</form>
+<div id="result"></div>
 <script>
-function getStrategy(){
-  return document.getElementById('strategy').value;
-}
+const FORMULAS={
+  macd:{title:'MACD择时策略',text:`买入信号 = 零轴上金叉(DIF>0 ∧ DIF↑ ∧ 确认2天) ∨ 底背离(股价↓ DIF↑)
+卖出信号 = 顶背离(股价↑ DIF↓) ∨ (熊市 ∧ 死叉)
+牛熊判定 = 价格>MA60 ∧ MA60(10日斜率)>0 → 牛，连续5日确认
+评分    = 金叉+2 死叉-2 | 零轴上+1 零轴下-1 | 牛+2 熊-2 | DIF↑+1 DIF↓-1 | 顶背离-3
+结论    = 评分≥2→买入/拿住 | 评分≥0→中性/减持 | 评分≥-2→不买/减持 | 评分<-2→卖出`},
+  multi:{title:'多因子共振策略',text:`指标: RSI(14) + KDJ(9,3,3) + Bollinger(20,2) + WR(10) + MA20 + 量能
+买入: score≥2 且 RSI<75（不在超买区）
+卖出: score≤-3（强空信号）| 获利>8%回吐 | 止损-6% | 止盈+15%
+评分: RSI超卖+3/超买-3 | KDJ金叉+3/死叉-3 | J<0+2/>100-2 | Bollinger下轨+2/上轨-1 | WR>85+2/<15-2 | MA20趋势±1`},
+  buyhold:{title:'长线持有策略',text:`数据起始日一次性买入，持有至今不卖。
+分红: 持有期间所有已实施分红累加。
+对比: 可直观看到"择时交易 vs 买入不动"的收益差异。`}
+};
+function getStrategy(){return document.getElementById('strategy').value;}
 function onStrategyChange(){
   const s=getStrategy();
   const holding=document.getElementById('holding');
-  if(s==='buyhold'){
-    // 长线持有必须已持仓
-    holding.checked=true;
-    holding.disabled=true;
-    document.getElementById('divLabel').style.display='flex';
-  }else{
-    holding.disabled=false;
-    toggleDividend();
-  }
+  const f=FORMULAS[s];
+  document.getElementById('formulaBox').querySelector('h3').textContent='📐 策略公式 — '+f.title;
+  document.getElementById('formulaText').textContent=f.text;
+  if(s==='buyhold'){holding.checked=true;holding.disabled=true;document.getElementById('divLabel').style.display='flex';}
+  else{holding.disabled=false;toggleDividend();}
 }
 function toggleDividend(){
   const holding=document.getElementById('holding').checked;
@@ -126,4 +135,4 @@ async function analyze(e){
 }
 </script>
 </body>
-</html>"""
+</html>
