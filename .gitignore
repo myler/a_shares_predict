@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+*.pyo
+output/
+stock_cache.db
+web.log
+*.png
+*.jpg
+.DS_Store
+wqy-zenhei.ttf
