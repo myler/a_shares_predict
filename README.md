@@ -58,10 +58,10 @@ sudo apt install fonts-wqy-zenhei
 ## 命令行
 
 ```bash
-./run.py 603893              # 全部: 回测 + 图表 + 预测
-./run.py backtest 600329     # 仅回测（含分红明细）
-./run.py predict 000651      # 仅预测
-./run.py help                # 帮助
+./run_cli.py 603893              # 全部: 回测 + 图表 + 预测
+./run_cli.py backtest 600329     # 仅回测（含分红明细）
+./run_cli.py predict 000651      # 仅预测
+./run_cli.py help                # 帮助
 ```
 
 ## Web 界面
@@ -90,9 +90,13 @@ output/YYYYMMDD_CODE_NN/
 
 ```
 a_shares_predict/
-├── run.py              # 主引擎：K线抓取、MACD计算、回测、预测
-├── web.py              # Web界面
+├── run_cli.py          # CLI入口（参数解析+格式化输出）
+├── web.py              # Web界面（HTTP服务）
+├── engine.py           # 核心引擎（MACD、背离、回测、预测、画图）
+├── fetcher.py          # 数据层（K线抓取、分红抓取、多源降级）
 ├── db.py               # SQLite缓存模块
-├── requirements.txt    # numpy, matplotlib
+├── templates/
+│   └── page.html       # Web页面模板
+├── requirements.txt
 └── README.md
 ```
