@@ -142,7 +142,7 @@ class Handler(BaseHTTPRequestHandler):
                 if strategy == 'buyhold':
                     html = self.run_buyhold_analysis(code, calc_dividend)
                 elif strategy == 'multi':
-                    html = self.run_multifactor_analysis(code, calc_dividend)
+                    html = self.run_multifactor_analysis(code, holding, calc_dividend)
                 else:
                     html = self.run_analysis(code, holding, calc_dividend)
                 self.send_response(200); self.send_header('Content-type','text/html; charset=utf-8'); self.end_headers()
@@ -364,7 +364,7 @@ class Handler(BaseHTTPRequestHandler):
           <img src="data:image/png;base64,{img_b64}" alt="BuyHold Chart" loading="lazy">
         </div>"""
 
-    def run_multifactor_analysis(self, code, calc_dividend=False):
+    def run_multifactor_analysis(self, code, holding, calc_dividend=False):
         """多因子共振策略：RSI + KDJ + Bollinger + WR"""
         data = fetch_kline(code)
         name = get_name(code)
@@ -376,7 +376,7 @@ class Handler(BaseHTTPRequestHandler):
         vols = np.array([float(d['volume']) for d in data])
 
         trades = backtest_multifactor(dates, closes, highs, lows, vols)
-        pred = predict_multifactor(dates, closes, highs, lows, vols, holding=False)
+        pred = predict_multifactor(dates, closes, highs, lows, vols, holding=holding)
         dividends = []
         if calc_dividend:
             dividends = fetch_dividends(code)
