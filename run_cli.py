@@ -8,7 +8,8 @@ import numpy as np
 from fetcher import fetch_kline, get_name, fetch_dividends, enrich_trades_with_dividends
 from db import save_stock_name
 from engine import (make_output_dir, calc_macd, detect_regime, find_divergences,
-                    zero_line_cycles, backtest, predict, plot_all)
+                    zero_line_cycles, backtest, predict, plot_all,
+                    backtest_multifactor)
 
 HELP = """
 A股策略分析工具
@@ -17,7 +18,8 @@ A股策略分析工具
 用法:
   ./run_cli.py <股票代码>           出图+回测+预测 (默认)
   ./run_cli.py chart   <股票代码>   仅出图
-  ./run_cli.py backtest <股票代码>  仅回测
+  ./run_cli.py backtest <股票代码>  仅回测(MACD)
+  ./run_cli.py multi   <股票代码>   多因子共振策略
   ./run_cli.py predict <股票代码>   仅预测
   ./run_cli.py help                 帮助
 
@@ -36,7 +38,7 @@ if __name__ == '__main__':
         print(HELP)
         sys.exit(0)
 
-    if sys.argv[1] in ('chart','backtest','predict','json'):
+    if sys.argv[1] in ('chart','backtest','predict','json','multi'):
         mode, codes = sys.argv[1], sys.argv[2:]
     else:
         mode, codes = 'chart', sys.argv[1:]
@@ -97,7 +99,44 @@ if __name__ == '__main__':
         print(_json.dumps(results, ensure_ascii=False))
         sys.exit(0)
 
-    code = codes[0]
+    # ── 多因子共振策略 ──
+    if mode == 'multi':
+        code = codes[0]
+        data = fetch_kline(code)
+        name = get_name(code)
+        save_stock_name(code, name)
+        dates = [d['day'] for d in data]
+        closes = np.array([float(d['close']) for d in data])
+        highs = np.array([float(d['high']) for d in data])
+        lows = np.array([float(d['low']) for d in data])
+        vols = np.array([float(d['volume']) for d in data])
+
+        trades = backtest_multifactor(dates, closes, highs, lows, vols)
+        dividends = fetch_dividends(code)
+        if dividends:
+            trades = enrich_trades_with_dividends(trades, dividends)
+
+        print(f"  {name}({code}) 多因子共振回测")
+        print(f"  数据: {dates[0]} ~ {dates[-1]} ({len(data)}K线)")
+        print(f"\n  交易 ({len(trades)}笔):")
+        for t in trades:
+            div_info = ""
+            if t.get('dividend_total', 0) > 0:
+                div_info = f" [分红{t['dividend_total']:.2f}元/股]"
+            print(f"  {'✅' if t['profit_pct']>0 else '❌'} {t['buy_date']}→{t['sell_date']} "
+                  f"{t['buy_price']:.2f}→{t['sell_price']:.2f} {t['profit_pct']:+.1f}%{div_info} [{t['hold_days']}天]")
+        if trades:
+            wins = [t for t in trades if t['profit_pct'] > 0]
+            total = sum(t['profit_pct'] for t in trades)
+            total_div = sum(t.get('dividend_yield_pct', 0) for t in trades)
+            total_cash = sum(t.get('dividend_total', 0) for t in trades)
+            print(f"\n  胜率: {len(wins)}/{len(trades)}={len(wins)/len(trades)*100:.0f}%")
+            print(f"  价差收益: {total:+.1f}%")
+            print(f"  分红收益: {total_cash:.2f}元/股（折合{total_div:+.1f}%）")
+            print(f"  总收益:   {total+total_div:+.1f}%")
+        sys.exit(0)
+
+    code = codes[0]  # 非json/multi模式取第一个
     outdir = make_output_dir(code)
     print(f"输出: {outdir}\n")
 
