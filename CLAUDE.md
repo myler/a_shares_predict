@@ -43,9 +43,10 @@ db.py         → SQLite缓存（stock_cache.db），K线和分红均缓存
 
 ## 运行
 ```bash
-./run_cli.py 603893              # CLI
+./run_cli.py 603893              # CLI MACD
+./run_cli.py multi 600329        # CLI 多因子共振
 ./web.py 8099                    # Web (默认8080)
-python3 -m unittest discover -s unittests -v  # 38个测试
+python3 -m unittest discover -s unittests -v  # 43个测试
 ```
 
 ## GitHub
