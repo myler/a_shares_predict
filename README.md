@@ -55,6 +55,14 @@ sudo apt install fonts-wqy-zenhei
 - 数据库：`stock_cache.db`（已加入 .gitignore）
 - K 线和分红数据均缓存，搜过的股票不用再等网络
 
+## 测试
+
+```bash
+python3 -m unittest discover -s unittests -v
+```
+
+覆盖 engine（MACD/背离/回测/预测）、fetcher（分红计算/边界条件）、db（缓存增删改查），共38个测试用例。每次改代码后跑一次。
+
 ## 命令行
 
 ```bash
