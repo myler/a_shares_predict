@@ -227,3 +227,47 @@ class TestZeroLineCycles(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main(verbosity=2)
+
+
+class TestMultifactor(unittest.TestCase):
+    """多因子共振策略测试"""
+    def setUp(self):
+        np.random.seed(42)
+        n = 500
+        self.closes = 50 + np.cumsum(np.random.randn(n) * 0.5)
+        self.highs = self.closes + np.abs(np.random.randn(n) * 0.3)
+        self.lows = self.closes - np.abs(np.random.randn(n) * 0.3)
+        self.vols = np.abs(np.random.randn(n) * 1000000 + 5000000)
+
+    def test_returns_list(self):
+        from engine import backtest_multifactor
+        dates = _mkdates(500)
+        trades = backtest_multifactor(dates, self.closes, self.highs, self.lows, self.vols)
+        self.assertIsInstance(trades, list)
+
+    def test_rsi_range(self):
+        from engine import calc_rsi
+        rsi = calc_rsi(self.closes)
+        valid = rsi[~np.isnan(rsi)]
+        self.assertTrue(np.all(valid >= 0))
+        self.assertTrue(np.all(valid <= 100))
+
+    def test_kdj_output(self):
+        from engine import calc_kdj
+        k, d, j = calc_kdj(self.highs, self.lows, self.closes)
+        self.assertEqual(len(k), len(self.closes))
+        self.assertTrue(not np.all(np.isnan(k[-50:])))
+
+    def test_bollinger_output(self):
+        from engine import calc_bollinger
+        upper, mid, lower = calc_bollinger(self.closes)
+        self.assertEqual(len(upper), len(self.closes))
+        valid = ~np.isnan(upper)
+        self.assertTrue(np.all(upper[valid] >= lower[valid]))
+
+    def test_wr_range(self):
+        from engine import calc_wr
+        wr = calc_wr(self.highs, self.lows, self.closes)
+        valid = wr[~np.isnan(wr)]
+        self.assertTrue(np.all(valid >= 0))
+        self.assertTrue(np.all(valid <= 100))

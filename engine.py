@@ -54,6 +54,187 @@ def calc_macd(closes, fast=12, slow=26, signal=9):
     bar = (dif - dea) * 2
     return dif, dea, bar
 
+
+# ═══════════════════════════
+# 多因子共振策略 — 激进指标
+# ═══════════════════════════
+def calc_rsi(closes, period=14):
+    """RSI 相对强弱指标 0-100"""
+    n = len(closes)
+    if n < period + 1:
+        return np.full(n, np.nan)
+    gains = np.maximum(np.diff(closes, prepend=closes[0]), 0)
+    losses = np.abs(np.minimum(np.diff(closes, prepend=closes[0]), 0))
+    rsi = np.full(n, np.nan)
+    avg_gain = np.mean(gains[1:period+1])
+    avg_loss = np.mean(losses[1:period+1])
+    if avg_loss == 0:
+        rsi[period] = 100
+    else:
+        rsi[period] = 100 - 100 / (1 + avg_gain / avg_loss)
+    for i in range(period + 1, n):
+        avg_gain = (avg_gain * (period - 1) + gains[i]) / period
+        avg_loss = (avg_loss * (period - 1) + losses[i]) / period
+        if avg_loss == 0:
+            rsi[i] = 100
+        else:
+            rsi[i] = 100 - 100 / (1 + avg_gain / avg_loss)
+    return rsi
+
+
+def calc_kdj(highs, lows, closes, n=9, m1=3, m2=3):
+    """KDJ 随机指标 返回 (k, d, j)"""
+    length = len(closes)
+    k, d, j = np.full(length, np.nan), np.full(length, np.nan), np.full(length, np.nan)
+    if length < n:
+        return k, d, j
+    for i in range(n - 1, length):
+        hh = np.max(highs[i-n+1:i+1])
+        ll = np.min(lows[i-n+1:i+1])
+        rsv = (closes[i] - ll) / (hh - ll) * 100 if hh != ll else 50
+        if i == n - 1:
+            k[i] = 50
+            d[i] = 50
+        else:
+            k[i] = rsv / m1 + k[i-1] * (m1 - 1) / m1
+            d[i] = k[i] / m2 + d[i-1] * (m2 - 1) / m2
+        j[i] = 3 * k[i] - 2 * d[i]
+    return k, d, j
+
+
+def calc_bollinger(closes, period=20, nbdev=2):
+    """布林带 返回 (upper, middle, lower)"""
+    n = len(closes)
+    upper = np.full(n, np.nan)
+    middle = np.full(n, np.nan)
+    lower = np.full(n, np.nan)
+    if n < period:
+        return upper, middle, lower
+    for i in range(period - 1, n):
+        window = closes[i-period+1:i+1]
+        middle[i] = np.mean(window)
+        std = np.std(window, ddof=0)
+        upper[i] = middle[i] + nbdev * std
+        lower[i] = middle[i] - nbdev * std
+    return upper, middle, lower
+
+
+def calc_wr(highs, lows, closes, period=10):
+    """威廉指标 WR 0-100，超卖>80，超买<20"""
+    n = len(closes)
+    wr = np.full(n, np.nan)
+    if n < period:
+        return wr
+    for i in range(period - 1, n):
+        hh = np.max(highs[i-period+1:i+1])
+        ll = np.min(lows[i-period+1:i+1])
+        wr[i] = (hh - closes[i]) / (hh - ll) * 100 if hh != ll else 50
+    return wr
+
+
+def backtest_multifactor(dates, closes, highs, lows, volumes):
+    """多因子共振回测：RSI + KDJ + Bollinger + WR + 量能确认
+    无冷却期，信号更频繁，偏向激进短线。
+    买入: score>=2 且无强空信号
+    卖出: score<=-2 或止损-6%
+    """
+    n = len(closes)
+    if n < 30:
+        return []
+
+    rsi = calc_rsi(closes)
+    k_line, d_line, j_line = calc_kdj(highs, lows, closes)
+    bb_upper, bb_mid, bb_lower = calc_bollinger(closes)
+    wr = calc_wr(highs, lows, closes)
+    ma20 = np.full(n, np.nan)
+    vol_ma20 = np.full(n, np.nan)
+    for i in range(19, n):
+        ma20[i] = np.mean(closes[i-19:i+1])
+        vol_ma20[i] = np.mean(volumes[i-19:i+1])
+
+    sigs = []
+    pos = None
+    for i in range(30, n):
+        if np.isnan(rsi[i]) or np.isnan(k_line[i]) or np.isnan(d_line[i]):
+            continue
+        if np.isnan(bb_upper[i]) or np.isnan(wr[i]):
+            continue
+
+        score = 0
+        # RSI: 超卖加分，超买减分
+        if rsi[i] < 25: score += 3
+        elif rsi[i] < 35: score += 2
+        elif rsi[i] < 45: score += 1
+        elif rsi[i] > 80: score -= 3
+        elif rsi[i] > 70: score -= 2
+        elif rsi[i] > 60: score -= 1
+        # KDJ
+        if k_line[i] > d_line[i] and k_line[i-1] <= d_line[i-1]:
+            score += 3 if k_line[i] < 50 else 2  # 金叉
+        elif k_line[i] < d_line[i] and k_line[i-1] >= d_line[i-1]:
+            score -= 3 if k_line[i] > 50 else 2  # 死叉
+        elif k_line[i] > d_line[i]: score += 1
+        else: score -= 1
+        # J值极端信号
+        if not np.isnan(j_line[i]):
+            if j_line[i] < 0: score += 2   # J<0 超卖
+            elif j_line[i] > 100: score -= 2  # J>100 超买
+        # Bollinger
+        if closes[i] < bb_lower[i]: score += 2  # 跌破下轨
+        elif closes[i] > bb_upper[i]: score -= 1  # 突破上轨
+        # WR
+        if wr[i] > 85: score += 2
+        elif wr[i] < 15: score -= 2
+        # 趋势 MA20
+        if not np.isnan(ma20[i]):
+            if closes[i] > ma20[i]: score += 1
+            else: score -= 1
+        # 量能加分
+        vol_strong = not np.isnan(vol_ma20[i]) and volumes[i] > vol_ma20[i] * 1.3
+
+        if pos is None:
+            # 买入：score>=2 且不在超买区（RSI<75）
+            if score >= 2 and rsi[i] < 75:
+                sigs.append({'date': dates[i], 'idx': i, 'action': 'buy',
+                             'price': closes[i],
+                             'reason': f'多因子共振(score{score:+d}/RSI{int(rsi[i])}/KDJ{int(k_line[i])}/{int(d_line[i])})'})
+                pos = i
+        else:
+            pnl = (closes[i] - closes[pos]) / closes[pos] * 100
+            # 卖出：空头信号强，或获利回吐，或止损
+            sell = False
+            reason = ''
+            if score <= -3:
+                sell = True; reason = f'强空信号(score{score:+d})'
+            elif pnl > 8 and score <= -1:
+                sell = True; reason = f'获利回吐+{pnl:.1f}%'
+            elif pnl < -6:
+                sell = True; reason = f'止损{pnl:.1f}%'
+            elif pnl > 15:
+                sell = True; reason = f'止盈+{pnl:.1f}%'
+
+            if sell:
+                sigs.append({'date': dates[i], 'idx': i, 'action': 'sell',
+                             'price': closes[i], 'reason': reason})
+                pos = None
+
+    sigs.sort(key=lambda x: x['idx'])
+    trades, pos_state = [], None
+    for s in sigs:
+        if s['action'] == 'buy' and pos_state is None:
+            pos_state = {'bd': s['date'], 'bp': s['price'], 'bi': s['idx'], 'br': s['reason']}
+        elif s['action'] == 'sell' and pos_state is not None:
+            pct = (s['price'] - pos_state['bp']) / pos_state['bp'] * 100
+            trades.append({
+                'buy_date': pos_state['bd'], 'sell_date': s['date'],
+                'buy_price': pos_state['bp'], 'sell_price': s['price'],
+                'profit_pct': pct, 'buy_reason': pos_state['br'],
+                'sell_reason': s['reason'], 'hold_days': s['idx'] - pos_state['bi']
+            })
+            pos_state = None
+    return trades
+
+
 # ═══════════════════════════
 # 背离 + 牛熊
 # ═══════════════════════════

@@ -12,7 +12,7 @@ ROOT = os.path.dirname(os.path.abspath(__file__))
 # ── 导入数据层和引擎 ──
 from fetcher import fetch_kline, get_name, fetch_dividends, enrich_trades_with_dividends
 from db import save_stock_name
-from engine import calc_macd, detect_regime, find_divergences, backtest, predict
+from engine import calc_macd, detect_regime, find_divergences, backtest, predict, backtest_multifactor
 
 import numpy as np
 import matplotlib
@@ -140,6 +140,8 @@ class Handler(BaseHTTPRequestHandler):
             try:
                 if strategy == 'buyhold':
                     html = self.run_buyhold_analysis(code, calc_dividend)
+                elif strategy == 'multi':
+                    html = self.run_multifactor_analysis(code, calc_dividend)
                 else:
                     html = self.run_analysis(code, holding, calc_dividend)
                 self.send_response(200); self.send_header('Content-type','text/html; charset=utf-8'); self.end_headers()
@@ -360,6 +362,100 @@ class Handler(BaseHTTPRequestHandler):
           {dividend_history}
           <img src="data:image/png;base64,{img_b64}" alt="BuyHold Chart" loading="lazy">
         </div>"""
+
+    def run_multifactor_analysis(self, code, calc_dividend=False):
+        """多因子共振策略：RSI + KDJ + Bollinger + WR"""
+        data = fetch_kline(code)
+        name = get_name(code)
+        save_stock_name(code, name)
+        dates = [d['day'] for d in data]
+        closes = np.array([float(d['close']) for d in data])
+        highs = np.array([float(d['high']) for d in data])
+        lows = np.array([float(d['low']) for d in data])
+        vols = np.array([float(d['volume']) for d in data])
+
+        trades = backtest_multifactor(dates, closes, highs, lows, vols)
+        dividends = []
+        if calc_dividend:
+            dividends = fetch_dividends(code)
+            if dividends:
+                trades = enrich_trades_with_dividends(trades, dividends)
+
+        wins = [t for t in trades if t['profit_pct'] > 0]
+        total_pnl = sum(t['profit_pct'] for t in trades) if trades else 0
+        d0 = datetime.strptime(dates[0], '%Y-%m-%d').date()
+        d1 = datetime.strptime(dates[-1], '%Y-%m-%d').date()
+        years = max((d1 - d0).days / 365.25, 0.01)
+
+        overview = f"""
+        <table class="overview">
+          <tr><th colspan="2">{name} ({code}) — 多因子共振</th></tr>
+          <tr><td>数据范围</td><td>{dates[0]} ~ {dates[-1]}（{years:.1f}年）</td></tr>
+          <tr><td>K线数量</td><td>{len(data)} 根</td></tr>
+          <tr><td>回测交易</td><td>{len(trades)} 笔 · 胜率 {len(wins)/len(trades)*100:.0f}%</td></tr>"""
+        if calc_dividend and dividends:
+            total_div_pct = sum(t.get('dividend_yield_pct', 0) for t in trades)
+            total_div_cash = sum(t.get('dividend_total', 0) for t in trades)
+            total_return = total_pnl + total_div_pct
+            overview += f"""
+          <tr style="background:#e8f5e9"><td>价差收益</td><td style="font-weight:bold">{total_pnl:+.1f}%</td></tr>
+          <tr style="background:#e8f5e9"><td>分红收益</td><td style="font-weight:bold">{total_div_cash:.2f}元/股（{total_div_pct:+.1f}%）</td></tr>
+          <tr style="background:#c8e6c9"><td>总收益</td><td style="font-weight:bold;font-size:1.1em">{total_return:+.1f}%</td></tr>"""
+        else:
+            overview += f"""
+          <tr style="background:#c8e6c9"><td>总收益</td><td style="font-weight:bold;font-size:1.1em">{total_pnl:+.1f}%</td></tr>"""
+        overview += """
+        </table>"""
+
+        trade_rows = ''
+        show_div = calc_dividend and dividends and any(t.get('dividend_total', 0) > 0 for t in trades)
+        for t in trades:
+            tr_class = 'win' if t['profit_pct'] > 0 else 'loss'
+            if show_div:
+                div_total = t.get('dividend_total', 0)
+                div_cell = f'<td>{div_total:.2f}元/股</td><td class="pnl">{t["total_return_pct"]:+.1f}%</td>' if div_total > 0 else f'<td>-</td><td class="pnl">{t["profit_pct"]:+.1f}%</td>'
+                trade_rows += f'<tr class="{tr_class}"><td>{t["buy_date"]}</td><td>{t["sell_date"]}</td><td>{t["buy_price"]:.2f}</td><td>{t["sell_price"]:.2f}</td><td class="pnl">{t["profit_pct"]:+.1f}%</td>{div_cell}<td>{t["hold_days"]}天</td><td class="reason">{t["buy_reason"]}→{t["sell_reason"]}</td></tr>'
+            else:
+                trade_rows += f'<tr class="{tr_class}"><td>{t["buy_date"]}</td><td>{t["sell_date"]}</td><td>{t["buy_price"]:.2f}</td><td>{t["sell_price"]:.2f}</td><td class="pnl">{t["profit_pct"]:+.1f}%</td><td>{t["hold_days"]}天</td><td class="reason">{t["buy_reason"]}→{t["sell_reason"]}</td></tr>'
+
+        div_header = '<th>分红</th><th>总收益</th>' if show_div else ''
+        trade_table = f"""
+        <h3>📈 多因子共振交易</h3>
+        <table class="trades">
+          <tr><th>买入日</th><th>卖出日</th><th>买入价</th><th>卖出价</th><th>价差</th>{div_header}<th>持仓</th><th>触发</th></tr>
+          {trade_rows}
+        </table>""" if trades else '<p>无交易信号</p>'
+
+        # 分红历史
+        dividend_history = ''
+        if calc_dividend and dividends:
+            recent_divs = [d for d in dividends if d.get('ex_date', '') >= dates[0]]
+            if recent_divs:
+                yr_prices = {}
+                for y in set(d['ex_date'][:4] for d in recent_divs):
+                    yr_closes = [float(dd['close']) for dd in data if dd['day'][:4] == y]
+                    yr_prices[y] = np.mean(yr_closes) if yr_closes else closes[-1]
+                div_rows = ''
+                for d in recent_divs:
+                    y = d['ex_date'][:4]
+                    yr_yield = d['dividend_per_share'] / yr_prices.get(y, closes[-1]) * 100
+                    div_rows += f'<tr><td>{y}</td><td>{d["ex_date"]}</td><td>10派{d["dividend_10"]:.1f}元</td><td>{yr_yield:.1f}%</td></tr>'
+                dividend_history = f"""
+        <h3>💰 分红历史</h3>
+        <table class="trades">
+          <tr><th>年份</th><th>除权日</th><th>方案</th><th>股息率</th></tr>
+          {div_rows}
+        </table>"""
+
+        return f"""
+        <div class="result">
+          {overview}
+          {dividend_history}
+          {trade_table}
+        </div>"""
+
+    def log_message(self, format, *args):
+        print(f"[{datetime.now().strftime('%H:%M:%S')}] {args[0]}", flush=True)
 
     def make_pred_table(self, pred_lines):
         html = '<table class="overview"><tr><th colspan="2">🔮 预测分析</th></tr>'
