@@ -56,6 +56,652 @@ def calc_macd(closes, fast=12, slow=26, signal=9):
 
 
 # ═══════════════════════════
+# 经典形态检测
+# ═══════════════════════════
+def detect_classic_patterns(closes, highs, lows, lookback=250):
+    """检测经典技术形态，返回 (patterns, score_adjustment)"""
+    n = len(closes)
+    if n < 60:
+        return [], 0
+    
+    patterns = []
+    total_adj = 0
+    
+    # ── 局部极值查找 ──
+    def find_peaks(arr, min_dist=10):
+        peaks = []
+        for i in range(min_dist, len(arr) - min_dist):
+            if arr[i] == max(arr[i-min_dist:i+min_dist+1]):
+                peaks.append(i)
+        # deduplicate nearby peaks, keep highest
+        merged = []
+        for p in peaks:
+            if not merged or p - merged[-1] > min_dist * 2:
+                merged.append(p)
+            elif arr[p] > arr[merged[-1]]:
+                merged[-1] = p
+        return merged
+    
+    def find_valleys(arr, min_dist=10):
+        valleys = []
+        for i in range(min_dist, len(arr) - min_dist):
+            if arr[i] == min(arr[i-min_dist:i+min_dist+1]):
+                valleys.append(i)
+        merged = []
+        for v in valleys:
+            if not merged or v - merged[-1] > min_dist * 2:
+                merged.append(v)
+            elif arr[v] < arr[merged[-1]]:
+                merged[-1] = v
+        return merged
+    
+    peaks = find_peaks(closes)
+    valleys = find_valleys(closes)
+    
+    # ── M顶检测 ──
+    if len(peaks) >= 2:
+        p1, p2 = peaks[-2], peaks[-1]
+        peak_diff_pct = abs(closes[p1] - closes[p2]) / max(closes[p1], closes[p2]) * 100
+        if peak_diff_pct < 5 and p2 - p1 >= 20:
+            between = closes[p1:p2+1]
+            neckline = np.min(between)
+            drawdown = (max(closes[p1], closes[p2]) - neckline) / max(closes[p1], closes[p2]) * 100
+            if drawdown > 3:
+                neckline_broken = closes[-1] < neckline
+                score = -25 if neckline_broken else -15
+                patterns.append({
+                    'type': '双头(M顶)', 'peaks': [p1, p2],
+                    'peak_price': round(max(closes[p1], closes[p2]), 2),
+                    'neckline': round(neckline, 2),
+                    'neckline_broken': neckline_broken, 'score': score
+                })
+                total_adj += score
+    
+    # ── 头肩顶检测 ──
+    if len(peaks) >= 3:
+        p_left, p_head, p_right = peaks[-3], peaks[-2], peaks[-1]
+        head_higher = closes[p_head] > closes[p_left] and closes[p_head] > closes[p_right]
+        shoulders_similar = abs(closes[p_left] - closes[p_right]) / max(closes[p_left], closes[p_right]) * 100 < 8
+        if head_higher and shoulders_similar:
+            left_valley = min(closes[p_left:p_head+1]) if p_left < p_head else closes[p_left]
+            right_valley = min(closes[p_head:p_right+1]) if p_head < p_right else closes[p_head]
+            neckline = min(left_valley, right_valley)
+            neckline_broken = closes[-1] < neckline
+            score = -30 if neckline_broken else -20
+            patterns.append({
+                'type': '头肩顶', 'left_shoulder': p_left, 'head': p_head, 'right_shoulder': p_right,
+                'head_price': round(closes[p_head], 2),
+                'shoulder_price': round((closes[p_left] + closes[p_right]) / 2, 2),
+                'neckline': round(neckline, 2),
+                'neckline_broken': neckline_broken, 'score': score
+            })
+            total_adj += score
+    
+    # ── K线形态: 晨星 / 看涨吞没 / 三白兵 / 看跌吞没 ──
+    if n >= 3:
+        o = np.array([float('nan')] * n)
+        c = closes
+        h = highs
+        l = lows
+        for i in range(1, n):
+            o[i] = (closes[i] + closes[i-1]) / 2  # approximate open
+        
+        # 三白兵 (last 3 days)
+        if n >= 4:
+            up3 = all(closes[-i] > closes[-i-1] for i in [1, 2, 3])
+            if up3:
+                patterns.append({'signals': ['三白兵'], 'score': 15})
+                total_adj += 15
+        
+        # 晨星
+        if n >= 3:
+            day1_bear = closes[-3] < closes[-4] if n >= 4 else True
+            day2_small = abs(closes[-2] - closes[-3]) / closes[-3] < 0.02
+            day3_bull = closes[-1] > closes[-2] and closes[-1] > closes[-3]
+            if day1_bear and day2_small and day3_bull:
+                patterns.append({'signals': ['晨星'], 'score': 15})
+                total_adj += 15
+        
+        # 看跌吞没
+        if n >= 3:
+            prev_up = closes[-3] < closes[-2] if n >= 3 else False
+            curr_bear = closes[-1] < closes[-2] * 0.98
+            if prev_up and curr_bear:
+                patterns.append({'signals': ['看跌吞没'], 'score': -15})
+                total_adj -= 15
+    
+    return patterns, total_adj
+
+
+def calc_obv(closes, volumes):
+    """OBV 能量潮"""
+    n = len(closes)
+    obv = np.zeros(n)
+    obv[0] = volumes[0]
+    for i in range(1, n):
+        if closes[i] > closes[i-1]:
+            obv[i] = obv[i-1] + volumes[i]
+        elif closes[i] < closes[i-1]:
+            obv[i] = obv[i-1] - volumes[i]
+        else:
+            obv[i] = obv[i-1]
+    return obv
+
+
+def calc_atr(highs, lows, closes, period=14):
+    """ATR 平均真实波幅"""
+    n = len(closes)
+    tr = np.full(n, np.nan)
+    for i in range(1, n):
+        tr[i] = max(highs[i]-lows[i], abs(highs[i]-closes[i-1]), abs(lows[i]-closes[i-1]))
+    atr = np.full(n, np.nan)
+    if n >= period:
+        atr[period-1] = np.nanmean(tr[1:period])
+        for i in range(period, n):
+            atr[i] = (atr[i-1] * (period - 1) + tr[i]) / period
+    return atr
+
+
+# ═══════════════════════════
+# 三合资本综合策略 — 三面量化
+# ═══════════════════════════
+def score_technical(closes, highs, lows, volumes):
+    """技术面评分 0-100 (权重 30%)"""
+    n = len(closes)
+    if n < 30:
+        return 50, {}, []
+    
+    dif, dea, bar = calc_macd(closes)
+    rsi = calc_rsi(closes)
+    k_line, d_line, j_line = calc_kdj(highs, lows, closes)
+    bb_upper, bb_mid, bb_lower = calc_bollinger(closes)
+    wr = calc_wr(highs, lows, closes)
+    atr = calc_atr(highs, lows, closes)
+    obv = calc_obv(closes, volumes)
+    
+    i = n - 1
+    while i >= 0 and np.isnan(dif[i]): i -= 1
+    if i < 30: return 50, {}, []
+    
+    patterns, pattern_adj = detect_classic_patterns(closes, highs, lows)
+    
+    dimensions = {}
+    
+    # ── 趋势 (25%) ──
+    ma60 = np.mean(closes[-60:]) if n >= 60 else np.mean(closes)
+    ma20 = np.mean(closes[-20:]) if n >= 20 else np.mean(closes)
+    ma10 = np.mean(closes[-10:]) if n >= 10 else np.mean(closes)
+    trend_score = 50
+    if closes[i] > ma60: trend_score += 15
+    if ma10 > ma20 > ma60: trend_score += 20
+    elif ma10 > ma20: trend_score += 10
+    
+    # MACD
+    macd_score = 50
+    if dif[i] > dea[i]: macd_score += 15
+    if dif[i] > 0: macd_score += 15
+    if i >= 5 and dif[i] > dif[i-5]: macd_score += 10
+    if bar[i] > 0 and i >= 3 and bar[i] > bar[i-3]: macd_score += 10
+    dimensions['趋势'] = round(trend_score * 0.5 + macd_score * 0.5, 1)
+    
+    # ── 动量 (20%) ──
+    # RSI
+    rsi_val = rsi[i] if not np.isnan(rsi[i]) else 50
+    rsi_score = 50
+    if 30 <= rsi_val <= 70: rsi_score += 20  # healthy range
+    elif rsi_val < 30: rsi_score += 15  # oversold, potential reversal
+    elif rsi_val > 70: rsi_score -= 15  # overbought
+    
+    # KDJ
+    kdj_score = 50
+    kd_golden = k_line[i] > d_line[i]
+    if kd_golden: kdj_score += 20
+    elif k_line[i] < d_line[i]: kdj_score -= 15
+    if not np.isnan(j_line[i]):
+        if j_line[i] < 0: kdj_score += 15
+        elif j_line[i] > 100: kdj_score -= 15
+    
+    # WR
+    wr_val = wr[i] if not np.isnan(wr[i]) else 50
+    wr_score = 50
+    if wr_val > 80: wr_score += 15
+    elif wr_val < 20: wr_score -= 15
+    
+    dimensions['动量'] = round(rsi_score * 0.4 + kdj_score * 0.35 + wr_score * 0.25, 1)
+    
+    # ── 量能 (20%) ──
+    # 量比
+    vol_ma20 = np.mean(volumes[-21:-1]) if n >= 21 else np.mean(volumes)
+    vol_ratio = volumes[i] / vol_ma20 if vol_ma20 > 0 else 1
+    vol_score = 50
+    if 1.0 <= vol_ratio <= 2.0: vol_score += 15
+    elif vol_ratio > 2.0: vol_score += 10
+    elif vol_ratio < 0.5: vol_score -= 10
+    
+    # OBV
+    obv_ma20 = np.mean(obv[-21:-1]) if n >= 21 else np.mean(obv)
+    obv_trend = obv[i] > obv_ma20
+    obv_score = 50
+    if obv_trend: obv_score += 25
+    else: obv_score -= 15
+    
+    # 换手率代理：成交量相对变化
+    turnover_score = 50
+    if vol_ratio > 1.5: turnover_score += 10
+    elif vol_ratio < 0.7: turnover_score -= 10
+    
+    dimensions['量能'] = round(vol_score * 0.4 + obv_score * 0.35 + turnover_score * 0.25, 1)
+    
+    # ── 通道/波动 (15%) ──
+    bb_pos = (closes[i] - bb_lower[i]) / (bb_upper[i] - bb_lower[i]) * 100 if not np.isnan(bb_upper[i]) and bb_upper[i] != bb_lower[i] else 50
+    bb_score = 50
+    if 20 <= bb_pos <= 80: bb_score += 15
+    elif bb_pos < 5: bb_score += 20  # bottom reversal
+    elif bb_pos > 95: bb_score -= 15  # top
+    
+    atr_val = atr[i] if not np.isnan(atr[i]) else 0
+    atr_ratio = atr_val / closes[i] * 100
+    atr_score = 50
+    if 1.5 <= atr_ratio <= 4: atr_score += 15
+    
+    dimensions['通道/波动'] = round(bb_score * 0.6 + atr_score * 0.4, 1)
+    
+    # ── 形态/结构 (10%) ──
+    pattern_score = 50 + pattern_adj
+    pattern_score = max(10, min(100, pattern_score))
+    
+    # 斐波那契
+    if n >= 60:
+        high_60 = np.max(highs[-60:])
+        low_60 = np.min(lows[-60:])
+        fib_382 = low_60 + (high_60 - low_60) * 0.382
+        fib_618 = low_60 + (high_60 - low_60) * 0.618
+        fib_score = 50
+        if closes[i] > fib_618: fib_score += 10
+        elif closes[i] < fib_382: fib_score -= 10
+    else:
+        fib_score = 50
+    
+    dimensions['形态/结构'] = round(pattern_score * 0.6 + fib_score * 0.4, 1)
+    
+    # ── 筹码 (10%) — 用MA位置代理 ──
+    chip_score = 50
+    if closes[i] > ma20: chip_score += 15
+    if closes[i] > ma60: chip_score += 10
+    if closes[i] < ma60: chip_score -= 15
+    dimensions['筹码'] = round(chip_score, 1)
+    
+    # 加权总分
+    weights = {'趋势': 0.25, '动量': 0.20, '量能': 0.20, '通道/波动': 0.15, '形态/结构': 0.10, '筹码': 0.10}
+    total = sum(dimensions[k] * weights[k] for k in weights)
+    
+    return total, dimensions, patterns
+
+
+def score_game_theory(closes, volumes, highs, lows):
+    """博弈面评分 0-100 (权重 45%) — 量价关系 + 资金流向代理"""
+    n = len(closes)
+    if n < 30:
+        return 50, {}
+    
+    obv = calc_obv(closes, volumes)
+    dimensions = {}
+    
+    # ── OBV背离检测 ──
+    i = n - 1
+    obv_ma5 = np.mean(obv[-5:])
+    obv_ma20 = np.mean(obv[-20:])
+    obv_div_score = 50
+    if obv_ma5 > obv_ma20 * 1.05: obv_div_score += 20  # OBV上行
+    elif obv_ma5 < obv_ma20 * 0.95: obv_div_score -= 20  # OBV下行
+    
+    # 量价背离: 价格涨OBV不跟
+    price_5d = closes[i] - closes[max(0, i-5)]
+    obv_5d_chg = obv[i] - obv[max(0, i-5)]
+    if price_5d > 0 and obv_5d_chg < 0: obv_div_score -= 25  # 量价背离
+    elif price_5d < 0 and obv_5d_chg > 0: obv_div_score += 20  # 底部吸筹
+    
+    dimensions['OBV背离'] = round(obv_div_score, 1)
+    
+    # ── 量价关系 ──
+    vol_price_score = 50
+    # 近5日量价趋势
+    for j in range(max(0, i-4), i+1):
+        if closes[j] > closes[j-1] and volumes[j] > volumes[j-1] * 1.2:
+            vol_price_score += 5  # 放量上涨
+        elif closes[j] < closes[j-1] and volumes[j] > volumes[j-1] * 1.2:
+            vol_price_score -= 8  # 放量下跌
+    vol_price_score = max(10, min(100, vol_price_score))
+    dimensions['量价关系'] = round(vol_price_score, 1)
+    
+    # ── 主力资金趋势代理 ──
+    # 用大成交量日的净方向判断
+    vol_threshold = np.percentile(volumes[-60:], 70) if n >= 60 else np.mean(volumes)
+    big_vol_days = []
+    for j in range(max(0, i-20), i+1):
+        if volumes[j] > vol_threshold:
+            big_vol_days.append(closes[j] > closes[j-1])  # True = 净买入
+    
+    fund_score = 50
+    if big_vol_days:
+        buy_ratio = sum(big_vol_days) / len(big_vol_days)
+        if buy_ratio > 0.6: fund_score += 20
+        elif buy_ratio > 0.5: fund_score += 10
+        elif buy_ratio < 0.4: fund_score -= 15
+    
+    # 近5日净方向
+    net_dir = sum(1 for j in range(max(0, i-4), i+1) if closes[j] > closes[j-1])
+    if net_dir >= 4: fund_score += 10
+    elif net_dir <= 1: fund_score -= 10
+    
+    dimensions['资金趋势'] = round(fund_score, 1)
+    
+    # ── 板块/催化剂代理 ──
+    # 用近期波动率判断是否有事件驱动
+    recent_volatility = np.std([(closes[j] - closes[j-1]) / closes[j-1] for j in range(max(1, i-10), i+1)]) * 100
+    catalyst_score = 50
+    if 2 <= recent_volatility <= 5: catalyst_score += 15
+    elif recent_volatility > 5: catalyst_score += 25  # 高波动=有催化剂
+    dimensions['事件驱动'] = round(catalyst_score, 1)
+    
+    # 加权
+    weights = {'OBV背离': 0.30, '量价关系': 0.25, '资金趋势': 0.30, '事件驱动': 0.15}
+    total = sum(dimensions[k] * weights[k] for k in weights)
+    
+    return total, dimensions
+
+
+def score_fundamental(closes, volumes, code=None):
+    """基本面评分 0-100 (权重 25%) — 基于可计算指标 + PE代理"""
+    n = len(closes)
+    if n < 60:
+        return 50, {}
+    
+    dimensions = {}
+    i = n - 1
+    
+    # ── PE代理：通过股价相对历史位置判断估值 ──
+    high_250 = np.max(closes[-250:]) if n >= 250 else np.max(closes)
+    low_250 = np.min(closes[-250:]) if n >= 250 else np.min(closes)
+    price_position = (closes[i] - low_250) / (high_250 - low_250) * 100 if high_250 != low_250 else 50
+    
+    pe_score = 50
+    if price_position < 20: pe_score += 25  # 估值低位
+    elif price_position < 40: pe_score += 15
+    elif price_position > 80: pe_score -= 20  # 估值高位
+    elif price_position > 60: pe_score -= 10
+    dimensions['估值位置'] = round(pe_score, 1)
+    
+    # ── 营收增长代理：近一年价格趋势 ──
+    if n >= 250:
+        yoy_change = (closes[i] - closes[i-250]) / closes[i-250] * 100
+        growth_score = 50
+        if yoy_change > 30: growth_score += 25
+        elif yoy_change > 15: growth_score += 15
+        elif yoy_change > 0: growth_score += 5
+        elif yoy_change > -15: growth_score -= 10
+        else: growth_score -= 20
+    else:
+        growth_score = 50
+    dimensions['增长趋势'] = round(growth_score, 1)
+    
+    # ── ROE代理：近期盈利能力(涨跌幅) ──
+    if n >= 60:
+        q_change = (closes[i] - closes[i-60]) / closes[i-60] * 100
+        roe_score = 50
+        if q_change > 20: roe_score += 25
+        elif q_change > 10: roe_score += 15
+        elif q_change > 0: roe_score += 5
+        elif q_change > -10: roe_score -= 5
+        else: roe_score -= 15
+    
+        # 稳定性加分
+        returns = [(closes[j] - closes[j-1]) / closes[j-1] for j in range(i-59, i+1)]
+        positive_days = sum(1 for r in returns if r > 0)
+        if positive_days > 35: roe_score += 10
+    else:
+        roe_score = 50
+    dimensions['盈利质量'] = round(roe_score, 1)
+    
+    weights = {'估值位置': 0.40, '增长趋势': 0.30, '盈利质量': 0.30}
+    total = sum(dimensions[k] * weights[k] for k in weights)
+    
+    return total, dimensions
+
+
+def backtest_comprehensive(dates, closes, highs, lows, volumes):
+    """综合策略回测：三面加权评分 + 质量门禁（优化版：预计算指标）"""
+    n = len(closes)
+    if n < 60:
+        return []
+
+    # ── 预计算所有需要的指标 ──
+    dif, dea, bar = calc_macd(closes)
+    rsi = calc_rsi(closes)
+    k_line, d_line, j_line = calc_kdj(highs, lows, closes)
+    bb_upper, bb_mid, bb_lower = calc_bollinger(closes)
+    wr = calc_wr(highs, lows, closes)
+    obv_full = calc_obv(closes, volumes)
+    atr = calc_atr(highs, lows, closes)
+
+    # 预计算 MA
+    ma10 = np.full(n, np.nan); ma20 = np.full(n, np.nan); ma60 = np.full(n, np.nan)
+    for i in range(n):
+        if i >= 9: ma10[i] = np.mean(closes[i-9:i+1])
+        if i >= 19: ma20[i] = np.mean(closes[i-19:i+1])
+        if i >= 59: ma60[i] = np.mean(closes[i-59:i+1])
+
+    trades = []
+    pos = None
+
+    for i in range(60, n):
+        if np.isnan(dif[i]):
+            continue
+
+        # ── 从预计算的数组中取当前切片值 ──
+        obv_ma20_val = np.mean(obv_full[max(0,i-20):i]) if i >= 20 else np.mean(obv_full[:i])
+        obv_ratio = obv_full[i] / obv_ma20_val if obv_ma20_val > 0 else 1
+        gate_pass = obv_ratio >= 0.95
+        rsi_val = rsi[i] if not np.isnan(rsi[i]) else 50
+
+        # 快速技术面评分（基于预计算指标）
+        tech_fast = 50
+        if not np.isnan(ma60[i]) and closes[i] > ma60[i]: tech_fast += 15
+        if not np.isnan(ma10[i]) and not np.isnan(ma20[i]) and not np.isnan(ma60[i])\
+           and ma10[i] > ma20[i] > ma60[i]: tech_fast += 20
+        if dif[i] > dea[i]: tech_fast += 15
+        if dif[i] > 0: tech_fast += 10
+        if i >= 5 and dif[i] > dif[i-5]: tech_fast += 5
+        if rsi_val > 70: tech_fast -= 10
+        if not np.isnan(k_line[i]) and k_line[i] > d_line[i]: tech_fast += 10
+        if rsi_val < 30: tech_fast += 5
+
+        # 快速博弈面评分（基于预计算指标）
+        game_fast = 50
+        obv_ma5 = np.mean(obv_full[max(0,i-4):i+1])
+        if obv_ma5 > obv_ma20_val * 1.05: game_fast += 15
+        elif obv_ma5 < obv_ma20_val * 0.95: game_fast -= 15
+        chg_5d = closes[i] - closes[max(0,i-5)]
+        obv_5d_chg = obv_full[i] - obv_full[max(0,i-5)]
+        if chg_5d > 0 and obv_5d_chg < 0: game_fast -= 20
+        elif chg_5d < 0 and obv_5d_chg > 0: game_fast += 15
+        # 资金趋势
+        net_dir = sum(1 for j in range(max(1,i-4), i+1) if closes[j] > closes[j-1])
+        if net_dir >= 4: game_fast += 10
+        elif net_dir <= 1: game_fast -= 10
+
+        # 快速基本面评分
+        fund_fast = 50
+        if n >= 250:
+            high_250 = np.max(closes[max(0,i-249):i+1])
+            low_250 = np.min(closes[max(0,i-249):i+1])
+            pos_250 = (closes[i] - low_250) / (high_250 - low_250) * 100 if high_250 != low_250 else 50
+            if pos_250 < 30: fund_fast += 15
+            elif pos_250 > 70: fund_fast -= 10
+
+        composite = tech_fast * 0.30 + game_fast * 0.45 + fund_fast * 0.25
+
+        if pos is None:
+            if composite >= 65 and gate_pass and rsi_val < 85:
+                pos = {
+                    'bd': dates[i], 'bp': closes[i], 'bi': i,
+                    'tech': round(tech_fast, 1), 'game': round(game_fast, 1),
+                    'fund': round(fund_fast, 1), 'comp': round(composite, 1)
+                }
+        else:
+            pnl = (closes[i] - pos['bp']) / pos['bp'] * 100
+            sell = False
+            reason = ''
+            if pnl < -8:
+                sell = True; reason = f'止损{pnl:.1f}%'
+            elif pnl > 20:
+                sell = True; reason = f'止盈+{pnl:.1f}%'
+            elif composite < 35:
+                sell = True; reason = f'综合分{composite:.0f}<35'
+            elif pnl > 10 and composite < 45:
+                sell = True; reason = f'获利回吐+{pnl:.1f}%'
+
+            if sell:
+                days = i - pos['bi']
+                trades.append({
+                    'buy_date': pos['bd'], 'sell_date': dates[i],
+                    'buy_price': pos['bp'], 'sell_price': closes[i],
+                    'profit_pct': round(pnl, 2), 'hold_days': days,
+                    'buy_reason': f'综合{pos["comp"]:.0f}(技{pos["tech"]:.0f}/博{pos["game"]:.0f}/基{pos["fund"]:.0f})',
+                    'sell_reason': reason
+                })
+                pos = None
+
+    return trades
+
+
+def predict_comprehensive(dates, closes, highs, lows, volumes, holding=False):
+    """综合策略当前状态预测"""
+    n = len(closes)
+    if n < 60:
+        return ["数据不足，需要至少60根K线"]
+    
+    tech_score, tech_dim, patterns = score_technical(closes, highs, lows, volumes)
+    game_score, game_dim = score_game_theory(closes, volumes, highs, lows)
+    fund_score, fund_dim = score_fundamental(closes, volumes)
+    
+    composite = tech_score * 0.30 + game_score * 0.45 + fund_score * 0.25
+    
+    # 质量门禁
+    obv = calc_obv(closes, volumes)
+    obv_ma20 = np.mean(obv[-21:-1]) if n >= 21 else np.mean(obv)
+    obv_ratio = obv[-1] / obv_ma20 if obv_ma20 > 0 else 1
+    gate_obv = obv_ratio >= 0.95
+    
+    rsi = calc_rsi(closes)
+    rsi_val = rsi[-1] if not np.isnan(rsi[-1]) else 50
+    
+    dif, dea, bar = calc_macd(closes)
+    i = n - 1
+    
+    lines = []
+    lines.append(f"{'='*50}")
+    lines.append(f"  三合资本 · 综合策略 — {dates[-1]}")
+    lines.append(f"{'='*50}")
+    
+    lines.append(f"\n── 📊 三面评分 ──")
+    lines.append(f"  技术面 (30%): {tech_score:.1f} 分")
+    for k, v in tech_dim.items():
+        lines.append(f"    · {k}: {v:.1f}")
+    lines.append(f"  博弈面 (45%): {game_score:.1f} 分")
+    for k, v in game_dim.items():
+        lines.append(f"    · {k}: {v:.1f}")
+    lines.append(f"  基本面 (25%): {fund_score:.1f} 分")
+    for k, v in fund_dim.items():
+        lines.append(f"    · {k}: {v:.1f}")
+    
+    lines.append(f"\n── 🎯 综合判断 ──")
+    lines.append(f"  加权总分: {composite:.1f} (技{tech_score:.0f}×0.30 + 博{game_score:.0f}×0.45 + 基{fund_score:.0f}×0.25)")
+    
+    # 质量门禁
+    gates = []
+    if not gate_obv:
+        gates.append(f'🔴 OBV背离(比值{obv_ratio:.2f}<0.95) → 否决')
+    if rsi_val > 95:
+        gates.append(f'🟡 RSI超买({rsi_val:.0f}>95) → 降级')
+    if tech_score < 55 and game_score < 55:
+        gates.append(f'🟡 双维度<55 → 降级')
+    
+    if gates:
+        lines.append(f"\n── ⚠️ 质量门禁 ──")
+        for g in gates:
+            lines.append(f"  {g}")
+    
+    # 冲突裁决
+    lines.append(f"\n── ⚖️ 冲突裁决 (博弈>技术>基本面) ──")
+    if game_score >= 60:
+        lines.append(f"  博弈面主导({game_score:.0f}≥60) → 偏多方向")
+    elif game_score <= 40:
+        lines.append(f"  博弈面主导({game_score:.0f}≤40) → 偏空方向")
+    elif tech_score >= 60:
+        lines.append(f"  技术面主导({tech_score:.0f}≥60) → 技术偏多")
+    elif tech_score <= 40:
+        lines.append(f"  技术面主导({tech_score:.0f}≤40) → 技术偏空")
+    else:
+        lines.append(f"  三面中性 → 观望")
+    
+    # 信号
+    if composite >= 70 and gate_obv:
+        signal = '🟢 强烈看多'
+        action = '增持' if holding else '买入'
+    elif composite >= 60 and gate_obv:
+        signal = '🟢 偏多'
+        action = '拿住' if holding else '买入'
+    elif composite >= 45:
+        signal = '🟡 中性'
+        action = '减持' if holding else '观望'
+    elif composite >= 35:
+        signal = '🟠 偏空'
+        action = '减持' if holding else '不买'
+    else:
+        signal = '🔴 看空'
+        action = '卖出' if holding else '不买'
+    
+    # 门禁覆盖
+    if not gate_obv and action in ('买入', '增持', '拿住'):
+        action = '观望 (OBV背离否决)'
+        signal = '🔴 OBV否决'
+    
+    lines.append(f"\n  信号: {signal}  |  建议: {action}")
+    
+    # 经典形态
+    if patterns:
+        lines.append(f"\n── 📐 经典形态 ──")
+        for p in patterns[:5]:
+            if 'type' in p:
+                status = '⛔颈线已破' if p.get('neckline_broken') else '未破颈线'
+                lines.append(f"  {p['type']}: 评分{p['score']:+d}  {status}")
+            elif 'signals' in p:
+                lines.append(f"  {', '.join(p['signals'])}: 评分{p['score']:+d}")
+    
+    # 关键位
+    lines.append(f"\n── 📍 关键位 ──")
+    ma20 = np.mean(closes[-20:])
+    ma60 = np.mean(closes[-60:])
+    lines.append(f"  支撑: MA20={ma20:.2f}  MA60={ma60:.2f}")
+    bb_upper, bb_mid, bb_lower = calc_bollinger(closes)
+    lines.append(f"  布林: 上{bb_upper[-1]:.2f} 中{bb_mid[-1]:.2f} 下{bb_lower[-1]:.2f}")
+    
+    lines.append(f"\n{'='*50}")
+    n_icon = max(1, min(10, int(composite / 10)))
+    if holding:
+        if '卖出' in action: lines.append(f"  {'❌' * n_icon}  {action}")
+        elif '增持' in action or '拿住' in action: lines.append(f"  {'✅' * n_icon}  {action}")
+        else: lines.append(f"  {'⚠️' * n_icon}  {action}")
+    else:
+        if '买入' in action: lines.append(f"  {'✅' * n_icon}  {action}")
+        else: lines.append(f"  {'❌' * n_icon}  {action}")
+    lines.append(f"{'='*50}")
+    
+    return lines
+
+
+# ═══════════════════════════
 # 多因子共振策略 — 激进指标
 # ═══════════════════════════
 def calc_rsi(closes, period=14):

@@ -58,6 +58,7 @@ h4{margin:0 0 4px;font-size:13px;color:#555}
   <input id="code" type="text" placeholder="输入股票代码，如 603893" autofocus required>
   <div style="margin:8px 0">
     <select id="strategy" onchange="onStrategyChange()" style="padding:8px 12px;font-size:16px;border:2px solid #ddd;border-radius:6px;background:#fff">
+      <option value="comprehensive">综合策略（三面量化）</option>
       <option value="macd">MACD择时策略</option>
       <option value="multi">多因子共振策略</option>
       <option value="buyhold">长线持有策略</option>
@@ -70,12 +71,16 @@ h4{margin:0 0 4px;font-size:13px;color:#555}
     <input type="checkbox" id="calcDividend"> 计算分红（含每股分红收益）
   </label>
   <div class="strategy" id="formulaBox">
-    <h3>📐 策略公式 — MACD择时策略</h3>
-    <pre id="formulaText">买入信号 = 零轴上金叉(DIF>0 ∧ DIF↑ ∧ 确认2天) ∨ 底背离(股价↓ DIF↑)
-卖出信号 = 顶背离(股价↑ DIF↓) ∨ (熊市 ∧ 死叉)
-牛熊判定 = 价格>MA60 ∧ MA60(10日斜率)>0 → 牛，连续5日确认
-评分    = 金叉+2 死叉-2 | 零轴上+1 零轴下-1 | 牛+2 熊-2 | DIF↑+1 DIF↓-1 | 顶背离-3
-结论    = 评分≥2→买入/拿住 | 评分≥0→中性/减持 | 评分≥-2→不买/减持 | 评分<-2→卖出</pre>
+    <h3>📐 策略公式 — 综合策略（三面量化）</h3>
+    <pre id="formulaText">Phase 1: 同源数据采集(K线/指标/形态/OBV)
+Phase 2: 三面独立评分
+  技术面(30%): 趋势/动量/量能/通道/形态/筹码 ×6维度
+  博弈面(45%): OBV背离/量价关系/资金趋势/事件驱动
+  基本面(25%): 估值位置/增长趋势/盈利质量
+Phase 3: 质量门禁 — OBV背离否决 | RSI>95降级 | 双维度<55降级
+Phase 4: 冲突裁决 — 博弈>技术>基本面
+买入: 综合≥65 + 通过门禁 + RSI<85
+卖出: 止损-8% | 止盈+20% | 综合<35 | 获利回吐</pre>
   </div>
   <button id="btn" type="submit">分析</button>
 </form>
@@ -93,7 +98,16 @@ const FORMULAS={
 评分: RSI超卖+3/超买-3 | KDJ金叉+3/死叉-3 | J<0+2/>100-2 | Bollinger下轨+2/上轨-1 | WR>85+2/<15-2 | MA20趋势±1`},
   buyhold:{title:'长线持有策略',text:`数据起始日一次性买入，持有至今不卖。
 分红: 持有期间所有已实施分红累加。
-对比: 可直观看到"择时交易 vs 买入不动"的收益差异。`}
+对比: 可直观看到"择时交易 vs 买入不动"的收益差异。`},
+  comprehensive:{title:'综合策略（三面量化）',text:`Phase 1: 同源数据采集(K线/指标/形态/OBV)
+Phase 2: 三面独立评分
+  技术面(30%): 趋势/动量/量能/通道/形态/筹码 ×6维度
+  博弈面(45%): OBV背离/量价关系/资金趋势/事件驱动
+  基本面(25%): 估值位置/增长趋势/盈利质量
+Phase 3: 质量门禁 — OBV背离否决 | RSI>95降级 | 双维度<55降级
+Phase 4: 冲突裁决 — 博弈>技术>基本面
+买入: 综合≥65 + 通过门禁 + RSI<85
+卖出: 止损-8% | 止盈+20% | 综合<35 | 获利回吐`}
 };
 function getStrategy(){return document.getElementById('strategy').value;}
 function onStrategyChange(){
@@ -133,6 +147,7 @@ async function analyze(e){
   }catch(err){result.innerHTML='<div class=error>请求失败: '+err.message+'</div>'}
   btn.disabled=false;btn.textContent='分析'
 }
+onStrategyChange(); // 页面加载时自动更新公式
 </script>
 </body>
 </html>
