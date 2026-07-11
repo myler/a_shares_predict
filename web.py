@@ -587,16 +587,65 @@ class Handler(BaseHTTPRequestHandler):
         game_rows = ''.join(f'<tr><td>{k}</td><td>{v:.1f}</td></tr>' for k, v in game_dim.items())
         fund_rows = ''.join(f'<tr><td>{k}</td><td>{v:.1f}</td></tr>' for k, v in fund_dim.items())
 
-        overview += f"""
+        # ── 详细分析过程 ──
+        analysis_html = f"""<h3>🔍 分析过程</h3>
+        <table class="overview">
+          <tr><th colspan="3">MACD核心评分 (40%)</th></tr>
+          <tr><td>DIF vs DEA</td><td style="font-family:monospace">{dif[i]:.2f} {">" if dif[i]>dea[i] else "<"} {dea[i]:.2f} → {"金叉" if dif[i]>dea[i] else "死叉"}</td><td style="color:{'#2e7d32' if dif[i]>dea[i] else '#c62828'}">{'+15' if dif[i]>dea[i] else '−15'}</td></tr>
+          <tr><td>零轴位置</td><td style="font-family:monospace">DIF={dif[i]:.2f} {">0 做多区" if dif[i]>0 else "<0 做空区"}</td><td style="color:{'#2e7d32' if dif[i]>0 else '#c62828'}">{'+12' if dif[i]>0 else '−8'}</td></tr>
+          <tr><td>DIF 5日斜率</td><td style="font-family:monospace">{dif[i]-dif[max(0,i-5)]:+.2f}</td><td style="color:{'#2e7d32' if i>=5 and dif[i]>dif[i-5] else '#c62828'}">{'+8' if i>=5 and dif[i]>dif[i-5] else '−5'}</td></tr>
+          <tr><td>BAR 3日趋势</td><td style="font-family:monospace">{bar[i]:+.2f} (3日前:{bar[max(0,i-3)]:+.2f})</td><td style="color:{'#2e7d32' if i>=3 and bar[i]>bar[i-3] else '#888'}">{'+5' if i>=3 and bar[i]>bar[i-3] else '0'}</td></tr>"""
+
+        # 底背离/顶背离
+        if i >= 30:
+            rlo = np.min(closes[max(0,i-30):i])
+            if closes[i] > rlo * 1.03 and dif[i] > dif[max(0,i-30)]:
+                analysis_html += f'<tr><td>底背离 30日</td><td style="font-family:monospace">价{closes[i]:.2f}>低{rlo:.2f} DIF↑</td><td style="color:#2e7d32">+10</td></tr>'
+            rhi = np.max(closes[max(0,i-30):i])
+            if closes[i] >= rhi * 0.98 and dif[i] < dif[max(0,i-30)] * 0.9:
+                analysis_html += f'<tr><td>🔴 顶背离 30日</td><td style="font-family:monospace">价{closes[i]:.2f}≈高{rhi:.2f} DIF↓</td><td style="color:#c62828">−15</td></tr>'
+        
+        analysis_html += f"""<tr style="background:#e3f2fd"><td><b>MACD小计</b></td><td></td><td style="font-weight:bold;font-size:1.1em">{macd_score:.0f}</td></tr>
         </table>
         <br>
         <table class="overview">
-          <tr><th colspan="3">📊 融合策略四维评分</th></tr>
-          <tr style="background:#e3f2fd"><td><b>MACD核心 (40%)</b></td><td style="font-weight:bold;font-size:1.2em">{score_level(macd_score)} {macd_score:.1f}</td><td style="font-size:11px;color:#888">DIF{dif[i]:.2f}/DEA{dea[i]:.2f} BAR{bar[i]:.2f}</td></tr>
-          <tr style="background:#fff3e0"><td><b>多因子 (30%)</b></td><td style="font-weight:bold;font-size:1.2em">{score_level(mf_score)} {mf_score:.1f}</td><td style="font-size:11px;color:#888">RSI{rv:.0f} K{kv:.0f}/D{dv:.0f}/J{jv:.0f} WR{wv:.0f}</td></tr>
-          <tr style="background:#e8f5e9"><td><b>基本面 (15%)</b></td><td style="font-weight:bold;font-size:1.2em">{score_level(fund_score2)} {fund_score2:.1f}</td><td style="font-size:11px;color:#888"><table>{fund_rows}</table></td></tr>
-          <tr style="background:#f3e5f5"><td><b>量能 (15%)</b></td><td style="font-weight:bold;font-size:1.2em">{score_level(game_score2)} {game_score2:.1f}</td><td style="font-size:11px;color:#888">OBV比值{obv_ratio:.2f}</td></tr>
-          <tr style="background:#f5f5f5"><td><b>综合加权</b></td><td style="font-weight:bold;font-size:1.4em">{score_level(composite)} {composite:.1f}</td><td>M{macd_score:.0f}×0.40+F{mf_score:.0f}×0.30+基{fund_score2:.0f}×0.15+量{game_score2:.0f}×0.15</td></tr>
+          <tr><th colspan="3">多因子评分 (30%)</th></tr>
+          <tr><td>RSI(14)</td><td style="font-family:monospace">{rv:.0f}</td><td style="color:{'#2e7d32' if 30<=rv<=65 else ('#2e7d32' if rv<30 else ('#c62828' if rv>80 else '#888'))}">{'+10 (30-65)' if 30<=rv<=65 else ('+15 (<30超卖)' if rv<30 else ('−15 (>80超买)' if rv>80 else '−8 (>70偏强)' if rv>70 else '0'))}</td></tr>
+          <tr><td>KDJ</td><td style="font-family:monospace">K={kv:.0f} D={dv:.0f} J={jv:.0f}</td><td style="color:{'#2e7d32' if kv>dv else '#c62828'}">{'+10 金叉' if kv>dv else '−8 死叉'}{' +8(J<0)' if jv<0 else ''}{' −8(J>100)' if jv>100 else ''}</td></tr>"""
+
+        bb_pos_val = (closes[i] - bb_l[i]) / (bb_u[i] - bb_l[i]) * 100 if not np.isnan(bb_u[i]) and bb_u[i] != bb_l[i] else 50
+        analysis_html += f"""<tr><td>布林带</td><td style="font-family:monospace">位置 {bb_pos_val:.0f}%（下{bb_l[i]:.2f}/上{bb_u[i]:.2f}）</td><td style="color:{'#2e7d32' if bb_pos_val<10 else ('#c62828' if bb_pos_val>90 else '#888')}">{'+12 下轨' if bb_pos_val<10 else ('−8 上轨' if bb_pos_val>90 else '0')}</td></tr>
+          <tr><td>WR(10)</td><td style="font-family:monospace">{wv:.0f}</td><td style="color:{'#2e7d32' if wv>80 else ('#c62828' if wv<20 else '#888')}">{'+8' if wv>80 else ('−8' if wv<20 else '0')}</td></tr>
+          <tr style="background:#fff3e0"><td><b>多因子小计</b></td><td></td><td style="font-weight:bold;font-size:1.1em">{mf_score:.0f}</td></tr>
+        </table>
+        <br>
+        <table class="overview">
+          <tr><th colspan="3">基本面 & 量能</th></tr>
+          <tr><td>250日估值</td><td style="font-family:monospace">{"位置 "+str(int(pos250))+"%" if i>=249 else "数据不足"}</td><td style="color:{'#2e7d32' if i>=249 and pos250<40 else ('#c62828' if i>=249 and pos250>80 else '#888')}">{'+20 低估' if i>=249 and pos250<25 else ('+10 偏低' if i>=249 and pos250<40 else ('−15 高估' if i>=249 and pos250>80 else '0'))}</td></tr>
+          <tr><td>基本面 (15%)</td><td></td><td style="font-weight:bold">{fund_score2:.0f}</td></tr>
+          <tr><td>OBV比值</td><td style="font-family:monospace">MA₅/MA₂₀ = {obv_ratio:.2f}</td><td style="color:{'#2e7d32' if obv_ratio>1.08 else ('#c62828' if obv_ratio<0.92 else '#888')}">{'+12' if obv_ratio>1.08 else ('−12' if obv_ratio<0.92 else '0')}</td></tr>
+          <tr><td>量能 (15%)</td><td></td><td style="font-weight:bold">{game_score2:.0f}</td></tr>
+        </table>
+        <br>
+        <table class="overview">
+          <tr><th colspan="3">综合 & 门禁</th></tr>
+          <tr><td><b>S = M×0.40 + F×0.30 + V×0.15 + Q×0.15</b></td><td style="font-family:monospace">{macd_score:.0f}×0.40 + {mf_score:.0f}×0.30 + {fund_score2:.0f}×0.15 + {game_score2:.0f}×0.15</td><td style="font-weight:bold;font-size:1.2em">{score_level(composite)} {composite:.1f}</td></tr>
+          <tr><td>OBV门禁</td><td style="font-family:monospace">{obv_ratio:.2f} {"≥" if obv_ratio>=0.90 else "<"} 0.90</td><td style="color:{'#2e7d32' if obv_ratio>=0.90 else '#c62828'}">{'✅ 通过' if obv_ratio>=0.90 else '🔴 否决'}</td></tr>
+          <tr><td>RSI门禁</td><td style="font-family:monospace">{rv:.0f} {"≤" if rv<=92 else ">"} 92</td><td style="color:{'#2e7d32' if rv<=92 else '#c62828'}">{'✅ 通过' if rv<=92 else '🔴 否决'}</td></tr>
+          <tr><td>双弱门禁</td><td style="font-family:monospace">M={macd_score:.0f} F={mf_score:.0f}</td><td style="color:{'#2e7d32' if not (macd_score<35 and mf_score<40) else '#c62828'}">{'✅ 通过' if not (macd_score<35 and mf_score<40) else '🔴 否决'}</td></tr>"""
+
+        # 信号
+        gates_pass = obv_ratio >= 0.90 and rv <= 92 and not (macd_score < 35 and mf_score < 40)
+        if gates_pass:
+            if composite >= 70: sig='🟢 强烈看多'; act='买入'
+            elif composite >= 65: sig='🟢 偏多'; act='买入'
+            elif composite >= 50: sig='🟡 中性'; act='观望'
+            elif composite >= 40: sig='🟠 偏空'; act='不买'
+            else: sig='🔴 看空'; act='不买'
+        else:
+            sig='🔴 门禁否决'; act='观望'
+        sig_color = '#2e7d32' if '🟢' in sig else ('#c62828' if '🔴' in sig else '#f57f17')
+        analysis_html += f"""<tr style="background:#f5f5f5"><td><b>信号</b></td><td></td><td style="font-weight:bold;font-size:1.2em;color:{sig_color}">{sig} → {act}</td></tr>
         </table>"""
 
         # 结论横幅
@@ -607,8 +656,18 @@ class Handler(BaseHTTPRequestHandler):
                 cls = 'buy' if '✅' in s else ('sell' if '❌' in s else 'warn')
                 conclusion_html = f'<div class="conclusion {cls}">{s.replace(" ","&nbsp;")}</div>'
 
-        pred_table = self.make_pred_table(pred)
-        top_section = f'<div class="top-row"><div>{overview}</div><div>{pred_table}</div></div>'
+        # ── 单列布局 ──
+        overview = f"""
+        {overview}
+        <br>
+        <table class="overview">
+          <tr><th colspan="3">📊 融合策略四维评分</th></tr>
+          <tr style="background:#e3f2fd"><td><b>MACD核心 (40%)</b></td><td style="font-weight:bold;font-size:1.2em">{score_level(macd_score)} {macd_score:.1f}</td><td style="font-size:11px;color:#888">DIF{dif[i]:.2f}/DEA{dea[i]:.2f} BAR{bar[i]:.2f}</td></tr>
+          <tr style="background:#fff3e0"><td><b>多因子 (30%)</b></td><td style="font-weight:bold;font-size:1.2em">{score_level(mf_score)} {mf_score:.1f}</td><td style="font-size:11px;color:#888">RSI{rv:.0f} K{kv:.0f}/D{dv:.0f}/J{jv:.0f} WR{wv:.0f}</td></tr>
+          <tr style="background:#e8f5e9"><td><b>基本面 (15%)</b></td><td style="font-weight:bold;font-size:1.2em">{score_level(fund_score2)} {fund_score2:.1f}</td><td style="font-size:11px;color:#888"><table>{fund_rows}</table></td></tr>
+          <tr style="background:#f3e5f5"><td><b>量能 (15%)</b></td><td style="font-weight:bold;font-size:1.2em">{score_level(game_score2)} {game_score2:.1f}</td><td style="font-size:11px;color:#888">OBV比值{obv_ratio:.2f}</td></tr>
+          <tr style="background:#f5f5f5"><td><b>综合加权</b></td><td style="font-weight:bold;font-size:1.4em">{score_level(composite)} {composite:.1f}</td><td>M{macd_score:.0f}×0.40+F{mf_score:.0f}×0.30+基{fund_score2:.0f}×0.15+量{game_score2:.0f}×0.15</td></tr>
+        </table>"""
 
         trade_rows = ''
         show_div = calc_dividend and dividends and any(t.get('dividend_total', 0) > 0 for t in trades)
@@ -636,7 +695,8 @@ class Handler(BaseHTTPRequestHandler):
         return f"""
         <div class="result">
           {conclusion_html}
-          {top_section}
+          {overview}
+          {analysis_html}
           {trade_table}
           <img src="data:image/png;base64,{img_b64}" alt="Comprehensive Chart" loading="lazy">
         </div>"""
