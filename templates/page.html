@@ -3,13 +3,13 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>A股预测</title>
+<title>A股策略分析</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect x='4' y='4' width='3' height='24' fill='%23ef5350'/><rect x='10' y='10' width='3' height='18' fill='%234caf50'/><rect x='16' y='7' width='3' height='21' fill='%234caf50'/><rect x='22' y='13' width='3' height='15' fill='%23ef5350'/><rect x='28' y='16' width='3' height='12' fill='%234caf50'/></svg>">
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 body{font-family:-apple-system,system-ui,sans-serif;background:#f5f5f5;color:#333;padding:20px}
 h1{font-size:20px;margin-bottom:16px}
-form{display:flex;flex-direction:column;gap:8px;margin-bottom:16px;max-width:400px}
+form{display:flex;flex-direction:column;gap:8px;margin-bottom:16px;max-width:520px}
 input{width:100%;padding:10px 14px;font-size:16px;border:2px solid #ddd;border-radius:6px;outline:none}
 input:focus{border-color:#1565C0}
 button{padding:10px 24px;font-size:16px;background:#1565C0;color:#fff;border:none;border-radius:6px;cursor:pointer}
@@ -22,7 +22,6 @@ label.holding input{width:auto}
 .result img{max-width:100%;margin-top:16px;border-radius:6px;box-shadow:0 1px 3px rgba(0,0,0,.12)}
 .error{background:#fff0f0;color:#c62828;padding:16px;border-radius:6px;border:1px solid #ffcdd2}
 .loading{text-align:center;padding:40px;color:#666}
-.footer{margin-top:20px;font-size:12px;color:#999;text-align:center}
 .conclusion{padding:14px 20px;margin:10px 0;border-radius:6px;font-size:20px;font-weight:bold;text-align:center;letter-spacing:4px}
 .buy{background:#e8f5e9;color:#2e7d32;border:2px solid #4caf50}
 .sell{background:#fce4ec;color:#c62828;border:2px solid #ef5350}
@@ -41,27 +40,31 @@ td.pnl{font-weight:bold}
 tr.win td.pnl{color:#2e7d32}
 tr.loss td.pnl{color:#c62828}
 td.reason{color:#888;font-size:12px}
-table.pred{width:100%}
-table.pred th{background:#f5f5f5;padding:6px 10px;text-align:left;border-bottom:2px solid #ddd;font-size:12px}
-table.pred td{padding:6px 10px;border-bottom:1px solid #f5f5f5}
-table.pred td:first-child{font-weight:bold;color:#555;width:120px}
 h3{margin:16px 0 8px;font-size:16px}
-h4{margin:0 0 4px;font-size:13px;color:#555}
-.strategy{background:#fff;border-radius:8px;padding:12px 16px;box-shadow:0 1px 3px rgba(0,0,0,.1)}
-.strategy h3{font-size:14px;margin-bottom:6px;color:#555}
-.strategy pre{background:#fafafa;padding:10px;border-radius:4px;font-size:11px;line-height:1.7;overflow-x:auto;white-space:pre-wrap}
+
+/* ── 公式卡片 ── */
+.strategy{background:#fff;border-radius:8px;padding:16px 20px;box-shadow:0 1px 3px rgba(0,0,0,.1);margin-top:8px}
+.strategy h3{font-size:14px;margin-bottom:12px;color:#1565C0}
+.formula-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 16px}
+.formula-item{display:flex;align-items:baseline;gap:6px;font-size:13px;padding:4px 0}
+.formula-label{font-weight:600;white-space:nowrap;color:#555;min-width:72px}
+.formula-w{color:#1565C0;font-weight:700;min-width:32px;text-align:right;font-size:12px}
+.formula-math{color:#333;font-family:'SF Mono',Consolas,monospace;font-size:12px;line-height:1.5}
+.formula-section{margin-top:10px;padding-top:8px;border-top:1px solid #eee}
+.formula-section h4{font-size:12px;color:#888;margin-bottom:6px;text-transform:uppercase;letter-spacing:1px}
+.gate-row{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:12px;color:#666}
+.gate-tag{background:#f5f5f5;padding:2px 8px;border-radius:3px;font-family:'SF Mono',Consolas,monospace}
+.gate-tag.fail{background:#fce4ec;color:#c62828}
 </style>
 </head>
 <body>
-<h1>📊 A股预测</h1>
+<h1>📊 A股策略分析</h1>
 <form onsubmit="analyze(event)">
   <input id="code" type="text" placeholder="输入股票代码，如 603893" autofocus required>
   <div style="margin:8px 0">
     <select id="strategy" onchange="onStrategyChange()" style="padding:8px 12px;font-size:16px;border:2px solid #ddd;border-radius:6px;background:#fff">
-      <option value="comprehensive">综合策略（三面量化）</option>
-      <option value="macd">MACD择时策略</option>
-      <option value="multi">多因子共振策略</option>
-      <option value="buyhold">长线持有策略</option>
+      <option value="comprehensive">融合策略</option>
+      <option value="buyhold">长线持有</option>
     </select>
   </div>
   <label class="holding">
@@ -70,48 +73,53 @@ h4{margin:0 0 4px;font-size:13px;color:#555}
   <label class="holding" id="divLabel" style="display:none">
     <input type="checkbox" id="calcDividend"> 计算分红（含每股分红收益）
   </label>
-  <div class="strategy" id="formulaBox">
-    <h3>📐 策略公式 — 融合策略</h3>
-    <pre id="formulaText">MACD核心(40%): 金叉/零轴/DIF斜率/BAR趋势/底背离/顶背离
-多因子(30%): RSI/KDJ/Bollinger/WR 多指标共振
-基本面(15%): 250日估值位置/年增长趋势
-量能(15%): OBV趋势/量价背离检测
-门禁: OBV背离<0.90否决 | RSI>92否决 | 双弱否决
-买入: 综合≥65 + 通过门禁
-卖出: 止损-8% | 止盈+25% | 综合<35 | 获利回吐 | 顶背离 | 形态破颈线</pre>
-  </div>
+  <div class="strategy" id="formulaBox"></div>
   <button id="btn" type="submit">分析</button>
 </form>
 <div id="result"></div>
 <script>
 const FORMULAS={
-  macd:{title:'MACD择时策略',text:`买入信号 = 零轴上金叉(DIF>0 ∧ DIF↑ ∧ 确认2天) ∨ 底背离(股价↓ DIF↑)
-卖出信号 = 顶背离(股价↑ DIF↓) ∨ (熊市 ∧ 死叉)
-牛熊判定 = 价格>MA60 ∧ MA60(10日斜率)>0 → 牛，连续5日确认
-评分    = 金叉+2 死叉-2 | 零轴上+1 零轴下-1 | 牛+2 熊-2 | DIF↑+1 DIF↓-1 | 顶背离-3
-结论    = 评分≥2→买入/拿住 | 评分≥0→中性/减持 | 评分≥-2→不买/减持 | 评分<-2→卖出`},
-  multi:{title:'多因子共振策略',text:`指标: RSI(14) + KDJ(9,3,3) + Bollinger(20,2) + WR(10) + MA20 + 量能
-买入: score≥2 且 RSI<75（不在超买区）
-卖出: score≤-3（强空信号）| 获利>8%回吐 | 止损-6% | 止盈+15%
-评分: RSI超卖+3/超买-3 | KDJ金叉+3/死叉-3 | J<0+2/>100-2 | Bollinger下轨+2/上轨-1 | WR>85+2/<15-2 | MA20趋势±1`},
-  buyhold:{title:'长线持有策略',text:`数据起始日一次性买入，持有至今不卖。
-分红: 持有期间所有已实施分红累加。
-对比: 可直观看到"择时交易 vs 买入不动"的收益差异。`},
-  comprehensive:{title:'融合策略',text:`MACD核心(40%): 金叉/零轴/DIF斜率/BAR趋势/底背离/顶背离
-多因子(30%): RSI/KDJ/Bollinger/WR 多指标共振
-基本面(15%): 250日估值位置/年增长趋势
-量能(15%): OBV趋势/量价背离检测
-门禁: OBV背离<0.90否决 | RSI>92否决 | 双弱否决
-买入: 综合≥65 + 通过门禁
-卖出: 止损-8% | 止盈+25% | 综合<35 | 获利回吐 | 顶背离 | 形态破颈线`}
+  comprehensive:{title:'融合策略',html:`
+    <div class="formula-grid">
+      <div class="formula-item"><span class="formula-label">MACD核心</span><span class="formula-w">40%</span><span class="formula-math">50 + 15·𝟙(DIF>DEA) − 15·𝟙(DIF≤DEA) + 12·𝟙(DIF>0) − 8·𝟙(DIF≤0) + 8·𝟙(DIF↑<sub>5d</sub>) + 5·𝟙(BAR↑<sub>3d</sub>) + 10·𝟙(底背离<sub>30d</sub>) − 15·𝟙(顶背离<sub>30d</sub>)</span></div>
+      <div class="formula-item"><span class="formula-label">多因子</span><span class="formula-w">30%</span><span class="formula-math">RSI[30,65]+10 / RSI<30+15 / RSI>80−15 / KDJ金叉+10 / J<0+8 / Boll下轨+12 / WR>80+8</span></div>
+      <div class="formula-item"><span class="formula-label">基本面</span><span class="formula-w">15%</span><span class="formula-math">P<sub>250</sub><25%+20 / P<sub>250</sub><40%+10 / P<sub>250</sub>>80%−15 / YoY>20%+10</span></div>
+      <div class="formula-item"><span class="formula-label">量能</span><span class="formula-w">15%</span><span class="formula-math">OBV<sub>5</sub>>MA<sub>20</sub>×1.08+12 / OBV<sub>5</sub><MA<sub>20</sub>×0.92−12 / 量价背离−18</span></div>
+    </div>
+    <div class="formula-section"><h4>综合评分</h4>
+      <div class="formula-math" style="font-size:14px;text-align:center;padding:4px 0"><b>S</b> = M<sub>MACD</sub> × 0.40 + F<sub>因子</sub> × 0.30 + V<sub>估值</sub> × 0.15 + Q<sub>量能</sub> × 0.15</div>
+    </div>
+    <div class="formula-section"><h4>质量门禁（任一项触发即否决买入）</h4>
+      <div class="gate-row">
+        <span class="gate-tag">OBV<sub>5</sub> / MA<sub>20</sub> &lt; 0.90</span>
+        <span class="gate-tag">RSI &gt; 92</span>
+        <span class="gate-tag">M<sub>MACD</sub> &lt; 35 ∧ F<sub>因子</sub> &lt; 40</span>
+      </div>
+    </div>
+    <div class="formula-section"><h4>交易规则</h4>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 16px;font-size:12px">
+        <div style="color:#2e7d32"><b>🟢 买入</b> &nbsp; S ≥ 65 ∧ 通过门禁</div>
+        <div style="color:#c62828"><b>🔴 卖出</b> &nbsp; 止损−8% | 止盈+25%</div>
+        <div style="color:#1565C0"><b>📐 形态</b> &nbsp; M顶/头肩顶破颈线→强制卖出</div>
+        <div style="color:#f57f17"><b>⚠️ 信号</b> &nbsp; S&lt;35 | 获利回吐 | 顶背离</div>
+      </div>
+    </div>`
+  },
+  buyhold:{title:'长线持有',html:`
+    <div style="font-size:13px;line-height:1.8;color:#555">
+      <b>买入</b>：数据起始日一次性买入，持有至今不卖<br>
+      <b>分红</b>：持有期间所有已实施分红累加<br>
+      <b>对比</b>：直观比较 <i>"择时交易 vs 买入不动"</i> 的收益差异
+    </div>`
+  }
 };
 function getStrategy(){return document.getElementById('strategy').value;}
 function onStrategyChange(){
   const s=getStrategy();
   const holding=document.getElementById('holding');
   const f=FORMULAS[s];
-  document.getElementById('formulaBox').querySelector('h3').textContent='📐 策略公式 — '+f.title;
-  document.getElementById('formulaText').textContent=f.text;
+  const box=document.getElementById('formulaBox');
+  box.innerHTML='<h3>📐 策略公式 — '+f.title+'</h3>'+f.html;
   if(s==='buyhold'){holding.checked=true;holding.disabled=true;document.getElementById('divLabel').style.display='flex';}
   else{holding.disabled=false;toggleDividend();}
 }
@@ -143,7 +151,7 @@ async function analyze(e){
   }catch(err){result.innerHTML='<div class=error>请求失败: '+err.message+'</div>'}
   btn.disabled=false;btn.textContent='分析'
 }
-onStrategyChange(); // 页面加载时自动更新公式
+onStrategyChange();
 </script>
 </body>
 </html>
