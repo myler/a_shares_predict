@@ -469,27 +469,71 @@ def score_fundamental(closes, volumes, code=None):
     return total, dimensions
 
 
+def _quick_pattern_sell(closes, highs, idx, lookback=250):
+    """快速形态检测（仅检测已破颈线的看跌形态，用于回测卖出）"""
+    n = len(closes)
+    if idx < 60:
+        return None
+    
+    start = max(0, idx - lookback)
+    window = closes[start:idx+1]
+    wlen = len(window)
+    
+    # ── 局部峰值查找 ──
+    peaks = []
+    for i in range(20, wlen - 10):
+        segment = window[max(0,i-15):min(wlen,i+16)]
+        if window[i] == max(segment) and window[i] > np.mean(window[max(0,i-30):i]):
+            if not peaks or i - peaks[-1] > 15:
+                peaks.append(i)
+            elif window[i] > window[peaks[-1]]:
+                peaks[-1] = i
+    
+    # M顶：最近两个峰
+    if len(peaks) >= 2:
+        p1, p2 = peaks[-2], peaks[-1]
+        peak_diff = abs(window[p1] - window[p2]) / max(window[p1], window[p2]) * 100
+        if peak_diff < 5 and p2 - p1 >= 15:
+            between = window[p1:p2+1]
+            neckline = np.min(between)
+            if closes[idx] < neckline:
+                return f'M顶破颈线({window[max(p1,p2)]:.1f})'
+    
+    # 头肩顶：最近三个峰
+    if len(peaks) >= 3:
+        pl, ph, pr = peaks[-3], peaks[-2], peaks[-1]
+        if window[ph] > window[pl] and window[ph] > window[pr]:
+            shoulder_diff = abs(window[pl] - window[pr]) / max(window[pl], window[pr]) * 100
+            if shoulder_diff < 10:
+                left_valley = np.min(window[pl:ph+1])
+                right_valley = np.min(window[ph:pr+1])
+                neckline = min(left_valley, right_valley)
+                if closes[idx] < neckline:
+                    return f'头肩顶破颈线({window[ph]:.1f})'
+    
+    # 看跌吞没
+    if idx >= 3:
+        prev_up = closes[idx-3] < closes[idx-2]
+        curr_bear = closes[idx] < closes[idx-1] * 0.97 and closes[idx] < closes[idx-2]
+        if prev_up and curr_bear:
+            return '看跌吞没'
+    
+    return None
+
+
 def backtest_comprehensive(dates, closes, highs, lows, volumes):
-    """综合策略回测：三面加权评分 + 质量门禁（优化版：预计算指标）"""
+    """融合策略回测：MACD核心40% + 多因子30% + 基本面15% + 量能15% + 形态卖出"""
     n = len(closes)
     if n < 60:
         return []
 
-    # ── 预计算所有需要的指标 ──
+    # ── 预计算指标 ──
     dif, dea, bar = calc_macd(closes)
-    rsi = calc_rsi(closes)
-    k_line, d_line, j_line = calc_kdj(highs, lows, closes)
-    bb_upper, bb_mid, bb_lower = calc_bollinger(closes)
-    wr = calc_wr(highs, lows, closes)
+    rsi_arr = calc_rsi(closes)
+    k_arr, d_arr, j_arr = calc_kdj(highs, lows, closes)
+    bb_u, bb_m, bb_l = calc_bollinger(closes)
+    wr_arr = calc_wr(highs, lows, closes)
     obv_full = calc_obv(closes, volumes)
-    atr = calc_atr(highs, lows, closes)
-
-    # 预计算 MA
-    ma10 = np.full(n, np.nan); ma20 = np.full(n, np.nan); ma60 = np.full(n, np.nan)
-    for i in range(n):
-        if i >= 9: ma10[i] = np.mean(closes[i-9:i+1])
-        if i >= 19: ma20[i] = np.mean(closes[i-19:i+1])
-        if i >= 59: ma60[i] = np.mean(closes[i-59:i+1])
 
     trades = []
     pos = None
@@ -498,68 +542,108 @@ def backtest_comprehensive(dates, closes, highs, lows, volumes):
         if np.isnan(dif[i]):
             continue
 
-        # ── 从预计算的数组中取当前切片值 ──
-        obv_ma20_val = np.mean(obv_full[max(0,i-20):i]) if i >= 20 else np.mean(obv_full[:i])
-        obv_ratio = obv_full[i] / obv_ma20_val if obv_ma20_val > 0 else 1
-        gate_pass = obv_ratio >= 0.95
-        rsi_val = rsi[i] if not np.isnan(rsi[i]) else 50
+        # ══════ MACD核心 40% ══════
+        macd_score = 50
+        if dif[i] > dea[i]: macd_score += 15
+        else: macd_score -= 15
+        if dif[i] > 0: macd_score += 12
+        else: macd_score -= 8
+        if i >= 5 and dif[i] > dif[i-5]: macd_score += 8
+        else: macd_score -= 5
+        if i >= 3 and bar[i] > bar[i-3]: macd_score += 5
+        if i >= 30 and closes[i] > np.min(closes[max(0,i-30):i]) * 1.03 and dif[i] > dif[max(0,i-30)]:
+            macd_score += 10
+        if i >= 30 and closes[i] >= np.max(closes[max(0,i-30):i]) * 0.98 and dif[i] < dif[max(0,i-30)] * 0.9:
+            macd_score -= 15
 
-        # 快速技术面评分（基于预计算指标）
-        tech_fast = 50
-        if not np.isnan(ma60[i]) and closes[i] > ma60[i]: tech_fast += 15
-        if not np.isnan(ma10[i]) and not np.isnan(ma20[i]) and not np.isnan(ma60[i])\
-           and ma10[i] > ma20[i] > ma60[i]: tech_fast += 20
-        if dif[i] > dea[i]: tech_fast += 15
-        if dif[i] > 0: tech_fast += 10
-        if i >= 5 and dif[i] > dif[i-5]: tech_fast += 5
-        if rsi_val > 70: tech_fast -= 10
-        if not np.isnan(k_line[i]) and k_line[i] > d_line[i]: tech_fast += 10
-        if rsi_val < 30: tech_fast += 5
+        # ══════ 多因子 30% ══════
+        mf_score = 50
+        rv = rsi_arr[i] if not np.isnan(rsi_arr[i]) else 50
+        kv = k_arr[i] if not np.isnan(k_arr[i]) else 50
+        dv = d_arr[i] if not np.isnan(d_arr[i]) else 50
+        jv = j_arr[i] if not np.isnan(j_arr[i]) else 50
+        wv = wr_arr[i] if not np.isnan(wr_arr[i]) else 50
 
-        # 快速博弈面评分（基于预计算指标）
-        game_fast = 50
+        if 30 <= rv <= 65: mf_score += 10
+        elif rv < 30: mf_score += 15
+        elif rv > 80: mf_score -= 15
+        elif rv > 70: mf_score -= 8
+        if kv > dv: mf_score += 10
+        elif kv < dv: mf_score -= 8
+        if jv < 0: mf_score += 8
+        elif jv > 100: mf_score -= 8
+        bb_pos = (closes[i] - bb_l[i]) / (bb_u[i] - bb_l[i]) * 100 if not np.isnan(bb_u[i]) and bb_u[i] != bb_l[i] else 50
+        if bb_pos < 10: mf_score += 12
+        elif bb_pos > 90: mf_score -= 8
+        if wv > 80: mf_score += 8
+        elif wv < 20: mf_score -= 8
+
+        # ══════ 基本面 15% ══════
+        fund_score = 50
+        if i >= 249:
+            h250 = np.max(closes[i-249:i+1])
+            l250 = np.min(closes[i-249:i+1])
+            pos250 = (closes[i] - l250) / (h250 - l250) * 100 if h250 != l250 else 50
+            if pos250 < 25: fund_score += 20
+            elif pos250 < 40: fund_score += 10
+            elif pos250 > 80: fund_score -= 15
+        if i >= 250:
+            yoy = (closes[i] - closes[i-250]) / closes[i-250] * 100
+            if yoy > 20: fund_score += 10
+            elif yoy < -20: fund_score -= 10
+
+        # ══════ 量能/博弈 15% ══════
+        game_score = 50
+        obv_ma20 = np.mean(obv_full[max(0,i-20):i]) if i >= 20 else np.mean(obv_full[:i])
         obv_ma5 = np.mean(obv_full[max(0,i-4):i+1])
-        if obv_ma5 > obv_ma20_val * 1.05: game_fast += 15
-        elif obv_ma5 < obv_ma20_val * 0.95: game_fast -= 15
-        chg_5d = closes[i] - closes[max(0,i-5)]
-        obv_5d_chg = obv_full[i] - obv_full[max(0,i-5)]
-        if chg_5d > 0 and obv_5d_chg < 0: game_fast -= 20
-        elif chg_5d < 0 and obv_5d_chg > 0: game_fast += 15
-        # 资金趋势
-        net_dir = sum(1 for j in range(max(1,i-4), i+1) if closes[j] > closes[j-1])
-        if net_dir >= 4: game_fast += 10
-        elif net_dir <= 1: game_fast -= 10
+        obv_ratio = obv_full[i] / obv_ma20 if obv_ma20 > 0 else 1
+        if obv_ma5 > obv_ma20 * 1.08: game_score += 12
+        elif obv_ma5 < obv_ma20 * 0.92: game_score -= 12
+        chg5 = closes[i] - closes[max(0,i-5)]
+        obv_chg5 = obv_full[i] - obv_full[max(0,i-5)]
+        if chg5 > 0 and obv_chg5 < 0: game_score -= 18
+        elif chg5 < 0 and obv_chg5 > 0: game_score += 12
 
-        # 快速基本面评分
-        fund_fast = 50
-        if n >= 250:
-            high_250 = np.max(closes[max(0,i-249):i+1])
-            low_250 = np.min(closes[max(0,i-249):i+1])
-            pos_250 = (closes[i] - low_250) / (high_250 - low_250) * 100 if high_250 != low_250 else 50
-            if pos_250 < 30: fund_fast += 15
-            elif pos_250 > 70: fund_fast -= 10
+        # ══════ 综合 ══════
+        composite = macd_score * 0.40 + mf_score * 0.30 + fund_score * 0.15 + game_score * 0.15
 
-        composite = tech_fast * 0.30 + game_fast * 0.45 + fund_fast * 0.25
+        # ══════ 门禁 ══════
+        gates_pass = obv_ratio >= 0.90 and rv <= 92 and not (macd_score < 35 and mf_score < 40)
 
+        # ══════ 买卖 ══════
         if pos is None:
-            if composite >= 65 and gate_pass and rsi_val < 85:
+            if composite >= 65 and gates_pass:
                 pos = {
                     'bd': dates[i], 'bp': closes[i], 'bi': i,
-                    'tech': round(tech_fast, 1), 'game': round(game_fast, 1),
-                    'fund': round(fund_fast, 1), 'comp': round(composite, 1)
+                    'macd': round(macd_score, 1), 'mf': round(mf_score, 1),
+                    'fund': round(fund_score, 1), 'game': round(game_score, 1),
+                    'comp': round(composite, 1)
                 }
         else:
             pnl = (closes[i] - pos['bp']) / pos['bp'] * 100
             sell = False
             reason = ''
+
             if pnl < -8:
                 sell = True; reason = f'止损{pnl:.1f}%'
-            elif pnl > 20:
+            elif pnl > 25:
                 sell = True; reason = f'止盈+{pnl:.1f}%'
             elif composite < 35:
                 sell = True; reason = f'综合分{composite:.0f}<35'
-            elif pnl > 10 and composite < 45:
+            elif pnl > 12 and composite < 50:
                 sell = True; reason = f'获利回吐+{pnl:.1f}%'
+
+            # 顶背离强制卖出
+            if not sell and i >= 30:
+                rh = np.max(closes[max(0,i-30):i])
+                if closes[i] >= rh * 0.98 and dif[i] < dif[max(0,i-30)] * 0.85:
+                    sell = True; reason = '顶背离'
+
+            # 形态卖出
+            if not sell and i - pos['bi'] > 10 and (i - pos['bi']) % 5 == 0:
+                pat = _quick_pattern_sell(closes, highs, i)
+                if pat:
+                    sell = True; reason = pat
 
             if sell:
                 days = i - pos['bi']
@@ -567,7 +651,7 @@ def backtest_comprehensive(dates, closes, highs, lows, volumes):
                     'buy_date': pos['bd'], 'sell_date': dates[i],
                     'buy_price': pos['bp'], 'sell_price': closes[i],
                     'profit_pct': round(pnl, 2), 'hold_days': days,
-                    'buy_reason': f'综合{pos["comp"]:.0f}(技{pos["tech"]:.0f}/博{pos["game"]:.0f}/基{pos["fund"]:.0f})',
+                    'buy_reason': f'融合{pos["comp"]:.0f}(M{pos["macd"]:.0f}/F{pos["mf"]:.0f}/基{pos["fund"]:.0f}/量{pos["game"]:.0f})',
                     'sell_reason': reason
                 })
                 pos = None
@@ -576,99 +660,105 @@ def backtest_comprehensive(dates, closes, highs, lows, volumes):
 
 
 def predict_comprehensive(dates, closes, highs, lows, volumes, holding=False):
-    """综合策略当前状态预测"""
+    """融合策略当前状态预测：MACD核心40% + 多因子30% + 基本面15% + 量能15%"""
     n = len(closes)
     if n < 60:
         return ["数据不足，需要至少60根K线"]
-    
-    tech_score, tech_dim, patterns = score_technical(closes, highs, lows, volumes)
-    game_score, game_dim = score_game_theory(closes, volumes, highs, lows)
-    fund_score, fund_dim = score_fundamental(closes, volumes)
-    
-    composite = tech_score * 0.30 + game_score * 0.45 + fund_score * 0.25
-    
-    # 质量门禁
-    obv = calc_obv(closes, volumes)
-    obv_ma20 = np.mean(obv[-21:-1]) if n >= 21 else np.mean(obv)
-    obv_ratio = obv[-1] / obv_ma20 if obv_ma20 > 0 else 1
-    gate_obv = obv_ratio >= 0.95
-    
-    rsi = calc_rsi(closes)
-    rsi_val = rsi[-1] if not np.isnan(rsi[-1]) else 50
-    
+
     dif, dea, bar = calc_macd(closes)
+    rsi_arr = calc_rsi(closes)
+    k_arr, d_arr, j_arr = calc_kdj(highs, lows, closes)
+    bb_u, bb_m, bb_l = calc_bollinger(closes)
+    wr_arr = calc_wr(highs, lows, closes)
+    obv_full = calc_obv(closes, volumes)
+
     i = n - 1
-    
+
+    # MACD核心
+    macd_score = 50
+    if dif[i] > dea[i]: macd_score += 15
+    else: macd_score -= 15
+    if dif[i] > 0: macd_score += 12
+    else: macd_score -= 8
+    if i >= 5 and dif[i] > dif[i-5]: macd_score += 8
+    else: macd_score -= 5
+    if i >= 3 and bar[i] > bar[i-3]: macd_score += 5
+    if i >= 30 and closes[i] > np.min(closes[max(0,i-30):i]) * 1.03 and dif[i] > dif[max(0,i-30)]:
+        macd_score += 10
+
+    # 多因子
+    mf_score = 50
+    rv = rsi_arr[i] if not np.isnan(rsi_arr[i]) else 50
+    kv = k_arr[i] if not np.isnan(k_arr[i]) else 50
+    dv = d_arr[i] if not np.isnan(d_arr[i]) else 50
+    jv = j_arr[i] if not np.isnan(j_arr[i]) else 50
+    wv = wr_arr[i] if not np.isnan(wr_arr[i]) else 50
+    if 30 <= rv <= 65: mf_score += 10
+    elif rv < 30: mf_score += 15
+    elif rv > 80: mf_score -= 15
+    if kv > dv: mf_score += 10
+    elif kv < dv: mf_score -= 8
+    if jv < 0: mf_score += 8
+    elif jv > 100: mf_score -= 8
+    bb_pos = (closes[i] - bb_l[i]) / (bb_u[i] - bb_l[i]) * 100 if not np.isnan(bb_u[i]) and bb_u[i] != bb_l[i] else 50
+    if bb_pos < 10: mf_score += 12
+    elif bb_pos > 90: mf_score -= 8
+    if wv > 80: mf_score += 8
+
+    # 基本面
+    fund_score = 50
+    if i >= 249:
+        h250 = np.max(closes[i-249:i+1])
+        l250 = np.min(closes[i-249:i+1])
+        pos250 = (closes[i] - l250) / (h250 - l250) * 100 if h250 != l250 else 50
+        if pos250 < 25: fund_score += 20
+        elif pos250 < 40: fund_score += 10
+        elif pos250 > 80: fund_score -= 15
+
+    # 量能
+    game_score = 50
+    obv_ma20 = np.mean(obv_full[max(0,i-20):i]) if i >= 20 else np.mean(obv_full[:i])
+    obv_ma5 = np.mean(obv_full[max(0,i-4):i+1])
+    obv_ratio = obv_full[i] / obv_ma20 if obv_ma20 > 0 else 1
+    if obv_ma5 > obv_ma20 * 1.08: game_score += 12
+    elif obv_ma5 < obv_ma20 * 0.92: game_score -= 12
+    chg5 = closes[i] - closes[max(0,i-5)]
+    obv_chg5 = obv_full[i] - obv_full[max(0,i-5)]
+    if chg5 > 0 and obv_chg5 < 0: game_score -= 18
+    elif chg5 < 0 and obv_chg5 > 0: game_score += 12
+
+    composite = macd_score * 0.40 + mf_score * 0.30 + fund_score * 0.15 + game_score * 0.15
+
+    # 门禁
+    gates_pass = obv_ratio >= 0.90 and rv <= 92 and not (macd_score < 35 and mf_score < 40)
+
+    tech_score, tech_dim, patterns = score_technical(closes, highs, lows, volumes)
+
     lines = []
     lines.append(f"{'='*50}")
-    lines.append(f"  三合资本 · 综合策略 — {dates[-1]}")
+    lines.append(f"  三合资本 · 融合策略 — {dates[-1]}")
     lines.append(f"{'='*50}")
-    
-    lines.append(f"\n── 📊 三面评分 ──")
-    lines.append(f"  技术面 (30%): {tech_score:.1f} 分")
-    for k, v in tech_dim.items():
-        lines.append(f"    · {k}: {v:.1f}")
-    lines.append(f"  博弈面 (45%): {game_score:.1f} 分")
-    for k, v in game_dim.items():
-        lines.append(f"    · {k}: {v:.1f}")
-    lines.append(f"  基本面 (25%): {fund_score:.1f} 分")
-    for k, v in fund_dim.items():
-        lines.append(f"    · {k}: {v:.1f}")
-    
+
+    lines.append(f"\n── 📊 四维评分 ──")
+    lines.append(f"  MACD核心 (40%): {macd_score:.1f} 分 — DIF{dif[i]:.2f}/DEA{dea[i]:.2f} BAR{bar[i]:.2f}")
+    lines.append(f"  多因子 (30%): {mf_score:.1f} 分 — RSI{rv:.0f} K{kv:.0f}/D{dv:.0f}/J{jv:.0f} WR{wv:.0f}")
+    lines.append(f"  基本面 (15%): {fund_score:.1f} 分")
+    lines.append(f"  量能 (15%): {game_score:.1f} 分 — OBV比值{obv_ratio:.2f}")
+
     lines.append(f"\n── 🎯 综合判断 ──")
-    lines.append(f"  加权总分: {composite:.1f} (技{tech_score:.0f}×0.30 + 博{game_score:.0f}×0.45 + 基{fund_score:.0f}×0.25)")
-    
-    # 质量门禁
-    gates = []
-    if not gate_obv:
-        gates.append(f'🔴 OBV背离(比值{obv_ratio:.2f}<0.95) → 否决')
-    if rsi_val > 95:
-        gates.append(f'🟡 RSI超买({rsi_val:.0f}>95) → 降级')
-    if tech_score < 55 and game_score < 55:
-        gates.append(f'🟡 双维度<55 → 降级')
-    
-    if gates:
+    lines.append(f"  加权总分: {composite:.1f} (M{macd_score:.0f}×0.40 + F{mf_score:.0f}×0.30 + 基{fund_score:.0f}×0.15 + 量{game_score:.0f}×0.15)")
+
+    # 门禁
+    if not gates_pass:
         lines.append(f"\n── ⚠️ 质量门禁 ──")
-        for g in gates:
-            lines.append(f"  {g}")
-    
-    # 冲突裁决
-    lines.append(f"\n── ⚖️ 冲突裁决 (博弈>技术>基本面) ──")
-    if game_score >= 60:
-        lines.append(f"  博弈面主导({game_score:.0f}≥60) → 偏多方向")
-    elif game_score <= 40:
-        lines.append(f"  博弈面主导({game_score:.0f}≤40) → 偏空方向")
-    elif tech_score >= 60:
-        lines.append(f"  技术面主导({tech_score:.0f}≥60) → 技术偏多")
-    elif tech_score <= 40:
-        lines.append(f"  技术面主导({tech_score:.0f}≤40) → 技术偏空")
-    else:
-        lines.append(f"  三面中性 → 观望")
-    
-    # 信号
-    if composite >= 70 and gate_obv:
-        signal = '🟢 强烈看多'
-        action = '增持' if holding else '买入'
-    elif composite >= 60 and gate_obv:
-        signal = '🟢 偏多'
-        action = '拿住' if holding else '买入'
-    elif composite >= 45:
-        signal = '🟡 中性'
-        action = '减持' if holding else '观望'
-    elif composite >= 35:
-        signal = '🟠 偏空'
-        action = '减持' if holding else '不买'
-    else:
-        signal = '🔴 看空'
-        action = '卖出' if holding else '不买'
-    
-    # 门禁覆盖
-    if not gate_obv and action in ('买入', '增持', '拿住'):
-        action = '观望 (OBV背离否决)'
-        signal = '🔴 OBV否决'
-    
-    lines.append(f"\n  信号: {signal}  |  建议: {action}")
-    
+        if obv_ratio < 0.90: lines.append(f"  🔴 OBV严重背离(比值{obv_ratio:.2f}<0.90) → 否决")
+        if rv > 92: lines.append(f"  🔴 RSI极度超买({rv:.0f}>92) → 否决")
+        if macd_score < 35 and mf_score < 40: lines.append(f"  🔴 双弱(MACD{macd_score:.0f}<35 且 多因子{mf_score:.0f}<40) → 否决")
+
+    # 顶背离
+    if i >= 30 and closes[i] >= np.max(closes[max(0,i-30):i]) * 0.98 and dif[i] < dif[max(0,i-30)] * 0.9:
+        lines.append(f"  🔴 顶背离警告: 价格近30日高但DIF未确认")
+
     # 经典形态
     if patterns:
         lines.append(f"\n── 📐 经典形态 ──")
@@ -678,15 +768,24 @@ def predict_comprehensive(dates, closes, highs, lows, volumes, holding=False):
                 lines.append(f"  {p['type']}: 评分{p['score']:+d}  {status}")
             elif 'signals' in p:
                 lines.append(f"  {', '.join(p['signals'])}: 评分{p['score']:+d}")
-    
-    # 关键位
+
+    # 信号
+    if gates_pass:
+        if composite >= 70: signal = '🟢 强烈看多'; action = '增持' if holding else '买入'
+        elif composite >= 65: signal = '🟢 偏多'; action = '拿住' if holding else '买入'
+        elif composite >= 50: signal = '🟡 中性'; action = '减持' if holding else '观望'
+        elif composite >= 40: signal = '🟠 偏空'; action = '减持' if holding else '不买'
+        else: signal = '🔴 看空'; action = '卖出' if holding else '不买'
+    else:
+        signal = '🔴 门禁否决'; action = '观望'
+
+    lines.append(f"\n  信号: {signal}  |  建议: {action}")
+
     lines.append(f"\n── 📍 关键位 ──")
     ma20 = np.mean(closes[-20:])
     ma60 = np.mean(closes[-60:])
-    lines.append(f"  支撑: MA20={ma20:.2f}  MA60={ma60:.2f}")
-    bb_upper, bb_mid, bb_lower = calc_bollinger(closes)
-    lines.append(f"  布林: 上{bb_upper[-1]:.2f} 中{bb_mid[-1]:.2f} 下{bb_lower[-1]:.2f}")
-    
+    lines.append(f"  MA20={ma20:.2f}  MA60={ma60:.2f}  布林: 上{bb_u[-1]:.2f} 下{bb_l[-1]:.2f}")
+
     lines.append(f"\n{'='*50}")
     n_icon = max(1, min(10, int(composite / 10)))
     if holding:
@@ -697,7 +796,7 @@ def predict_comprehensive(dates, closes, highs, lows, volumes, holding=False):
         if '买入' in action: lines.append(f"  {'✅' * n_icon}  {action}")
         else: lines.append(f"  {'❌' * n_icon}  {action}")
     lines.append(f"{'='*50}")
-    
+
     return lines
 
 

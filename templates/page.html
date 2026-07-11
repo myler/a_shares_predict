@@ -71,16 +71,14 @@ h4{margin:0 0 4px;font-size:13px;color:#555}
     <input type="checkbox" id="calcDividend"> 计算分红（含每股分红收益）
   </label>
   <div class="strategy" id="formulaBox">
-    <h3>📐 策略公式 — 综合策略（三面量化）</h3>
-    <pre id="formulaText">Phase 1: 同源数据采集(K线/指标/形态/OBV)
-Phase 2: 三面独立评分
-  技术面(30%): 趋势/动量/量能/通道/形态/筹码 ×6维度
-  博弈面(45%): OBV背离/量价关系/资金趋势/事件驱动
-  基本面(25%): 估值位置/增长趋势/盈利质量
-Phase 3: 质量门禁 — OBV背离否决 | RSI>95降级 | 双维度<55降级
-Phase 4: 冲突裁决 — 博弈>技术>基本面
-买入: 综合≥65 + 通过门禁 + RSI<85
-卖出: 止损-8% | 止盈+20% | 综合<35 | 获利回吐</pre>
+    <h3>📐 策略公式 — 融合策略</h3>
+    <pre id="formulaText">MACD核心(40%): 金叉/零轴/DIF斜率/BAR趋势/底背离/顶背离
+多因子(30%): RSI/KDJ/Bollinger/WR 多指标共振
+基本面(15%): 250日估值位置/年增长趋势
+量能(15%): OBV趋势/量价背离检测
+门禁: OBV背离<0.90否决 | RSI>92否决 | 双弱否决
+买入: 综合≥65 + 通过门禁
+卖出: 止损-8% | 止盈+25% | 综合<35 | 获利回吐 | 顶背离 | 形态破颈线</pre>
   </div>
   <button id="btn" type="submit">分析</button>
 </form>
@@ -99,15 +97,13 @@ const FORMULAS={
   buyhold:{title:'长线持有策略',text:`数据起始日一次性买入，持有至今不卖。
 分红: 持有期间所有已实施分红累加。
 对比: 可直观看到"择时交易 vs 买入不动"的收益差异。`},
-  comprehensive:{title:'综合策略（三面量化）',text:`Phase 1: 同源数据采集(K线/指标/形态/OBV)
-Phase 2: 三面独立评分
-  技术面(30%): 趋势/动量/量能/通道/形态/筹码 ×6维度
-  博弈面(45%): OBV背离/量价关系/资金趋势/事件驱动
-  基本面(25%): 估值位置/增长趋势/盈利质量
-Phase 3: 质量门禁 — OBV背离否决 | RSI>95降级 | 双维度<55降级
-Phase 4: 冲突裁决 — 博弈>技术>基本面
-买入: 综合≥65 + 通过门禁 + RSI<85
-卖出: 止损-8% | 止盈+20% | 综合<35 | 获利回吐`}
+  comprehensive:{title:'融合策略',text:`MACD核心(40%): 金叉/零轴/DIF斜率/BAR趋势/底背离/顶背离
+多因子(30%): RSI/KDJ/Bollinger/WR 多指标共振
+基本面(15%): 250日估值位置/年增长趋势
+量能(15%): OBV趋势/量价背离检测
+门禁: OBV背离<0.90否决 | RSI>92否决 | 双弱否决
+买入: 综合≥65 + 通过门禁
+卖出: 止损-8% | 止盈+25% | 综合<35 | 获利回吐 | 顶背离 | 形态破颈线`}
 };
 function getStrategy(){return document.getElementById('strategy').value;}
 function onStrategyChange(){
