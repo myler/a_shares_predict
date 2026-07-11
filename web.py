@@ -14,7 +14,8 @@ from fetcher import fetch_kline, get_name, fetch_dividends, enrich_trades_with_d
 from db import save_stock_name
 from engine import (calc_macd, detect_regime, find_divergences, backtest, predict,
                     backtest_multifactor, predict_multifactor, plot_multifactor,
-                    backtest_comprehensive, predict_comprehensive, calc_bollinger, calc_obv)
+                    backtest_comprehensive, predict_comprehensive, calc_bollinger, calc_obv,
+                    calc_rsi, calc_kdj, calc_wr)
 
 import numpy as np
 import matplotlib
@@ -507,7 +508,59 @@ class Handler(BaseHTTPRequestHandler):
         tech_score, tech_dim, patterns = eng.score_technical(closes, highs, lows, vols)
         game_score, game_dim = eng.score_game_theory(closes, vols, highs, lows)
         fund_score, fund_dim = eng.score_fundamental(closes, vols)
-        composite = tech_score * 0.30 + game_score * 0.45 + fund_score * 0.25
+        
+        # 融合策略四维评分（回测同款）
+        dif, dea, bar = calc_macd(closes)
+        rsi_arr = calc_rsi(closes)
+        k_arr, d_arr, j_arr = calc_kdj(highs, lows, closes)
+        bb_u, bb_m, bb_l = calc_bollinger(closes)
+        wr_arr = calc_wr(highs, lows, closes)
+        obv_full = calc_obv(closes, vols)
+        i = len(closes) - 1
+        
+        macd_score = 50
+        if dif[i] > dea[i]: macd_score += 15
+        else: macd_score -= 15
+        if dif[i] > 0: macd_score += 12
+        else: macd_score -= 8
+        if i >= 5 and dif[i] > dif[i-5]: macd_score += 8
+        else: macd_score -= 5
+        if i >= 3 and bar[i] > bar[i-3]: macd_score += 5
+        
+        mf_score = 50
+        rv = rsi_arr[i] if not np.isnan(rsi_arr[i]) else 50
+        kv = k_arr[i] if not np.isnan(k_arr[i]) else 50
+        dv = d_arr[i] if not np.isnan(d_arr[i]) else 50
+        jv = j_arr[i] if not np.isnan(j_arr[i]) else 50
+        wv = wr_arr[i] if not np.isnan(wr_arr[i]) else 50
+        if 30 <= rv <= 65: mf_score += 10
+        elif rv < 30: mf_score += 15
+        elif rv > 80: mf_score -= 15
+        if kv > dv: mf_score += 10
+        elif kv < dv: mf_score -= 8
+        if jv < 0: mf_score += 8
+        bb_pos = (closes[i] - bb_l[i]) / (bb_u[i] - bb_l[i]) * 100 if not np.isnan(bb_u[i]) and bb_u[i] != bb_l[i] else 50
+        if bb_pos < 10: mf_score += 12
+        elif bb_pos > 90: mf_score -= 8
+        if wv > 80: mf_score += 8
+        
+        game_score2 = 50
+        obv_ma20 = np.mean(obv_full[max(0,i-20):i]) if i >= 20 else np.mean(obv_full[:i])
+        obv_ma5 = np.mean(obv_full[max(0,i-4):i+1])
+        obv_ratio = obv_full[i] / obv_ma20 if obv_ma20 > 0 else 1
+        if obv_ma5 > obv_ma20 * 1.08: game_score2 += 12
+        elif obv_ma5 < obv_ma20 * 0.92: game_score2 -= 12
+        
+        fund_score2 = 50
+        if i >= 249:
+            h250 = np.max(closes[i-249:i+1])
+            l250 = np.min(closes[i-249:i+1])
+            pos250 = (closes[i] - l250) / (h250 - l250) * 100 if h250 != l250 else 50
+            if pos250 < 25: fund_score2 += 20
+            elif pos250 < 40: fund_score2 += 10
+            elif pos250 > 80: fund_score2 -= 15
+        
+        composite = macd_score * 0.40 + mf_score * 0.30 + fund_score2 * 0.15 + game_score2 * 0.15
 
         overview = f"""
         <table class="overview">
@@ -538,11 +591,12 @@ class Handler(BaseHTTPRequestHandler):
         </table>
         <br>
         <table class="overview">
-          <tr><th colspan="3">📊 三面评分卡</th></tr>
-          <tr style="background:#e3f2fd"><td><b>技术面 (30%)</b></td><td style="font-weight:bold;font-size:1.2em">{score_level(tech_score)} {tech_score:.1f}</td><td style="font-size:11px;color:#888"><table>{tech_rows}</table></td></tr>
-          <tr style="background:#fff3e0"><td><b>博弈面 (45%)</b></td><td style="font-weight:bold;font-size:1.2em">{score_level(game_score)} {game_score:.1f}</td><td style="font-size:11px;color:#888"><table>{game_rows}</table></td></tr>
-          <tr style="background:#e8f5e9"><td><b>基本面 (25%)</b></td><td style="font-weight:bold;font-size:1.2em">{score_level(fund_score)} {fund_score:.1f}</td><td style="font-size:11px;color:#888"><table>{fund_rows}</table></td></tr>
-          <tr style="background:#f5f5f5"><td><b>综合加权</b></td><td style="font-weight:bold;font-size:1.4em">{score_level(composite)} {composite:.1f}</td><td>技{tech_score:.0f}×0.30 + 博{game_score:.0f}×0.45 + 基{fund_score:.0f}×0.25</td></tr>
+          <tr><th colspan="3">📊 融合策略四维评分</th></tr>
+          <tr style="background:#e3f2fd"><td><b>MACD核心 (40%)</b></td><td style="font-weight:bold;font-size:1.2em">{score_level(macd_score)} {macd_score:.1f}</td><td style="font-size:11px;color:#888">DIF{dif[i]:.2f}/DEA{dea[i]:.2f} BAR{bar[i]:.2f}</td></tr>
+          <tr style="background:#fff3e0"><td><b>多因子 (30%)</b></td><td style="font-weight:bold;font-size:1.2em">{score_level(mf_score)} {mf_score:.1f}</td><td style="font-size:11px;color:#888">RSI{rv:.0f} K{kv:.0f}/D{dv:.0f}/J{jv:.0f} WR{wv:.0f}</td></tr>
+          <tr style="background:#e8f5e9"><td><b>基本面 (15%)</b></td><td style="font-weight:bold;font-size:1.2em">{score_level(fund_score2)} {fund_score2:.1f}</td><td style="font-size:11px;color:#888"><table>{fund_rows}</table></td></tr>
+          <tr style="background:#f3e5f5"><td><b>量能 (15%)</b></td><td style="font-weight:bold;font-size:1.2em">{score_level(game_score2)} {game_score2:.1f}</td><td style="font-size:11px;color:#888">OBV比值{obv_ratio:.2f}</td></tr>
+          <tr style="background:#f5f5f5"><td><b>综合加权</b></td><td style="font-weight:bold;font-size:1.4em">{score_level(composite)} {composite:.1f}</td><td>M{macd_score:.0f}×0.40+F{mf_score:.0f}×0.30+基{fund_score2:.0f}×0.15+量{game_score2:.0f}×0.15</td></tr>
         </table>"""
 
         # 结论横幅
