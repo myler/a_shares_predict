@@ -587,7 +587,35 @@ class Handler(BaseHTTPRequestHandler):
         game_rows = ''.join(f'<tr><td>{k}</td><td>{v:.1f}</td></tr>' for k, v in game_dim.items())
         fund_rows = ''.join(f'<tr><td>{k}</td><td>{v:.1f}</td></tr>' for k, v in fund_dim.items())
 
-        # ── 详细分析过程 ──
+        # ── 机构参与度（优先真实数据，失败降级代理）──
+        inst_data = None
+        try:
+            from fetcher import fetch_institution_participation, estimate_institution_proxy
+            inst_data = fetch_institution_participation(code)
+        except: pass
+        
+        if inst_data and inst_data.get('institution_participation') is not None:
+            inst_val = inst_data['institution_participation'] * 100
+            if inst_val > 50: inst_label = f'🏛️ 机构主导 ({inst_val:.0f}%)'
+            elif inst_val > 30: inst_label = f'🤝 均衡型 ({inst_val:.0f}%)'
+            else: inst_label = f'👤 散户活跃 ({inst_val:.0f}%)'
+            inst_source = '千股千评'
+        else:
+            # 代理：用波动率估算
+            from fetcher import estimate_institution_proxy
+            inst_proxy = estimate_institution_proxy(closes, highs, lows, vols)
+            if inst_proxy > 65: inst_label = '🏛️ 机构主导 (代理)'
+            elif inst_proxy > 45: inst_label = '🤝 均衡型 (代理)'
+            else: inst_label = '👤 散户活跃 (代理)'
+            inst_source = '波动率代理'
+            inst_val = inst_proxy
+
+        # ── 博弈反弹信号 ──
+        reb_signal = ''
+        if i >= 5:
+            ret_5d_val = (closes[i] - closes[max(0,i-5)]) / closes[max(0,i-5)] * 100
+            if ret_5d_val < -3 and (inst_val > 30):
+                reb_signal = f'<br><span style="color:#2e7d32;font-size:11px">⚡ 下跌{ret_5d_val:+.1f}% + 机构参与{inst_val:.0f}% → 博弈反弹信号</span>'
         analysis_html = f"""<h3>🔍 分析过程</h3>
         <table class="overview">
           <tr><th colspan="3">MACD核心评分 (40%)</th></tr>
@@ -625,6 +653,7 @@ class Handler(BaseHTTPRequestHandler):
           <tr><td>基本面 (15%)</td><td></td><td style="font-weight:bold">{fund_score2:.0f}</td></tr>
           <tr><td>OBV比值</td><td style="font-family:monospace">MA₅/MA₂₀ = {obv_ratio:.2f}</td><td style="color:{'#2e7d32' if obv_ratio>1.08 else ('#c62828' if obv_ratio<0.92 else '#888')}">{'+12' if obv_ratio>1.08 else ('−12' if obv_ratio<0.92 else '0')}</td></tr>
           <tr><td>量能 (15%)</td><td></td><td style="font-weight:bold">{game_score2:.0f}</td></tr>
+          <tr><td>机构参与</td><td style="font-size:12px">{inst_label} <small>({inst_source})</small>{reb_signal}</td><td></td></tr>
         </table>
         <br>
         <table class="overview">
@@ -665,7 +694,7 @@ class Handler(BaseHTTPRequestHandler):
           <tr style="background:#e3f2fd"><td><b>MACD核心 (40%)</b></td><td style="font-weight:bold;font-size:1.2em">{score_level(macd_score)} {macd_score:.1f}</td><td style="font-size:11px;color:#888">DIF{dif[i]:.2f}/DEA{dea[i]:.2f} BAR{bar[i]:.2f}</td></tr>
           <tr style="background:#fff3e0"><td><b>多因子 (30%)</b></td><td style="font-weight:bold;font-size:1.2em">{score_level(mf_score)} {mf_score:.1f}</td><td style="font-size:11px;color:#888">RSI{rv:.0f} K{kv:.0f}/D{dv:.0f}/J{jv:.0f} WR{wv:.0f}</td></tr>
           <tr style="background:#e8f5e9"><td><b>基本面 (15%)</b></td><td style="font-weight:bold;font-size:1.2em">{score_level(fund_score2)} {fund_score2:.1f}</td><td style="font-size:11px;color:#888"><table>{fund_rows}</table></td></tr>
-          <tr style="background:#f3e5f5"><td><b>量能 (15%)</b></td><td style="font-weight:bold;font-size:1.2em">{score_level(game_score2)} {game_score2:.1f}</td><td style="font-size:11px;color:#888">OBV比值{obv_ratio:.2f}</td></tr>
+          <tr style="background:#f3e5f5"><td><b>量能 (15%)</b></td><td style="font-weight:bold;font-size:1.2em">{score_level(game_score2)} {game_score2:.1f}</td><td style="font-size:11px;color:#888">OBV比值{obv_ratio:.2f}<br>{inst_label}</td></tr>
           <tr style="background:#f5f5f5"><td><b>综合加权</b></td><td style="font-weight:bold;font-size:1.4em">{score_level(composite)} {composite:.1f}</td><td>M{macd_score:.0f}×0.40+F{mf_score:.0f}×0.30+基{fund_score2:.0f}×0.15+量{game_score2:.0f}×0.15</td></tr>
         </table>"""
 

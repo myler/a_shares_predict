@@ -604,6 +604,15 @@ def backtest_comprehensive(dates, closes, highs, lows, volumes):
         if chg5 > 0 and obv_chg5 < 0: game_score -= 18
         elif chg5 < 0 and obv_chg5 > 0: game_score += 12
 
+        # ── 机构参与度代理（回测用：下跌+低波动=机构吸筹）──
+        if i >= 60:
+            ret_5d = (closes[i] - closes[max(0,i-5)]) / closes[max(0,i-5)] * 100
+            ret_20d = (closes[i] - closes[max(0,i-20)]) / closes[max(0,i-20)] * 100
+            vol_60d = np.std([(closes[j]-closes[j-1])/closes[j-1] for j in range(max(1,i-60), i+1)]) * 100
+            if ret_5d < -3 and vol_60d < 25: game_score += 10  # 下跌低波→机构吸筹
+            elif ret_20d < -10 and vol_60d < 25: game_score += 15  # 深跌低波→强吸筹
+            elif ret_5d < -3 and vol_60d > 40: game_score -= 8  # 下跌高波→散户恐慌
+
         # ══════ 综合 ══════
         composite = macd_score * 0.40 + mf_score * 0.30 + fund_score * 0.15 + game_score * 0.15
 
@@ -744,6 +753,19 @@ def predict_comprehensive(dates, closes, highs, lows, volumes, holding=False):
     lines.append(f"  多因子 (30%): {mf_score:.1f} 分 — RSI{rv:.0f} K{kv:.0f}/D{dv:.0f}/J{jv:.0f} WR{wv:.0f}")
     lines.append(f"  基本面 (15%): {fund_score:.1f} 分")
     lines.append(f"  量能 (15%): {game_score:.1f} 分 — OBV比值{obv_ratio:.2f}")
+
+    # 机构参与度代理
+    if i >= 60:
+        ret_5d_val = (closes[i] - closes[max(0,i-5)]) / closes[max(0,i-5)] * 100
+        ret_20d_val = (closes[i] - closes[max(0,i-20)]) / closes[max(0,i-20)] * 100
+        vol_60d_val = np.std([(closes[j]-closes[j-1])/closes[j-1] for j in range(max(1,i-60), i+1)]) * 100
+        if vol_60d_val < 20: inst_label = '🏛️ 机构主导 (低波)'
+        elif vol_60d_val < 30: inst_label = '🤝 均衡型'
+        else: inst_label = '👤 散户活跃 (高波)'
+        inst_sig = ''
+        if ret_5d_val < -3 and vol_60d_val < 25: inst_sig = ' ⚡下跌低波→机构吸筹信号'
+        elif ret_20d_val < -10 and vol_60d_val < 25: inst_sig = ' ⚡⚡深跌低波→强吸筹信号'
+        lines.append(f"  机构代理: {inst_label} 波动率{vol_60d_val:.1f}%{inst_sig}")
 
     lines.append(f"\n── 🎯 综合判断 ──")
     lines.append(f"  加权总分: {composite:.1f} (M{macd_score:.0f}×0.40 + F{mf_score:.0f}×0.30 + 基{fund_score:.0f}×0.15 + 量{game_score:.0f}×0.15)")

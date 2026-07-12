@@ -2,6 +2,7 @@
 """数据层：K线抓取、分红抓取、股票名称、多源降级"""
 
 import sys, os, json, urllib.request, time, re
+import numpy as np
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 
@@ -167,6 +168,68 @@ def fetch_dividends(code):
     implemented = [r for r in results if r['status'] == '实施']
     save_dividends(code, implemented)
     return implemented
+
+
+def fetch_institution_participation(code):
+    """拉取千股千评中的机构参与度（0-1之间），失败返回 None"""
+    import urllib.request, json, re
+    try:
+        secid = f'1.{code}' if code.startswith('6') else f'0.{code}'
+        url = f'https://push2.eastmoney.com/api/qt/stock/get?secid={secid}&fields=f162,f167,f43,f170,f116,f117'
+        req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0', 'Referer': 'https://quote.eastmoney.com/'})
+        raw = urllib.request.urlopen(req, timeout=10).read().decode('utf-8')
+        data = json.loads(raw).get('data', {})
+        if data:
+            return {
+                'institution_participation': data.get('f162', None),  # 机构参与度
+                'composite_score': data.get('f167', None),  # 综合得分
+                'main_cost': data.get('f170', None),  # 主力成本
+                'attention_index': data.get('f117', None),  # 关注指数
+            }
+    except Exception:
+        pass
+    return None
+
+
+def estimate_institution_proxy(closes, highs, lows, volumes):
+    """回测用：从K线数据估算机构主导度代理（波动率+量能稳定性）"""
+    n = len(closes)
+    if n < 60:
+        return 50.0
+    
+    i = n - 1
+    # 1) 近期波动率（越低越像机构主导）
+    returns = [(closes[j] - closes[j-1]) / closes[j-1] for j in range(max(1,i-60), i+1)]
+    volatility = np.std(returns) * 100
+    # 年化波动率 <20% → 机构型, 20-40% → 均衡, >40% → 散户型
+    vol_score = 50
+    if volatility < 15: vol_score += 25
+    elif volatility < 25: vol_score += 15
+    elif volatility < 35: vol_score += 5
+    elif volatility > 50: vol_score -= 20
+    elif volatility > 40: vol_score -= 10
+    
+    # 2) 量能稳定性（量比CV越低越像机构）
+    vol_ma = np.mean(volumes[max(0,i-60):i+1])
+    vol_std = np.std(volumes[max(0,i-60):i+1])
+    vol_cv = (vol_std / vol_ma * 100) if vol_ma > 0 else 100
+    # CV < 50% → 机构型, 50-100% → 均衡, >100% → 散户型
+    vol_stab = 50
+    if vol_cv < 40: vol_stab += 20
+    elif vol_cv < 70: vol_stab += 10
+    elif vol_cv > 120: vol_stab -= 15
+    elif vol_cv > 100: vol_stab -= 8
+    
+    # 3) 日内振幅稳定性
+    amplitudes = [(highs[j] - lows[j]) / closes[j] * 100 for j in range(max(0,i-60), i+1)]
+    avg_amp = np.mean(amplitudes)
+    amp_score = 50
+    if avg_amp < 2: amp_score += 20
+    elif avg_amp < 3: amp_score += 10
+    elif avg_amp > 5: amp_score -= 15
+    
+    proxy = vol_score * 0.4 + vol_stab * 0.35 + amp_score * 0.25
+    return round(proxy, 1)
 
 
 def enrich_trades_with_dividends(trades, dividends):
