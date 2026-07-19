@@ -135,6 +135,12 @@ class TestDB(unittest.TestCase):
         conn.close()
         self.assertEqual(row[0], '新名称')
 
+    def test_load_stock_name(self):
+        """已缓存的股票名称应可直接读取"""
+        db.save_stock_name('000008', '缓存名称')
+        self.assertEqual(db.load_stock_name('000008'), '缓存名称')
+        self.assertIsNone(db.load_stock_name('999999'))
+
 
 if __name__ == '__main__':
     unittest.main(verbosity=2)

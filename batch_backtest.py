@@ -4,8 +4,9 @@
 import sys, os, time, json
 import numpy as np
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from fetcher import fetch_kline, get_name
-from engine import backtest_comprehensive, predict_comprehensive
+from fetcher import fetch_kline
+from db import load_stock_name
+from engine import backtest_comprehensive, predict_comprehensive, summarize_trades
 
 STOCKS = {
     # ── 芯片 (40) ──
@@ -34,6 +35,7 @@ STOCKS = {
         "002557", "600436", "300896", "688363", "603899", "002032",
         "600132", "000423", "600085", "603833", "002242", "300740",
     ],
+    "金融": ["000001"],
 }
 
 def main():
@@ -47,80 +49,80 @@ def main():
             done += 1
             try:
                 data = fetch_kline(code)
-                name = get_name(code)
+                name = load_stock_name(code) or code
                 dates = [d['day'] for d in data]
+                opens = np.array([float(d['open']) for d in data])
                 closes = np.array([float(d['close']) for d in data])
                 highs = np.array([float(d['high']) for d in data])
                 lows = np.array([float(d['low']) for d in data])
                 vols = np.array([float(d['volume']) for d in data])
                 
-                trades = backtest_comprehensive(dates, closes, highs, lows, vols)
-                
-                wins = [t for t in trades if t['profit_pct'] > 0]
-                total_pnl = sum(t['profit_pct'] for t in trades)
-                win_rate = len(wins)/len(trades)*100 if trades else 0
+                trades = backtest_comprehensive(
+                    dates, closes, highs, lows, vols, opens=opens)
+                summary = summarize_trades(trades)
                 
                 # 当前评分
-                pred = predict_comprehensive(dates, closes, highs, lows, vols, holding=False)
-                comp_score = None
-                for line in pred:
-                    if '加权总分' in line:
-                        try: comp_score = float(line.split(':')[1].strip().split()[0])
-                        except: pass
+                pred = predict_comprehensive(
+                    dates, closes, highs, lows, vols, holding=False, opens=opens)
+                comp_score = pred.get('composite') if 'error' not in pred else None
+                signal = pred.get('signal', '—') if 'error' not in pred else '—'
+                score_display = f'{comp_score:.0f}' if comp_score is not None else '—'
                 
                 results.append({
                     'category': category, 'code': code, 'name': name,
-                    'trades': len(trades), 'win_rate': round(win_rate, 1),
-                    'total_pnl': round(total_pnl, 1),
-                    'score': round(comp_score, 1) if comp_score else None,
-                    'signal': '🟢' if comp_score and comp_score >= 60 else ('🟡' if comp_score and comp_score >= 45 else ('🔴' if comp_score else '—')),
+                    'trades': summary['trades'],
+                    'win_rate': round(summary['win_rate_pct'], 1),
+                    'total_return_pct': round(summary['price_return_pct'], 1),
+                    'score': round(comp_score, 1) if comp_score is not None else None,
+                    'signal': signal,
                 })
                 
                 elapsed = time.time() - t0
                 eta = elapsed / done * (total - done)
-                print(f"[{done}/{total}] {code} {name:6s} {len(trades):2d}笔 胜率{win_rate:5.1f}% 收益{total_pnl:+6.1f}% 评分{comp_score:.0f}  | {elapsed:.0f}s elapsed ETA {eta:.0f}s", flush=True)
+                print(f"[{done}/{total}] {code} {name:6s} {summary['trades']:2d}笔 胜率{summary['win_rate_pct']:5.1f}% 价差复利{summary['price_return_pct']:+6.1f}% 评分{score_display} {signal} | {elapsed:.0f}s elapsed ETA {eta:.0f}s", flush=True)
                 
             except Exception as e:
-                results.append({'category': category, 'code': code, 'name': 'ERR', 'trades': 0, 'win_rate': 0, 'total_pnl': 0, 'score': None, 'signal': '⚠️'})
+                results.append({'category': category, 'code': code, 'name': 'ERR', 'trades': 0, 'win_rate': 0, 'total_return_pct': 0, 'score': None, 'signal': '⚠️'})
                 print(f"[{done}/{total}] {code} ERROR: {e}", flush=True)
     
     # ── 汇总 ──
     print("\n" + "="*100)
-    print("综合策略回测汇总 — 100只股票")
+    print(f"综合策略回测汇总 — {total}只股票")
     print("="*100)
     
-    for cat in ["芯片", "资源", "消费"]:
+    for cat in STOCKS:
         cat_results = [r for r in results if r['category'] == cat]
-        cat_scores = [r['score'] for r in cat_results if r['score']]
-        cat_pnls = [r['total_pnl'] for r in cat_results if r['trades'] > 0]
+        cat_scores = [r['score'] for r in cat_results if r['score'] is not None]
+        cat_pnls = [r['total_return_pct'] for r in cat_results if r['trades'] > 0]
         cat_wins = [r['win_rate'] for r in cat_results if r['trades'] > 0]
         
         print(f"\n## {cat} ({len(cat_results)}只)")
-        print(f"{'代码':<8} {'名称':<8} {'交易':>4} {'胜率':>7} {'收益':>8} {'评分':>6} {'信号'}")
+        print(f"{'代码':<8} {'名称':<8} {'交易':>4} {'胜率':>7} {'价差复利':>8} {'评分':>6} {'信号'}")
         print("-"*55)
         for r in sorted(cat_results, key=lambda x: x['score'] or 0, reverse=True):
-            print(f"{r['code']:<8} {r['name']:<8} {r['trades']:>4} {r['win_rate']:>6.1f}% {r['total_pnl']:>+7.1f}% {r['score'] or '—':>6} {r['signal']}")
+            score_display = f"{r['score']:.1f}" if r['score'] is not None else '—'
+            print(f"{r['code']:<8} {r['name']:<8} {r['trades']:>4} {r['win_rate']:>6.1f}% {r['total_return_pct']:>+7.1f}% {score_display:>6} {r['signal']}")
         
-        buy_cnt = sum(1 for r in cat_results if r['signal'] == '🟢')
+        buy_cnt = sum(1 for r in cat_results if r['signal'] in ('强烈看多', '偏多'))
         avg_score = np.mean(cat_scores) if cat_scores else 0
         avg_win = np.mean(cat_wins) if cat_wins else 0
         avg_pnl = np.mean(cat_pnls) if cat_pnls else 0
-        print(f"\n  🟢买入{buy_cnt}只 | 均分{avg_score:.1f} | 均胜率{avg_win:.1f}% | 均收益{avg_pnl:+.1f}%")
+        print(f"\n  🟢买入{buy_cnt}只 | 均分{avg_score:.1f} | 均胜率{avg_win:.1f}% | 均价差复利{avg_pnl:+.1f}%")
     
     # 总榜 TOP 20
     print(f"\n{'='*100}")
     print("🏆 综合评分 TOP 20")
     print(f"{'='*100}")
-    valid = [r for r in results if r['score']]
+    valid = [r for r in results if r['score'] is not None]
     for i, r in enumerate(sorted(valid, key=lambda x: x['score'], reverse=True)[:20], 1):
-        print(f"  {i:2d}. {r['code']} {r['name']:<8s} [{r['category']}] 评分{r['score']:.1f} 胜率{r['win_rate']:.1f}% 收益{r['total_pnl']:+.1f}% {r['signal']}")
+        print(f"  {i:2d}. {r['code']} {r['name']:<8s} [{r['category']}] 评分{r['score']:.1f} 胜率{r['win_rate']:.1f}% 价差复利{r['total_return_pct']:+.1f}% {r['signal']}")
     
     # 总统计
-    all_pnls = [r['total_pnl'] for r in results if r['trades'] > 0]
+    all_pnls = [r['total_return_pct'] for r in results if r['trades'] > 0]
     all_wins = [r['win_rate'] for r in results if r['trades'] > 0]
-    all_scores = [r['score'] for r in results if r['score']]
-    buy_total = sum(1 for r in results if r['signal'] == '🟢')
-    print(f"\n  总计: {len(results)}只 | 🟢买入{buy_total}只 | 均分{np.mean(all_scores):.1f} | 均胜率{np.mean(all_wins):.1f}% | 均收益{np.mean(all_pnls):+.1f}%")
+    all_scores = [r['score'] for r in results if r['score'] is not None]
+    buy_total = sum(1 for r in results if r['signal'] in ('强烈看多', '偏多'))
+    print(f"\n  总计: {len(results)}只 | 🟢买入{buy_total}只 | 均分{np.mean(all_scores):.1f} | 均胜率{np.mean(all_wins):.1f}% | 均价差复利{np.mean(all_pnls):+.1f}%")
     print(f"  耗时: {time.time()-t0:.0f}s")
 
 if __name__ == '__main__':

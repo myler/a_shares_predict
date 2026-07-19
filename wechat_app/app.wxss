@@ -1,0 +1,148 @@
+/* 三合资本 · 全局样式 */
+page {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: #f5f5f5;
+  color: #333;
+  font-size: 14px;
+}
+
+.container { padding: 16px; }
+
+/* 搜索栏 */
+.search-bar {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+.search-input {
+  flex: 1;
+  height: 44px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  padding: 0 12px;
+  font-size: 16px;
+  background: #fff;
+}
+.search-btn {
+  width: 80px;
+  height: 44px;
+  line-height: 44px;
+  text-align: center;
+  background: #1a237e;
+  color: #fff;
+  border-radius: 8px;
+  font-size: 15px;
+}
+.search-btn[disabled] { opacity: 0.5; }
+
+/* 加载 */
+.loading { text-align: center; padding: 40px; color: #999; }
+
+/* 结论横幅 */
+.conclusion {
+  padding: 16px;
+  border-radius: 8px;
+  margin-bottom: 12px;
+  font-size: 18px;
+  font-weight: bold;
+  text-align: center;
+}
+.conclusion.buy  { background: #e8f5e9; color: #2e7d32; }
+.conclusion.sell { background: #ffebee; color: #c62828; }
+.conclusion.warn { background: #fff8e1; color: #f57f17; }
+
+/* 评分卡片 */
+.score-card {
+  background: #fff;
+  border-radius: 8px;
+  padding: 12px;
+  margin-bottom: 8px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+}
+.score-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 0;
+  border-bottom: 1px solid #f0f0f0;
+}
+.score-row:last-child { border-bottom: none; }
+.score-label { font-size: 14px; color: #666; }
+.score-value { font-size: 16px; font-weight: bold; }
+.score-green { color: #2e7d32; }
+.score-red   { color: #c62828; }
+.score-yellow { color: #f57f17; }
+
+/* 门禁 */
+.gate-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 4px 0;
+  font-size: 13px;
+}
+.gate-pass { color: #2e7d32; }
+.gate-fail { color: #c62828; }
+
+/* 交易列表 */
+.trade-card {
+  background: #fff;
+  border-radius: 8px;
+  padding: 10px;
+  margin-bottom: 6px;
+  border-left: 4px solid #ddd;
+}
+.trade-card.win { border-left-color: #2e7d32; }
+.trade-card.loss { border-left-color: #c62828; }
+.trade-date { font-size: 12px; color: #999; }
+.trade-price { font-size: 15px; font-weight: bold; }
+.trade-pnl { font-size: 14px; }
+.trade-reason { font-size: 12px; color: #666; margin-top: 4px; }
+
+/* 关键位 */
+.levels {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 8px 0;
+}
+.level-item {
+  flex: 1;
+  min-width: 80px;
+  background: #fff;
+  padding: 8px;
+  border-radius: 6px;
+  text-align: center;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+}
+.level-label { font-size: 11px; color: #999; }
+.level-value { font-size: 15px; font-weight: bold; }
+
+/* Canvas 图表区域 */
+.chart-box {
+  background: #fff;
+  border-radius: 8px;
+  margin-top: 12px;
+  padding: 8px;
+}
+
+/* 策略切换 */
+.strategy-tabs {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 12px;
+}
+.tab {
+  flex: 1;
+  height: 36px;
+  line-height: 36px;
+  text-align: center;
+  background: #fff;
+  border-radius: 6px;
+  font-size: 13px;
+  color: #666;
+}
+.tab.active {
+  background: #1a237e;
+  color: #fff;
+  font-weight: bold;
+}

@@ -6,12 +6,14 @@ import numpy as np
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 
-from db import load_klines, save_klines, load_dividends, save_dividends, save_stock_name
+from db import (load_klines, save_klines, load_dividends, save_dividends,
+                save_stock_name, load_stock_name)
 
 
 def fetch_kline(code, days=2500, max_retries=3):
     """
-    多源降级拉取K线: 优先本地DB → 新浪 → 腾讯 → 东方财富
+    多源降级拉取不复权 K 线: 优先本地DB → 新浪 → 腾讯 → 东方财富。
+    分红由 enrich_trades_with_dividends 单独计入，不能与前复权价格混用。
     首次拉全量并缓存，之后从DB秒读。
     """
     cached = load_klines(code)
@@ -24,9 +26,9 @@ def fetch_kline(code, days=2500, max_retries=3):
     sources = [
         ('新浪', f'https://money.finance.sina.com.cn/quotes_service/api/json_v2.php/CN_MarketData.getKLineData?symbol={sc}&scale=240&ma=no&datalen={days}',
          {'User-Agent': 'Mozilla/5.0', 'Referer': 'https://finance.sina.com.cn'}),
-        ('腾讯(前复权)', f'http://web.ifzq.gtimg.cn/appstock/app/fqkline/get?param={sc},day,,,{days},qfq',
+        ('腾讯(不复权)', f'http://web.ifzq.gtimg.cn/appstock/app/fqkline/get?param={sc},day,,,{days}',
          {'User-Agent': 'Mozilla/5.0'}),
-        ('东方财富(前复权)', f'https://push2his.eastmoney.com/api/qt/stock/kline/get?secid={1 if code.startswith("6") else 0}.{code}&fields1=f1,f2,f3,f4,f5,f6&fields2=f51,f52,f53,f54,f55,f56,f57,f58,f59,f60,f61&klt=101&fqt=1&end=20500101&lmt={days}',
+        ('东方财富(不复权)', f'https://push2his.eastmoney.com/api/qt/stock/kline/get?secid={1 if code.startswith("6") else 0}.{code}&fields1=f1,f2,f3,f4,f5,f6&fields2=f51,f52,f53,f54,f55,f56,f57,f58,f59,f60,f61&klt=101&fqt=0&end=20500101&lmt={days}',
          {'User-Agent': 'Mozilla/5.0', 'Referer': 'https://quote.eastmoney.com/'}),
     ]
 
@@ -39,7 +41,7 @@ def fetch_kline(code, days=2500, max_retries=3):
 
                 if name.startswith('腾讯'):
                     data = json.loads(raw)
-                    klines = data.get('data', {}).get(sc, {}).get('qfqday', []) or data.get('data', {}).get(sc, {}).get('day', [])
+                    klines = data.get('data', {}).get(sc, {}).get('day', [])
                     if not klines: raise ValueError('腾讯: 空数据')
                     result = []
                     for r in klines:
@@ -89,6 +91,10 @@ def fetch_kline(code, days=2500, max_retries=3):
 
 def get_name(code):
     """多源获取股票名称，失败返回代码本身"""
+    cached_name = load_stock_name(code)
+    if cached_name:
+        return cached_name
+
     sc = f'sh{code}' if code.startswith('6') else f'sz{code}'
     sources = [
         ('腾讯', f'http://qt.gtimg.cn/q={sc}', 'gbk', lambda raw: raw.split('~')[1]),
@@ -102,6 +108,7 @@ def get_name(code):
             raw = urllib.request.urlopen(req, timeout=5).read().decode(enc)
             result = parser(raw)
             if result and result != code:
+                save_stock_name(code, result)
                 return result
         except: continue
     return code
@@ -233,16 +240,34 @@ def estimate_institution_proxy(closes, highs, lows, volumes):
 
 
 def enrich_trades_with_dividends(trades, dividends):
-    """为每笔交易计算分红收益，并累加到总收益中。
-    价差收益 + 分红收益 = 总收益
+    """为每笔交易计算现金分红、送转股和含分红总收益。
+
+    回测按开盘成交：除权日开盘买入不享有本次权益，除权日开盘卖出仍享有
+    前一交易日登记的权益。
     """
     for tr in trades:
-        dlist = []
-        for d in dividends:
-            if d['ex_date'] and tr['buy_date'] <= d['ex_date'] < tr['sell_date']:
-                dlist.append(d)
+        dlist = sorted(
+            [d for d in dividends
+             if d.get('ex_date') and tr['buy_date'] < d['ex_date'] <= tr['sell_date']],
+            key=lambda item: item['ex_date'],
+        )
+        shares = 1.0
+        dividend_total = 0.0
+        for dividend in dlist:
+            dividend_total += shares * dividend.get('dividend_per_share', 0)
+            shares *= 1 + (
+                dividend.get('bonus_share', 0) + dividend.get('transfer_share', 0)
+            ) / 10
+
         tr['dividends'] = dlist
-        tr['dividend_total'] = sum(d['dividend_per_share'] for d in dlist)
-        tr['dividend_yield_pct'] = tr['dividend_total'] / tr['buy_price'] * 100
-        tr['total_return_pct'] = tr['profit_pct'] + tr['dividend_yield_pct']
+        tr['share_multiplier'] = shares
+        tr['dividend_total'] = dividend_total
+        tr['dividend_yield_pct'] = dividend_total / tr['buy_price'] * 100
+
+        commission_rate = tr.get('commission_rate', 0)
+        stamp_duty_rate = tr.get('stamp_duty_rate', 0)
+        buy_cost = tr['buy_price'] * (1 + commission_rate)
+        sale_proceeds = tr['sell_price'] * shares * (
+            1 - commission_rate - stamp_duty_rate)
+        tr['total_return_pct'] = (sale_proceeds + dividend_total) / buy_cost * 100 - 100
     return trades

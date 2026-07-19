@@ -1,0 +1,222 @@
+<!-- 三合资本 · 主分析页 v2 -->
+<view class="container">
+
+  <!-- 搜索栏 + 开关 -->
+  <view class="search-bar">
+    <input class="search-input" type="number" maxlength="6" placeholder="输入6位股票代码"
+           value="{{code}}" bindinput="onCodeInput" confirm-type="search" bindconfirm="onAnalyze" />
+    <view class="search-btn" bindtap="onAnalyze">分析</view>
+  </view>
+
+  <view class="strategy-tabs">
+    <view class="tab {{strategy==='comprehensive'?'active':''}}" 
+          bindtap="onStrategy" data-s="comprehensive">融合策略</view>
+    <view class="tab {{strategy==='buyhold'?'active':''}}" 
+          bindtap="onStrategy" data-s="buyhold">长线持有</view>
+  </view>
+
+  <view class="opts-row">
+    <view class="opt-item {{holding?'on':''}}" bindtap="onToggleHolding">
+      <text class="opt-icon">{{holding?'☑':'☐'}}</text><text>已持仓</text>
+    </view>
+    <view class="opt-item {{dividend?'on':''}}" bindtap="onToggleDividend">
+      <text class="opt-icon">{{dividend?'☑':'☐'}}</text><text>含分红</text>
+    </view>
+  </view>
+
+  <view class="loading" wx:if="{{loading}}">加载中…</view>
+  <view class="loading" wx:if="{{error}}" style="color:#c62828">{{error}}</view>
+
+  <block wx:if="{{result}}">
+    <!-- 结论横幅 -->
+    <view class="conclusion {{result.cls}}">{{result.conclusion}}</view>
+
+    <!-- ═══ 融合策略 ═══ -->
+    <block wx:if="{{result.strategy==='comprehensive'}}">
+
+      <!-- 策略公式 (折叠) -->
+      <view class="collapse-header" bindtap="onToggleFormula">
+        <text>📐 融合策略公式</text>
+        <text class="collapse-arrow">{{formulaOpen?'▼':'▶'}}</text>
+      </view>
+      <view wx:if="{{formulaOpen}}" class="score-card formula-card">
+        <view class="formula-text">S = M×0.40 + F×0.30 + V×0.15 + Q×0.15</view>
+        <view class="formula-detail">
+          <text>M = MACD核心 (金叉/零轴/DIF斜率/BAR/背离)</text>
+          <text>F = 多因子 (RSI/KDJ/Bollinger/WR)</text>
+          <text>V = 基本面 (250日估值位置 + 年增长)</text>
+          <text>Q = 量能 (OBV趋势 + 量价背离)</text>
+        </view>
+        <view class="formula-gates">
+          <text class="gate-label">🚪 门禁: </text>
+          <text class="gate-text">OBV&lt;0.90否决 | RSI&gt;92否决 | M&lt;35∧F&lt;40否决</text>
+        </view>
+        <view class="formula-rules">
+          <text class="gate-label">📏 规则: </text>
+          <text class="gate-text">买入 S≥65∧通过门禁 | 卖出 止损−8%/止盈+25%/S&lt;35/获利回吐/顶背离</text>
+        </view>
+      </view>
+
+      <!-- ═══ 四维评分 (可展开) ═══ -->
+      <view class="score-card">
+        <view style="font-size:16px;font-weight:bold;margin-bottom:10px">📊 四维评分</view>
+
+        <!-- MACD核心 -->
+        <view class="dim-header" bindtap="onToggleDim" data-dim="macd">
+          <view>
+            <text class="dim-name">MACD核心 (40%)</text>
+            <text class="dim-sub">DIF{{result.scores.macd.dif}} DEA{{result.scores.macd.dea}} BAR{{result.scores.macd.bar}}</text>
+          </view>
+          <view style="display:flex;align-items:center;gap:6px">
+            <text class="dim-score {{result.scores.macd.score>=60?'score-green':(result.scores.macd.score>=45?'score-yellow':'score-red')}}">{{result.scores.macd.score}}</text>
+            <text class="collapse-arrow">{{dimOpen.macd?'▼':'▶'}}</text>
+          </view>
+        </view>
+        <view wx:if="{{dimOpen.macd && result.breakdown.macd}}" class="breakdown-list">
+          <view class="breakdown-row" wx:for="{{result.breakdown.macd}}" wx:key="rule">
+            <text class="breakdown-rule">{{item.rule}}</text>
+            <text class="breakdown-adj {{item.adj.indexOf('+')===0?'adj-plus':(item.adj.indexOf('−')===0||item.adj.indexOf('-')===0?'adj-minus':'')}}">{{item.adj}}</text>
+          </view>
+        </view>
+
+        <!-- 多因子 -->
+        <view class="dim-header" bindtap="onToggleDim" data-dim="mf">
+          <view>
+            <text class="dim-name">多因子 (30%)</text>
+            <text class="dim-sub">RSI{{result.scores.multifactor.rsi}} K{{result.scores.multifactor.k}} D{{result.scores.multifactor.d}} WR{{result.scores.multifactor.wr}}</text>
+          </view>
+          <view style="display:flex;align-items:center;gap:6px">
+            <text class="dim-score {{result.scores.multifactor.score>=60?'score-green':(result.scores.multifactor.score>=45?'score-yellow':'score-red')}}">{{result.scores.multifactor.score}}</text>
+            <text class="collapse-arrow">{{dimOpen.mf?'▼':'▶'}}</text>
+          </view>
+        </view>
+        <view wx:if="{{dimOpen.mf && result.breakdown.multifactor}}" class="breakdown-list">
+          <view class="breakdown-row" wx:for="{{result.breakdown.multifactor}}" wx:key="rule">
+            <text class="breakdown-rule">{{item.rule}}</text>
+            <text class="breakdown-adj {{item.adj.indexOf('+')===0?'adj-plus':(item.adj.indexOf('−')===0||item.adj.indexOf('-')===0?'adj-minus':'')}}">{{item.adj}}</text>
+          </view>
+        </view>
+
+        <!-- 基本面 -->
+        <view class="dim-header" bindtap="onToggleDim" data-dim="fund">
+          <text class="dim-name">基本面 (15%)</text>
+          <view style="display:flex;align-items:center;gap:6px">
+            <text class="dim-score {{result.scores.fundamental.score>=60?'score-green':(result.scores.fundamental.score>=45?'score-yellow':'score-red')}}">{{result.scores.fundamental.score}}</text>
+            <text class="collapse-arrow">{{dimOpen.fund?'▼':'▶'}}</text>
+          </view>
+        </view>
+        <view wx:if="{{dimOpen.fund && result.breakdown.fundamental}}" class="breakdown-list">
+          <view class="breakdown-row" wx:for="{{result.breakdown.fundamental}}" wx:key="rule">
+            <text class="breakdown-rule">{{item.rule}}</text>
+            <text class="breakdown-adj {{item.adj.indexOf('+')===0?'adj-plus':(item.adj.indexOf('−')===0||item.adj.indexOf('-')===0?'adj-minus':'')}}">{{item.adj}}</text>
+          </view>
+        </view>
+
+        <!-- 量能 -->
+        <view class="dim-header" bindtap="onToggleDim" data-dim="game">
+          <view>
+            <text class="dim-name">量能 (15%)</text>
+            <text class="dim-sub">OBV{{result.scores.game.obv_ratio}}</text>
+          </view>
+          <view style="display:flex;align-items:center;gap:6px">
+            <text class="dim-score {{result.scores.game.score>=60?'score-green':(result.scores.game.score>=45?'score-yellow':'score-red')}}">{{result.scores.game.score}}</text>
+            <text class="collapse-arrow">{{dimOpen.game?'▼':'▶'}}</text>
+          </view>
+        </view>
+        <view wx:if="{{dimOpen.game && result.breakdown.game}}" class="breakdown-list">
+          <view class="breakdown-row" wx:for="{{result.breakdown.game}}" wx:key="rule">
+            <text class="breakdown-rule">{{item.rule}}</text>
+            <text class="breakdown-adj {{item.adj.indexOf('+')===0?'adj-plus':(item.adj.indexOf('−')===0||item.adj.indexOf('-')===0?'adj-minus':'')}}">{{item.adj}}</text>
+          </view>
+        </view>
+
+        <!-- 综合得分 -->
+        <view class="dim-header" style="background:#f5f5f5;border-radius:6px;padding:10px;margin:8px -12px -12px">
+          <text class="dim-name">S = {{result.scores.macd.score}}×0.40+{{result.scores.multifactor.score}}×0.30+{{result.scores.fundamental.score}}×0.15+{{result.scores.game.score}}×0.15</text>
+          <text class="dim-score" style="font-size:24px">{{result.composite}}</text>
+        </view>
+      </view>
+
+      <!-- 门禁 -->
+      <view class="score-card" wx:if="{{result.gates}}">
+        <view style="font-size:14px;font-weight:bold;margin-bottom:6px">🚪 质量门禁</view>
+        <view class="gate-row">
+          <text>OBV 比值 ≥ 0.90 (实际{{result.scores.game.obv_ratio}})</text>
+          <text class="{{result.scores.game.obv_ratio>=0.9?'gate-pass':'gate-fail'}}">{{result.scores.game.obv_ratio>=0.9?'✅通过':'🔴否决'}}</text>
+        </view>
+        <view class="gate-row">
+          <text>RSI ≤ 92 (实际{{result.scores.multifactor.rsi}})</text>
+          <text class="{{result.scores.multifactor.rsi<=92?'gate-pass':'gate-fail'}}">{{result.scores.multifactor.rsi<=92?'✅通过':'🔴否决'}}</text>
+        </view>
+        <view class="gate-row">
+          <text>M&lt;35 ∧ F&lt;40</text>
+          <text class="{{!(result.scores.macd.score<35 && result.scores.multifactor.score<40)?'gate-pass':'gate-fail'}}">{{!(result.scores.macd.score<35 && result.scores.multifactor.score<40)?'✅通过':'🔴否决'}}</text>
+        </view>
+      </view>
+
+      <view class="score-card" wx:if="{{result.institution_label}}">
+        <view style="font-size:14px;font-weight:bold">🏛️ 机构参与度</view>
+        <view style="font-size:13px;color:#666;margin-top:4px">{{result.institution_label}}</view>
+      </view>
+    </block>
+
+    <!-- ═══ 长线持有 ═══ -->
+    <block wx:if="{{result.strategy==='buyhold'}}">
+      <view class="score-card">
+        <view style="font-size:16px;font-weight:bold;margin-bottom:8px">💰 长线持有</view>
+        <view class="score-row"><text class="score-label">持有时间</text><text class="score-value">{{result.hold_years}} 年</text></view>
+        <view class="score-row"><text class="score-label">买入价 → 现价</text><text class="score-value">{{result.buy_price}} → {{result.current_price}}</text></view>
+        <view class="score-row"><text class="score-label">价差收益</text><text class="score-value {{result.price_return_pct>=0?'score-green':'score-red'}}">{{result.price_return_pct>=0?'+':''}}{{result.price_return_pct}}%</text></view>
+        <view class="score-row" wx:if="{{dividend && result.dividend_yield_pct}}"><text class="score-label">分红收益</text><text class="score-value score-green">+{{result.dividend_yield_pct}}%</text></view>
+        <view class="score-row" style="background:#f5f5f5;margin:8px -12px -12px;padding:10px 12px"><text class="score-label">总收益</text><text class="score-value {{result.total_return_pct>=0?'score-green':'score-red'}}" style="font-size:20px">{{result.total_return_pct>=0?'+':''}}{{result.total_return_pct}}%</text></view>
+      </view>
+    </block>
+
+    <!-- 分红明细 -->
+    <view class="score-card" wx:if="{{dividend && result.dividends && result.dividends.length>0}}">
+      <view style="font-size:14px;font-weight:bold;margin-bottom:6px">💰 近12月分红</view>
+      <view class="score-row" wx:for="{{result.dividends}}" wx:key="ex_date">
+        <text class="score-label">{{item.ex_date}}</text><text class="score-value">{{item.dividend_per_share}} 元/股</text>
+      </view>
+      <view class="score-row" style="background:#e8f5e9;margin:4px -12px -12px;padding:10px 12px"><text class="score-label">近12月股息率</text><text class="score-value score-green">{{result.latest_div_yield}}%</text></view>
+    </view>
+
+    <!-- 关键位 -->
+    <view class="levels" wx:if="{{result.key_levels}}">
+      <view class="level-item"><view class="level-label">MA20</view><view class="level-value">{{result.key_levels.ma20}}</view></view>
+      <view class="level-item"><view class="level-label">MA60</view><view class="level-value">{{result.key_levels.ma60}}</view></view>
+      <view class="level-item"><view class="level-label">布林上</view><view class="level-value">{{result.key_levels.bb_upper}}</view></view>
+      <view class="level-item"><view class="level-label">布林下</view><view class="level-value">{{result.key_levels.bb_lower}}</view></view>
+    </view>
+
+    <!-- 图表 -->
+    <view class="chart-tabs">
+      <view class="chart-tab {{chartTab===0?'on':''}}" bindtap="onChartTab" data-t="0">价格</view>
+      <view class="chart-tab {{chartTab===1?'on':''}}" bindtap="onChartTab" data-t="1">MACD</view>
+      <view class="chart-tab {{chartTab===2?'on':''}}" bindtap="onChartTab" data-t="2">OBV</view>
+    </view>
+    <view class="chart-box" wx:if="{{chartTab===0}}"><canvas type="2d" id="priceChart" style="width:100%;height:220px"></canvas></view>
+    <view class="chart-box" wx:if="{{chartTab===1}}"><canvas type="2d" id="macdChart" style="width:100%;height:180px"></canvas></view>
+    <view class="chart-box" wx:if="{{chartTab===2}}"><canvas type="2d" id="obvChart" style="width:100%;height:180px"></canvas></view>
+
+    <!-- 回测交易 (折叠) -->
+    <view wx:if="{{result.trades && result.trades.length>0}}">
+      <view class="collapse-header" bindtap="onToggleTrades">
+        <text>📈 回测交易 ({{result.trades.length}}笔·胜率{{result.winRate}}%·收益{{result.totalPnl>=0?'+':''}}{{result.totalPnl}}%)</text>
+        <text class="collapse-arrow">{{tradesOpen?'▼':'▶'}}</text>
+      </view>
+      <view wx:if="{{tradesOpen}}">
+        <view class="trade-card {{item.profit_pct>0?'win':'loss'}}" wx:for="{{result.trades}}" wx:key="buy_date">
+          <view class="trade-date">{{item.buy_date}} → {{item.sell_date}}</view>
+          <view style="display:flex;justify-content:space-between;align-items:center">
+            <text class="trade-price">{{item.buy_price}}→{{item.sell_price}}</text>
+            <text class="trade-pnl {{item.profit_pct>0?'score-green':'score-red'}}">{{item.profit_pct>0?'+':''}}{{item.profit_pct}}%</text>
+            <text style="font-size:12px;color:#999">{{item.hold_days}}天</text>
+          </view>
+          <view class="trade-reason">{{item.buy_reason}} → {{item.sell_reason}}</view>
+          <view class="trade-reason" wx:if="{{item.dividend_total>0}}" style="color:#2e7d32">💰分红{{item.dividend_total}}元/股 (总{{item.total_return_pct}}%)</view>
+        </view>
+      </view>
+    </view>
+  </block>
+</view>
