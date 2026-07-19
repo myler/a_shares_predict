@@ -2,7 +2,7 @@
 """Web界面 — 轻量HTTP服务"""
 
 import sys, os, json, base64, io, urllib.parse
-from http.server import HTTPServer, BaseHTTPRequestHandler
+from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 from datetime import datetime, timedelta
 
 PORT = int(sys.argv[1]) if len(sys.argv) > 1 else 8080
@@ -12,110 +12,21 @@ ROOT = os.path.dirname(os.path.abspath(__file__))
 # ── 导入数据层和引擎 ──
 from fetcher import fetch_kline, get_name, fetch_dividends, enrich_trades_with_dividends
 from db import save_stock_name
-from engine import (calc_macd, detect_regime, find_divergences, backtest, predict,
-                    backtest_multifactor, predict_multifactor, plot_multifactor,
-                    backtest_comprehensive, predict_comprehensive, calc_bollinger, calc_obv,
-                    calc_rsi, calc_kdj, calc_wr)
+from engine import (calc_macd, detect_regime, find_divergences, backtest,
+                    backtest_multifactor, backtest_comprehensive,
+                    predict, format_predict,
+                    predict_multifactor, format_predict_multifactor,
+                    predict_comprehensive, format_predict_comprehensive,
+                    calc_bollinger, calc_obv, calc_rsi, calc_kdj, calc_wr,
+                    summarize_trades)
+from plotting import make_chart, make_comprehensive_chart, plot_multifactor
 
 import numpy as np
-import matplotlib
-matplotlib.use('Agg')
-import matplotlib.pyplot as plt
-import matplotlib.dates as mdates
-import matplotlib.font_manager as fm
-
-# ── 字体 ──
-font_candidates = [
-    os.path.join(ROOT, 'wqy-zenhei.ttf'),
-    '/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc',
-]
-font_ok = False
-for fp in font_candidates:
-    if os.path.exists(fp):
-        fm.fontManager.addfont(fp)
-        try: plt.rcParams['font.family'] = fm.FontProperties(fname=fp).get_name()
-        except: pass
-        font_ok = True
-        break
-if not font_ok:
-    import warnings; warnings.filterwarnings('ignore')
-plt.rcParams['axes.unicode_minus'] = False
 
 # ── 加载HTML模板 ──
 TEMPLATE_PATH = os.path.join(ROOT, 'templates', 'page.html')
 with open(TEMPLATE_PATH, 'r', encoding='utf-8') as f:
     PAGE = f.read()
-
-
-# ═══════════════════════════
-# Web图表生成 (返回base64)
-# ═══════════════════════════
-def make_chart(code, name, dates, closes, dif, dea, bar, tops, bottoms, trades, regimes, ma60):
-    fig = plt.figure(figsize=(18, 12))
-    import matplotlib.lines as mlines
-    import matplotlib.patches as mpatches
-
-    ax1 = plt.subplot(3, 1, 1)
-    ax1.plot(dates, closes, color='#1565C0', linewidth=1, alpha=0.7, label='收盘价')
-    ax1.plot(dates, ma60, color='#FF6F00', linewidth=1.5, alpha=0.6, label='MA60')
-
-    in_bull, bs = False, 0
-    bull_added = False
-    for i in range(len(regimes)):
-        if regimes[i] == 'bull' and not in_bull: bs = i; in_bull = True
-        elif regimes[i] == 'bear' and in_bull:
-            ax1.axvspan(dates[bs], dates[i-1], alpha=0.12, color='#e8f5e9')
-            in_bull = False; bull_added = True
-    if in_bull: ax1.axvspan(dates[bs], dates[-1], alpha=0.12, color='#e8f5e9'); bull_added = True
-
-    for t in tops: ax1.scatter(t['date'], t['price'], color='red', s=80, marker='v', zorder=5)
-    for b in bottoms: ax1.scatter(b['date'], b['price'], color='green', s=80, marker='^', zorder=5)
-    dt_idx = {d.strftime('%Y-%m-%d'): i for i, d in enumerate(dates)}
-    for tr in trades:
-        bi = dt_idx.get(tr['buy_date']); si = dt_idx.get(tr['sell_date'])
-        if bi is not None: ax1.scatter(dates[bi], closes[bi], color='lime', s=120, marker='o', zorder=6, edgecolors='black')
-        if si is not None: ax1.scatter(dates[si], closes[si], color='orange', s=120, marker='s', zorder=6, edgecolors='black')
-
-    h1, l1 = ax1.get_legend_handles_labels()
-    h1 += [
-        mlines.Line2D([],[],color='lime',marker='o',linestyle='',markersize=8,markeredgecolor='black',label='买入'),
-        mlines.Line2D([],[],color='orange',marker='s',linestyle='',markersize=8,markeredgecolor='black',label='卖出'),
-        mlines.Line2D([],[],color='red',marker='v',linestyle='',markersize=8,label='顶背离'),
-        mlines.Line2D([],[],color='green',marker='^',linestyle='',markersize=8,label='底背离'),
-    ]
-    if bull_added: h1.append(mpatches.Patch(color='#e8f5e9',alpha=0.5,label='牛市'))
-    ax1.legend(handles=h1, loc='upper left', fontsize=8, ncol=2)
-    ax1.set_title(f'{name}({code})', fontsize=13, fontweight='bold')
-    ax1.grid(True, alpha=0.3); ax1.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m'))
-    plt.setp(ax1.xaxis.get_majorticklabels(), rotation=45, ha='right', fontsize=8)
-
-    ax2 = plt.subplot(3, 1, (2, 3))
-    colors = ['#ef5350' if v >= 0 else '#26a69a' for v in bar]
-    ax2.bar(dates, bar, color=colors, width=0.8, alpha=0.75, label='BAR')
-    ax2.plot(dates, dif, color='#FFB300', linewidth=1.5, label='DIF金线')
-    ax2.plot(dates, dea, color='#212121', linewidth=1.5, label='DEA黑线')
-    ax2.axhline(y=0, color='#9e9e9e', linewidth=1, label='零轴')
-    for t in tops: ax2.scatter(t['date'], t['dif'], color='red', s=60, marker='v', zorder=5)
-    for b in bottoms: ax2.scatter(b['date'], b['dif'], color='green', s=60, marker='^', zorder=5)
-    for tr in trades:
-        bi = dt_idx.get(tr['buy_date']); si = dt_idx.get(tr['sell_date'])
-        if bi is not None: ax2.scatter(dates[bi], dif[bi], color='lime', s=100, marker='o', zorder=6, edgecolors='black')
-        if si is not None: ax2.scatter(dates[si], dif[si], color='orange', s=100, marker='s', zorder=6, edgecolors='black')
-
-    h2, l2 = ax2.get_legend_handles_labels()
-    ax2.legend(handles=h2 + [
-        mlines.Line2D([],[],color='lime',marker='o',linestyle='',markersize=8,markeredgecolor='black',label='买入'),
-        mlines.Line2D([],[],color='orange',marker='s',linestyle='',markersize=8,markeredgecolor='black',label='卖出'),
-    ], loc='upper left', fontsize=8, ncol=2)
-    ax2.set_title('MACD (12,26,9)', fontsize=13, fontweight='bold')
-    ax2.grid(True, alpha=0.3); ax2.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m'))
-    plt.setp(ax2.xaxis.get_majorticklabels(), rotation=45, ha='right', fontsize=8)
-
-    plt.tight_layout()
-    buf = io.BytesIO()
-    fig.savefig(buf, format='png', dpi=120, bbox_inches='tight')
-    plt.close()
-    return base64.b64encode(buf.getvalue()).decode()
 
 
 # ═══════════════════════════
@@ -170,7 +81,8 @@ class Handler(BaseHTTPRequestHandler):
         regimes, ma60 = detect_regime(closes)
         tops, bottoms = find_divergences(date_strs, closes, dif)
         trades = backtest(date_strs, closes, dif, dea, tops, bottoms, regimes)
-        pred = predict(date_strs, closes, dif, dea, bar, regimes, tops, bottoms, holding)
+        pred_data = predict(date_strs, closes, dif, dea, bar, regimes, tops, bottoms, holding)
+        pred_lines = format_predict(pred_data, holding)
 
         dividends = []
         if calc_dividend:
@@ -179,11 +91,14 @@ class Handler(BaseHTTPRequestHandler):
                 trades = enrich_trades_with_dividends(trades, dividends)
 
         conclusion_html = ''
-        for line in pred:
-            s = line.strip()
-            if s.startswith('✅') or s.startswith('❌') or s.startswith('⚠'):
-                cls = 'buy' if '✅' in s else ('sell' if '❌' in s else 'warn')
-                conclusion_html = f'<div class="conclusion {cls}">{s.replace(" ","&nbsp;")}</div>'
+        action = pred_data.get('action', '')
+        score = pred_data.get('score', 0)
+        if action in ('买入', '增持', '拿住'):
+            conclusion_html = f'<div class="conclusion buy">{"✅" * min(10, max(1, abs(score)))} {action}</div>'
+        elif action == '卖出':
+            conclusion_html = f'<div class="conclusion sell">{"❌" * min(10, max(1, abs(score)))} {action}</div>'
+        else:
+            conclusion_html = f'<div class="conclusion warn">{"⚠️" * min(10, max(1, abs(score)))} {action}</div>'
 
         wins = [t for t in trades if t['profit_pct'] > 0]
         total_pnl = sum(t['profit_pct'] for t in trades) if trades else 0
@@ -218,7 +133,7 @@ class Handler(BaseHTTPRequestHandler):
         overview += """
         </table>"""
 
-        pred_table = self.make_pred_table(pred)
+        pred_table = self.make_pred_table(pred_data)
         top_section = f'<div class="top-row"><div>{overview}</div><div>{pred_table}</div></div>'
 
         trade_rows = ''
@@ -345,20 +260,39 @@ class Handler(BaseHTTPRequestHandler):
           {div_rows}
         </table>"""
 
-        fig = plt.figure(figsize=(18, 6))
-        ax = plt.subplot(1, 1, 1)
         dates = np.array([datetime.strptime(d['day'],'%Y-%m-%d') for d in data])
+        # buyhold chart with font setup
+        import matplotlib
+        matplotlib.use('Agg')
+        import matplotlib.font_manager as _fm
+        import matplotlib.pyplot as _plt
+        import matplotlib.dates as _mdates
+        _font_paths = [
+            os.path.join(ROOT, 'wqy-zenhei.ttf'),
+            '/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc',
+        ]
+        for _fp in _font_paths:
+            if os.path.exists(_fp):
+                _fm.fontManager.addfont(_fp)
+                try:
+                    _plt.rcParams['font.family'] = _fm.FontProperties(fname=_fp).get_name()
+                except Exception:
+                    pass
+                break
+        _plt.rcParams['axes.unicode_minus'] = False
+        fig = _plt.figure(figsize=(18, 6))
+        ax = _plt.subplot(1, 1, 1)
         ax.plot(dates, closes, color='#1565C0', linewidth=1.5, label='收盘价')
         ax.axhline(y=first_close, color='#FF6F00', linewidth=1, linestyle='--', alpha=0.7, label=f'买入价 {first_close:.2f}')
         ax.set_title(f'{name}({code}) — 长线持有', fontsize=14, fontweight='bold')
         ax.legend(loc='upper left', fontsize=10)
         ax.grid(True, alpha=0.3)
-        ax.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m'))
-        plt.setp(ax.xaxis.get_majorticklabels(), rotation=45, ha='right', fontsize=8)
-        plt.tight_layout()
+        ax.xaxis.set_major_formatter(_mdates.DateFormatter('%Y-%m'))
+        _plt.setp(ax.xaxis.get_majorticklabels(), rotation=45, ha='right', fontsize=8)
+        _plt.tight_layout()
         buf = io.BytesIO()
         fig.savefig(buf, format='png', dpi=120, bbox_inches='tight')
-        plt.close()
+        _plt.close()
         img_b64 = base64.b64encode(buf.getvalue()).decode()
 
         return f"""
@@ -380,7 +314,7 @@ class Handler(BaseHTTPRequestHandler):
         vols = np.array([float(d['volume']) for d in data])
 
         trades = backtest_multifactor(dates, closes, highs, lows, vols)
-        pred = predict_multifactor(dates, closes, highs, lows, vols, holding=holding)
+        pred_data = predict_multifactor(dates, closes, highs, lows, vols, holding=holding)
         dividends = []
         if calc_dividend:
             dividends = fetch_dividends(code)
@@ -415,13 +349,16 @@ class Handler(BaseHTTPRequestHandler):
 
         # ── 结论横幅 ──
         conclusion_html = ''
-        for line in pred:
-            s = line.strip()
-            if s.startswith('✅') or s.startswith('❌') or s.startswith('⚠'):
-                cls = 'buy' if '✅' in s else ('sell' if '❌' in s else 'warn')
-                conclusion_html = f'<div class="conclusion {cls}">{s.replace(" ","&nbsp;")}</div>'
+        action = pred_data.get('action', '')
+        score = pred_data.get('score', 0)
+        if action in ('买入', '增持', '拿住'):
+            conclusion_html = f'<div class="conclusion buy">{"✅" * min(10, max(1, abs(score)))} {action}</div>'
+        elif action == '卖出':
+            conclusion_html = f'<div class="conclusion sell">{"❌" * min(10, max(1, abs(score)))} {action}</div>'
+        else:
+            conclusion_html = f'<div class="conclusion warn">{"⚠️" * min(10, max(1, abs(score)))} {action}</div>'
 
-        pred_table = self.make_pred_table(pred)
+        pred_table = self.make_pred_table(pred_data)
         top_section = f'<div class="top-row"><div>{overview}</div><div>{pred_table}</div></div>'
 
         trade_rows = ''
@@ -478,6 +415,159 @@ class Handler(BaseHTTPRequestHandler):
         </div>"""
 
     def run_comprehensive_analysis(self, code, holding, calc_dividend=False):
+        """渲染融合策略；评分和门禁只读取 engine 的结构化结果。"""
+        data = fetch_kline(code)
+        name = get_name(code)
+        save_stock_name(code, name)
+        dates = [row['day'] for row in data]
+        opens = np.array([float(row['open']) for row in data])
+        closes = np.array([float(row['close']) for row in data])
+        highs = np.array([float(row['high']) for row in data])
+        lows = np.array([float(row['low']) for row in data])
+        volumes = np.array([float(row['volume']) for row in data])
+
+        trades = backtest_comprehensive(
+            dates, closes, highs, lows, volumes, opens=opens)
+        prediction = predict_comprehensive(
+            dates, closes, highs, lows, volumes, holding=holding, opens=opens)
+        if 'error' in prediction:
+            return f'<div class="error">{prediction["error"]}</div>'
+
+        dividends = []
+        if calc_dividend:
+            dividends = fetch_dividends(code)
+            if dividends:
+                trades = enrich_trades_with_dividends(trades, dividends)
+
+        summary = summarize_trades(trades)
+        d0 = datetime.strptime(dates[0], '%Y-%m-%d').date()
+        d1 = datetime.strptime(dates[-1], '%Y-%m-%d').date()
+        years = max((d1 - d0).days / 365.25, 0.01)
+        scores = prediction['scores']
+        score_level = lambda value: '🟢' if value >= 60 else ('🟡' if value >= 45 else '🔴')
+
+        overview = f"""
+        <table class="overview">
+          <tr><th colspan="2">{name} ({code}) — 融合策略</th></tr>
+          <tr><td>数据范围</td><td>{dates[0]} ~ {dates[-1]}（{years:.1f}年）</td></tr>
+          <tr><td>K线数量</td><td>{len(data)} 根</td></tr>
+          <tr><td>回测交易</td><td>{summary['trades']} 笔 · 胜率 {summary['win_rate_pct']:.0f}%</td></tr>
+          <tr style="background:#e8f5e9"><td>价差复利收益</td><td style="font-weight:bold">{summary['price_return_pct']:+.1f}%</td></tr>"""
+        if calc_dividend and dividends:
+            total_div_cash = sum(trade.get('dividend_total', 0) for trade in trades)
+            overview += f"""
+          <tr style="background:#e8f5e9"><td>各笔分红合计</td><td style="font-weight:bold">{total_div_cash:.2f}元/股</td></tr>
+          <tr style="background:#c8e6c9"><td>含分红复利总收益</td><td style="font-weight:bold;font-size:1.1em">{summary['total_return_pct']:+.1f}%</td></tr>"""
+        else:
+            overview += f"""
+          <tr style="background:#c8e6c9"><td>复利总收益</td><td style="font-weight:bold;font-size:1.1em">{summary['total_return_pct']:+.1f}%</td></tr>"""
+        overview += '</table>'
+
+        def detail_table(title, items, color):
+            rows = ''.join(
+                f'<tr><td>{item["rule"]}</td><td style="color:{color};font-weight:bold">{item["adj"]}</td></tr>'
+                for item in items)
+            return f'<table class="overview"><tr><th colspan="2">{title}</th></tr>{rows}</table>'
+
+        breakdown = prediction['breakdown']
+        analysis_html = f"""
+        <h3>🔍 分析过程</h3>
+        {detail_table('MACD核心评分 (40%)', breakdown['macd'], '#1565c0')}
+        <br>
+        {detail_table('多因子评分 (30%)', breakdown['multifactor'], '#ef6c00')}
+        <br>
+        {detail_table('价格位置/趋势 (15%)', breakdown['fundamental'], '#2e7d32')}
+        <br>
+        {detail_table('量能 (15%)', breakdown['game'], '#6a1b9a')}
+        """
+
+        gate_rows = ''
+        if prediction['gates']['details']:
+            for gate in prediction['gates']['details']:
+                value = gate.get('value')
+                rendered = f'{value:+.0%}' if gate['gate'] == 'OBV净量能流' else str(value)
+                gate_rows += f'<tr><td>{gate["gate"]}</td><td>{rendered}</td><td style="color:#c62828">否决</td></tr>'
+        else:
+            gate_rows = '<tr><td colspan="3" style="color:#2e7d32;font-weight:bold">全部通过</td></tr>'
+
+        score_card = f"""
+        <table class="overview">
+          <tr><th colspan="3">📊 融合策略四维评分</th></tr>
+          <tr style="background:#e3f2fd"><td><b>MACD核心 (40%)</b></td><td style="font-weight:bold;font-size:1.2em">{score_level(scores['macd']['score'])} {scores['macd']['score']:.1f}</td><td style="font-size:11px;color:#888">DIF{scores['macd']['dif']:.2f}/DEA{scores['macd']['dea']:.2f} BAR{scores['macd']['bar']:.2f}</td></tr>
+          <tr style="background:#fff3e0"><td><b>多因子 (30%)</b></td><td style="font-weight:bold;font-size:1.2em">{score_level(scores['multifactor']['score'])} {scores['multifactor']['score']:.1f}</td><td style="font-size:11px;color:#888">RSI{scores['multifactor']['rsi']:.0f} K{scores['multifactor']['k']:.0f}/D{scores['multifactor']['d']:.0f}/J{scores['multifactor']['j']:.0f} WR{scores['multifactor']['wr']:.0f}</td></tr>
+          <tr style="background:#e8f5e9"><td><b>{scores['fundamental']['label']} (15%)</b></td><td style="font-weight:bold;font-size:1.2em">{score_level(scores['fundamental']['score'])} {scores['fundamental']['score']:.1f}</td><td style="font-size:11px;color:#888">价格序列代理，非财务基本面</td></tr>
+          <tr style="background:#f3e5f5"><td><b>量能 (15%)</b></td><td style="font-weight:bold;font-size:1.2em">{score_level(scores['game']['score'])} {scores['game']['score']:.1f}</td><td style="font-size:11px;color:#888">OBV 5日净量能流 {scores['game']['obv_flow']:+.0%}</td></tr>
+          <tr style="background:#f5f5f5"><td><b>综合加权</b></td><td style="font-weight:bold;font-size:1.4em">{score_level(prediction['composite'])} {prediction['composite']:.1f}</td><td>M{scores['macd']['score']:.0f}×0.40+F{scores['multifactor']['score']:.0f}×0.30+价{scores['fundamental']['score']:.0f}×0.15+量{scores['game']['score']:.0f}×0.15</td></tr>
+        </table>
+        <br>
+        <table class="overview">
+          <tr><th colspan="3">质量门禁</th></tr>
+          {gate_rows}
+        </table>"""
+
+        conclusion_html = ''
+        action = prediction['action']
+        score = prediction['composite']
+        if prediction['signal'] == '门禁否决':
+            conclusion_html = '<div class="conclusion sell">🔴 门禁否决 → 观望</div>'
+        elif action in ('买入', '增持', '拿住'):
+            conclusion_html = f'<div class="conclusion buy">{"✅" * min(10, max(1, int(score / 10)))} {action}</div>'
+        elif action == '卖出':
+            conclusion_html = f'<div class="conclusion sell">{"❌" * min(10, max(1, int(score / 10)))} {action}</div>'
+        else:
+            conclusion_html = f'<div class="conclusion warn">{"⚠️" * min(10, max(1, int(score / 10)))} {action}</div>'
+
+        aux = prediction.get('auxiliary_consensus', {})
+        aux_html = ''
+        if aux.get('votes'):
+            vote_rows = ''
+            for vote in aux['votes']:
+                color = '#2e7d32' if vote['vote'] > 0 else ('#c62828' if vote['vote'] < 0 else '#888')
+                label = '看多' if vote['vote'] > 0 else ('看空' if vote['vote'] < 0 else '中性')
+                value = vote['value']
+                if isinstance(value, dict):
+                    value = ', '.join(f'{key}={item}' for key, item in value.items())
+                vote_rows += f'<tr><td>{vote["name"]}</td><td style="font-family:monospace">{value}</td><td style="color:{color};font-weight:bold">{label}</td></tr>'
+            aux_html = f"""
+            <br>
+            <table class="overview">
+              <tr><th colspan="3">辅助指标投票面板 ({aux['total_indicators']}个指标)</th></tr>
+              <tr><td colspan="3" style="text-align:center;font-weight:bold">共识度 {aux['consensus_score']:+.0f} ({aux['consensus_pct']:.0f}%看多) | 看多{aux['bullish_count']} 看空{aux['bearish_count']} 中性{aux['neutral_count']}</td></tr>
+              {vote_rows}
+            </table>"""
+
+        show_div = calc_dividend and dividends and any(trade.get('dividend_total', 0) > 0 for trade in trades)
+        trade_rows = ''
+        for trade in trades:
+            row_class = 'win' if trade['profit_pct'] > 0 else 'loss'
+            signals = f'信号 {trade.get("buy_signal_date", trade["buy_date"])} → {trade.get("sell_signal_date", trade["sell_date"])}'
+            dividend_cell = ''
+            if show_div:
+                dividend_cell = f'<td>{trade.get("dividend_total", 0):.2f}元/股</td><td class="pnl">{trade.get("total_return_pct", trade["profit_pct"]):+.1f}%</td>'
+            trade_rows += f'<tr class="{row_class}"><td>{trade["buy_date"]}</td><td>{trade["sell_date"]}</td><td>{trade["buy_price"]:.2f}</td><td>{trade["sell_price"]:.2f}</td><td class="pnl">{trade["profit_pct"]:+.1f}%</td>{dividend_cell}<td>{trade["hold_days"]}天</td><td class="reason">{signals}<br>{trade["buy_reason"]} → {trade["sell_reason"]}</td></tr>'
+
+        dividend_header = '<th>分红</th><th>含分红</th>' if show_div else ''
+        trade_table = f"""
+        <h3>📈 综合策略交易记录</h3>
+        <table class="trades">
+          <tr><th>买入日</th><th>卖出日</th><th>买入价</th><th>卖出价</th><th>净价差</th>{dividend_header}<th>持仓</th><th>触发</th></tr>
+          {trade_rows}
+        </table>""" if trades else '<h3>📈 综合策略交易记录</h3><p>无已完成交易</p>'
+
+        dates_dt = np.array([datetime.strptime(date, '%Y-%m-%d') for date in dates])
+        image = make_comprehensive_chart(code, name, dates_dt, closes, highs, lows, volumes, trades)
+        return f"""
+        <div class="result">
+          {conclusion_html}
+          {overview}
+          <br>{score_card}
+          {aux_html}
+          {analysis_html}
+          {trade_table}
+          <img src="data:image/png;base64,{image}" alt="Comprehensive Chart" loading="lazy">
+        </div>"""
+
+    def _run_comprehensive_analysis_legacy(self, code, holding, calc_dividend=False):
         """综合策略：三面量化评分 (技术30% + 博弈45% + 基本面25%)"""
         import engine as eng
         data = fetch_kline(code)
@@ -490,7 +580,7 @@ class Handler(BaseHTTPRequestHandler):
         vols = np.array([float(d['volume']) for d in data])
 
         trades = backtest_comprehensive(dates, closes, highs, lows, vols)
-        pred = predict_comprehensive(dates, closes, highs, lows, vols, holding=holding)
+        pred_data = predict_comprehensive(dates, closes, highs, lows, vols, holding=holding)
 
         dividends = []
         if calc_dividend:
@@ -679,11 +769,17 @@ class Handler(BaseHTTPRequestHandler):
 
         # 结论横幅
         conclusion_html = ''
-        for line in pred:
-            s = line.strip()
-            if s.startswith('✅') or s.startswith('❌') or s.startswith('⚠'):
-                cls = 'buy' if '✅' in s else ('sell' if '❌' in s else 'warn')
-                conclusion_html = f'<div class="conclusion {cls}">{s.replace(" ","&nbsp;")}</div>'
+        action = pred_data.get('action', '')
+        score = pred_data.get('composite', 50)
+        if pred_data.get('signal') == '门禁否决':
+            conclusion_html = f'<div class="conclusion sell">🔴 门禁否决 → 观望</div>'
+        elif action in ('买入', '增持', '拿住'):
+            n = min(10, max(1, int(score / 10)))
+            conclusion_html = f'<div class="conclusion buy">{"✅" * n} {action}</div>'
+        elif action == '卖出':
+            conclusion_html = f'<div class="conclusion sell">{"❌" * min(10, max(1, int(score / 10)))} {action}</div>'
+        else:
+            conclusion_html = f'<div class="conclusion warn">{"⚠️" * min(10, max(1, int(score / 10)))} {action}</div>'
 
         # ── 单列布局 ──
         overview = f"""
@@ -696,6 +792,52 @@ class Handler(BaseHTTPRequestHandler):
           <tr style="background:#e8f5e9"><td><b>基本面 (15%)</b></td><td style="font-weight:bold;font-size:1.2em">{score_level(fund_score2)} {fund_score2:.1f}</td><td style="font-size:11px;color:#888"><table>{fund_rows}</table></td></tr>
           <tr style="background:#f3e5f5"><td><b>量能 (15%)</b></td><td style="font-weight:bold;font-size:1.2em">{score_level(game_score2)} {game_score2:.1f}</td><td style="font-size:11px;color:#888">OBV比值{obv_ratio:.2f}<br>{inst_label}</td></tr>
           <tr style="background:#f5f5f5"><td><b>综合加权</b></td><td style="font-weight:bold;font-size:1.4em">{score_level(composite)} {composite:.1f}</td><td>M{macd_score:.0f}×0.40+F{mf_score:.0f}×0.30+基{fund_score2:.0f}×0.15+量{game_score2:.0f}×0.15</td></tr>
+        </table>"""
+
+        # ── 辅助指标投票面板 ──
+        aux = pred_data.get('auxiliary_consensus', {})
+        if aux and aux.get('votes'):
+            n_total = aux.get('total_indicators', len(aux['votes']))
+            bull_c = aux.get('bullish_count', 0)
+            bear_c = aux.get('bearish_count', 0)
+            neutral_c = aux.get('neutral_count', 0)
+            cons_score = aux.get('consensus_score', 0)
+            cons_pct = aux.get('consensus_pct', 50)
+            if cons_score > 20:
+                cons_color = '#2e7d32'; cons_icon = '🟢'
+            elif cons_score > 5:
+                cons_color = '#f57f17'; cons_icon = '🟡'
+            elif cons_score > -5:
+                cons_color = '#888'; cons_icon = '⚪'
+            elif cons_score > -20:
+                cons_color = '#e65100'; cons_icon = '🟠'
+            else:
+                cons_color = '#c62828'; cons_icon = '🔴'
+            
+            vote_rows = ''
+            for v in aux['votes']:
+                if v['vote'] == 1:
+                    vc = '#2e7d32'; vs = '📈 ' + v.get('signal', '看多')
+                elif v['vote'] == -1:
+                    vc = '#c62828'; vs = '📉 ' + v.get('signal', '看空')
+                else:
+                    vc = '#888'; vs = '➖ ' + v.get('signal', '中性')
+                val_display = v.get('value', 0)
+                if isinstance(val_display, dict):
+                    val_display = ', '.join(f'{k}={va}' for k, va in val_display.items())
+                vote_rows += f'<tr><td style="font-size:11px">{v["name"]}</td><td style="font-family:monospace;font-size:10px">{val_display}</td><td style="color:{vc};font-weight:bold">{vs}</td></tr>'
+
+            overview += f"""
+        <br>
+        <table class="overview">
+          <tr><th colspan="3">🗳️ 辅助指标投票面板 ({n_total}个指标)</th></tr>
+          <tr style="background:#f5f5f5">
+            <td colspan="3" style="text-align:center;font-weight:bold;font-size:1.1em;color:{cons_color}">
+              {cons_icon} 共识度: {cons_score:+.0f} ({cons_pct:.0f}%看多) | 
+              📈{bull_c}看多 📉{bear_c}看空 ➖{neutral_c}中性
+            </td>
+          </tr>
+          {vote_rows}
         </table>"""
 
         trade_rows = ''
@@ -719,7 +861,7 @@ class Handler(BaseHTTPRequestHandler):
 
         # Chart
         dates_dt = np.array([datetime.strptime(d, '%Y-%m-%d') for d in dates])
-        img_b64 = self.make_comprehensive_chart(code, name, dates_dt, closes, highs, lows, vols, trades)
+        img_b64 = make_comprehensive_chart(code, name, dates_dt, closes, highs, lows, vols, trades)
 
         return f"""
         <div class="result">
@@ -730,91 +872,58 @@ class Handler(BaseHTTPRequestHandler):
           <img src="data:image/png;base64,{img_b64}" alt="Comprehensive Chart" loading="lazy">
         </div>"""
 
-    def make_comprehensive_chart(self, code, name, dates, closes, highs, lows, vols, trades):
-        """综合策略图表：价格+MACD+OBV（优化：降DPI+降采样）"""
-        fig = plt.figure(figsize=(14, 8))
-        import matplotlib.lines as mlines
 
-        # 降采样：超过1000个点就每隔N个取一个
-        step = max(1, len(dates) // 800)
-        d_dates = dates[::step]
-        d_closes = closes[::step]
-        
-        dif, dea, bar = calc_macd(closes)
-        obv = calc_obv(closes, vols)
-        d_dif = dif[::step]; d_dea = dea[::step]; d_bar = bar[::step]
-        d_obv = obv[::step]
-        
-        # 重新映射买卖点索引到降采样后的位置
-        dt_idx = {}
-        for i, d in enumerate(dates):
-            if i % step == 0:
-                dt_idx[d.strftime('%Y-%m-%d')] = i // step
-
-        ax1 = plt.subplot(3, 1, 1)
-        ax1.plot(d_dates, d_closes, color='#1565C0', linewidth=1, alpha=0.8, label='收盘价')
-        ma20 = np.array([np.mean(closes[max(0,i-19):i+1]) for i in range(0, len(closes), step)])
-        ma60 = np.array([np.mean(closes[max(0,i-59):i+1]) for i in range(0, len(closes), step)])
-        ax1.plot(d_dates, ma20, color='#FF6F00', linewidth=1, alpha=0.6, label='MA20')
-        ax1.plot(d_dates, ma60, color='#E91E63', linewidth=1, alpha=0.5, label='MA60')
-        for t in trades:
-            bi = dt_idx.get(t['buy_date']); si = dt_idx.get(t['sell_date'])
-            if bi is not None: ax1.scatter(d_dates[bi], d_closes[bi], color='lime', s=100, marker='o', zorder=6, edgecolors='black')
-            if si is not None: ax1.scatter(d_dates[si], d_closes[si], color='orange', s=100, marker='s', zorder=6, edgecolors='black')
-        h1, _ = ax1.get_legend_handles_labels()
-        h1 += [mlines.Line2D([],[],color='lime',marker='o',linestyle='',markersize=8,markeredgecolor='black',label='买入'),
-               mlines.Line2D([],[],color='orange',marker='s',linestyle='',markersize=8,markeredgecolor='black',label='卖出')]
-        ax1.legend(handles=h1, loc='upper left', fontsize=7, ncol=2)
-        ax1.set_title(f'{name}({code}) — 三合资本综合策略', fontsize=13, fontweight='bold')
-        ax1.grid(True, alpha=0.3); ax1.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m'))
-        plt.setp(ax1.xaxis.get_majorticklabels(), rotation=45, ha='right', fontsize=8)
-
-        ax2 = plt.subplot(3, 1, 2)
-        colors_bar = ['#ef5350' if v >= 0 else '#26a69a' for v in d_bar]
-        ax2.bar(d_dates, d_bar, color=colors_bar, width=0.8, alpha=0.75, label='BAR')
-        ax2.plot(d_dates, d_dif, color='#FFB300', linewidth=1.5, label='DIF')
-        ax2.plot(d_dates, d_dea, color='#212121', linewidth=1.5, label='DEA')
-        ax2.axhline(y=0, color='#9e9e9e', linewidth=1, label='零轴')
-        for t in trades:
-            bi = dt_idx.get(t['buy_date']); si = dt_idx.get(t['sell_date'])
-            if bi is not None: ax2.scatter(d_dates[bi], d_dif[bi], color='lime', s=80, marker='o', zorder=6, edgecolors='black')
-            if si is not None: ax2.scatter(d_dates[si], d_dif[si], color='orange', s=80, marker='s', zorder=6, edgecolors='black')
-        ax2.legend(loc='upper left', fontsize=7, ncol=2)
-        ax2.set_title('MACD (12,26,9)', fontsize=12, fontweight='bold')
-        ax2.grid(True, alpha=0.3); ax2.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m'))
-        plt.setp(ax2.xaxis.get_majorticklabels(), rotation=45, ha='right', fontsize=8)
-
-        ax3 = plt.subplot(3, 1, 3)
-        ax3.plot(d_dates, d_obv, color='#7B1FA2', linewidth=1, label='OBV')
-        obv_ma20_arr = np.array([np.mean(obv[max(0,i-19):i+1]) for i in range(0, len(obv), step)])
-        ax3.plot(d_dates, obv_ma20_arr, color='#FF6F00', linewidth=0.8, alpha=0.6, linestyle='--', label='OBV MA20')
-        for t in trades:
-            bi = dt_idx.get(t['buy_date']); si = dt_idx.get(t['sell_date'])
-            if bi is not None: ax3.scatter(d_dates[bi], d_obv[bi], color='lime', s=80, marker='o', zorder=6, edgecolors='black')
-            if si is not None: ax3.scatter(d_dates[si], d_obv[si], color='orange', s=80, marker='s', zorder=6, edgecolors='black')
-        ax3.legend(loc='upper left', fontsize=8)
-        ax3.set_title('OBV 能量潮 (量价背离检测)', fontsize=12, fontweight='bold')
-        ax3.grid(True, alpha=0.3); ax3.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m'))
-        plt.setp(ax3.xaxis.get_majorticklabels(), rotation=45, ha='right', fontsize=8)
-
-        plt.tight_layout()
-        buf = io.BytesIO()
-        fig.savefig(buf, format='png', dpi=90, bbox_inches='tight')
-        plt.close()
-        return base64.b64encode(buf.getvalue()).decode()
 
     def log_message(self, format, *args):
         print(f"[{datetime.now().strftime('%H:%M:%S')}] {args[0]}", flush=True)
 
-    def make_pred_table(self, pred_lines):
+    def make_pred_table(self, pred):
+        """从结构化预测 dict 或文本行列表生成 HTML 表格"""
         html = '<table class="overview"><tr><th colspan="2">🔮 预测分析</th></tr>'
-        for line in pred_lines:
-            s = line.strip()
-            if not s or s.startswith('==') or s.startswith('──'): continue
-            if ':' in s:
-                k, v = s.split(':', 1)
-                k = k.strip(); v = v.strip()
-                if k and v: html += f'<tr><td>{k}</td><td>{v}</td></tr>'
+
+        # If it's a dict (structured output), extract key fields
+        if isinstance(pred, dict):
+            if 'error' in pred:
+                html += f'<tr><td colspan="2">{pred["error"]}</td></tr>'
+            else:
+                strategy = pred.get('strategy', '')
+                html += f'<tr><td>日期</td><td>{pred["date"]}</td></tr>'
+                html += f'<tr><td>收盘</td><td>{pred["close"]:.2f}</td></tr>'
+                if strategy == 'macd':
+                    html += f'<tr><td>DIF/DEA/BAR</td><td>{pred["dif"]:.2f} / {pred["dea"]:.2f} / {pred["bar"]:.2f}</td></tr>'
+                    html += f'<tr><td>牛熊</td><td>{"🟢牛市" if pred["regime"]=="bull" else "🔴熊市"}</td></tr>'
+                    html += f'<tr><td>金叉/死叉</td><td>{"🟢金叉" if pred["golden_cross"] else "🔴死叉"}</td></tr>'
+                    if pred.get('cross_prediction'):
+                        html += f'<tr><td>交叉预测</td><td>{pred["cross_prediction"]["type"]}: ~{pred["cross_prediction"]["days"]}天</td></tr>'
+                elif strategy == 'multifactor':
+                    ind = pred['indicators']
+                    html += f'<tr><td>RSI</td><td>{ind["rsi"]:.1f}</td></tr>'
+                    html += f'<tr><td>KDJ</td><td>K={ind["kdj"]["k"]:.1f} D={ind["kdj"]["d"]:.1f} J={ind["kdj"]["j"]:.1f}</td></tr>'
+                    html += f'<tr><td>WR</td><td>{ind["wr"]:.1f}</td></tr>'
+                elif strategy == 'comprehensive':
+                    s = pred['scores']
+                    html += f'<tr><td>MACD核心</td><td>{s["macd"]["score"]:.1f} (×0.40)</td></tr>'
+                    html += f'<tr><td>多因子</td><td>{s["multifactor"]["score"]:.1f} (×0.30)</td></tr>'
+                    html += f'<tr><td>基本面</td><td>{s["fundamental"]["score"]:.1f} (×0.15)</td></tr>'
+                    html += f'<tr><td>量能</td><td>{s["game"]["score"]:.1f} (×0.15)</td></tr>'
+                    html += f'<tr><td>门禁</td><td>{"✅通过" if pred["gates"]["passed"] else "🔴否决"}</td></tr>'
+
+                # Common fields
+                html += f'<tr style="background:#e8f5e9"><td><b>评分</b></td><td><b>{pred.get("score") or pred.get("composite"):.0f}</b></td></tr>'
+                signal = pred.get('signal', '')
+                icon = {'强烈看多': '🟢', '偏多': '🟢', '中性': '🟡', '偏空': '🟠', '看空': '🔴', '门禁否决': '🔴'}.get(signal, '⚪')
+                html += f'<tr style="background:#fff3e0"><td><b>信号</b></td><td><b>{icon} {signal}</b></td></tr>'
+                html += f'<tr style="background:#ffebee"><td><b>建议</b></td><td><b>{pred["action"]}</b></td></tr>'
+        else:
+            # Legacy: list of formatted text lines
+            for line in pred:
+                s = line.strip()
+                if not s or s.startswith('==') or s.startswith('──'): continue
+                if ':' in s:
+                    k, v = s.split(':', 1)
+                    k = k.strip(); v = v.strip()
+                    if k and v: html += f'<tr><td>{k}</td><td>{v}</td></tr>'
+
         html += '</table>'
         return html
 
@@ -823,9 +932,11 @@ class Handler(BaseHTTPRequestHandler):
 # MAIN
 # ═══════════════════════════
 if __name__ == '__main__':
+    import socket
     print(f"A股策略分析 Web → http://localhost:{PORT}")
     print("Ctrl+C 停止\n")
-    server = HTTPServer(('0.0.0.0', PORT), Handler)
+    ThreadingHTTPServer.allow_reuse_address = True
+    server = ThreadingHTTPServer(('0.0.0.0', PORT), Handler)
     try:
         server.serve_forever()
     except KeyboardInterrupt:

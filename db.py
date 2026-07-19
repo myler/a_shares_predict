@@ -171,3 +171,13 @@ def save_stock_name(code, name):
     )
     conn.commit()
     conn.close()
+
+
+def load_stock_name(code):
+    """读取已缓存的股票名称；未缓存时返回 None。"""
+    conn = get_db()
+    row = conn.execute(
+        "SELECT name FROM stocks WHERE code=?", (code,)
+    ).fetchone()
+    conn.close()
+    return row[0] if row and row[0] else None

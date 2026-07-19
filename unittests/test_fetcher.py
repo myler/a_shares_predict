@@ -3,8 +3,11 @@
 import sys, os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+import json
 import unittest
-from fetcher import enrich_trades_with_dividends, get_name
+from unittest.mock import patch
+
+from fetcher import enrich_trades_with_dividends, fetch_kline, get_name
 
 
 class TestEnrichTrades(unittest.TestCase):
@@ -63,19 +66,35 @@ class TestEnrichTrades(unittest.TestCase):
         for t in trades:
             self.assertEqual(t['dividend_total'], 0)
 
-    def test_boundary_excluded(self):
+    def test_buy_date_ex_date_is_excluded(self):
         """除权日等于卖出日时不应计入（卖出日已不持有了）"""
-        divs = [{'ex_date': '2023-12-20', 'dividend_per_share': 1.0}]
+        divs = [{'ex_date': '2023-01-15', 'dividend_per_share': 1.0}]
         trades = enrich_trades_with_dividends([t.copy() for t in self.trades], divs)
         # 除权日=卖出日，不应计入第一笔交易
         self.assertEqual(trades[0]['dividend_total'], 0)
 
-    def test_boundary_included(self):
+    def test_sell_date_ex_date_is_included(self):
         """除权日等于买入日时应计入"""
-        divs = [{'ex_date': '2023-01-15', 'dividend_per_share': 1.0}]
+        divs = [{'ex_date': '2023-12-20', 'dividend_per_share': 1.0}]
         trades = enrich_trades_with_dividends([t.copy() for t in self.trades], divs)
         # 除权日=买入日，应计入
         self.assertEqual(trades[0]['dividend_total'], 1.0)
+
+
+class TestBonusAndTransferAccounting(unittest.TestCase):
+    def test_bonus_and_transfer_adjust_total_return(self):
+        trade = {
+            'buy_date': '2023-01-01', 'sell_date': '2023-12-31',
+            'buy_price': 10.0, 'sell_price': 8.0, 'profit_pct': -20.0,
+        }
+        dividends = [{
+            'ex_date': '2023-06-01', 'dividend_per_share': 0.5,
+            'bonus_share': 10.0, 'transfer_share': 0.0,
+        }]
+        enriched = enrich_trades_with_dividends([trade], dividends)[0]
+        self.assertEqual(enriched['share_multiplier'], 2.0)
+        self.assertEqual(enriched['dividend_total'], 0.5)
+        self.assertAlmostEqual(enriched['total_return_pct'], 65.0)
 
 
 class TestGetName(unittest.TestCase):
@@ -89,6 +108,30 @@ class TestGetName(unittest.TestCase):
         """不存在的代码应返回代码本身"""
         name = get_name('999999')
         self.assertEqual(name, '999999')
+
+
+class TestKlinePriceBasis(unittest.TestCase):
+    def test_tencent_fallback_uses_unadjusted_day_data(self):
+        class Response:
+            def __init__(self, payload):
+                self.payload = payload
+
+            def read(self):
+                return self.payload.encode('utf-8')
+
+        raw_day = [['2024-01-02', '10', '11', '9', '10.5', '1000']]
+        payload = json.dumps({'data': {'sz000001': {'day': raw_day}}})
+        with patch('fetcher.load_klines', return_value=None), \
+             patch('fetcher.save_klines') as save_klines, \
+             patch('fetcher.urllib.request.urlopen', side_effect=[
+                 TimeoutError('sina unavailable'), Response(payload),
+             ]) as urlopen:
+            result = fetch_kline('000001', days=1, max_retries=1)
+
+        tencent_url = urlopen.call_args_list[1].args[0].full_url
+        self.assertNotIn('qfq', tencent_url)
+        self.assertEqual(result[0]['close'], '10.5')
+        save_klines.assert_called_once_with('000001', result)
 
 
 if __name__ == '__main__':

@@ -81,24 +81,24 @@ h3{margin:16px 0 8px;font-size:16px}
 const FORMULAS={
   comprehensive:{title:'融合策略',html:`
     <div class="formula-grid">
-      <div class="formula-item"><span class="formula-label">MACD核心</span><span class="formula-w">40%</span><span class="formula-math">50 + 15·𝟙(DIF>DEA) − 15·𝟙(DIF≤DEA) + 12·𝟙(DIF>0) − 8·𝟙(DIF≤0) + 8·𝟙(DIF↑<sub>5d</sub>) + 5·𝟙(BAR↑<sub>3d</sub>) + 10·𝟙(底背离<sub>30d</sub>) − 15·𝟙(顶背离<sub>30d</sub>)</span></div>
-      <div class="formula-item"><span class="formula-label">多因子</span><span class="formula-w">30%</span><span class="formula-math">RSI[30,65]+10 / RSI<30+15 / RSI>80−15 / KDJ金叉+10 / J<0+8 / Boll下轨+12 / WR>80+8</span></div>
-      <div class="formula-item"><span class="formula-label">基本面</span><span class="formula-w">15%</span><span class="formula-math">P<sub>250</sub><25%+20 / P<sub>250</sub><40%+10 / P<sub>250</sub>>80%−15 / YoY>20%+10</span></div>
-      <div class="formula-item"><span class="formula-label">量能</span><span class="formula-w">15%</span><span class="formula-math">OBV<sub>5</sub>>MA<sub>20</sub>×1.08+12 / OBV<sub>5</sub><MA<sub>20</sub>×0.92−12 / 量价背离−18</span></div>
+      <div class="formula-item"><span class="formula-label">MACD核心</span><span class="formula-w">40%</span><span class="formula-math">DIF/DEA多空状态、零轴位置、5日DIF斜率、3日BAR趋势、前高/前低动能背离</span></div>
+      <div class="formula-item"><span class="formula-label">多因子</span><span class="formula-w">30%</span><span class="formula-math">RSI、KDJ多空状态、J值、布林位置、WR超买超卖</span></div>
+      <div class="formula-item"><span class="formula-label">价格位置/趋势</span><span class="formula-w">15%</span><span class="formula-math">250日价格位置与年价格涨幅；仅为价格代理，不代表财务基本面</span></div>
+      <div class="formula-item"><span class="formula-label">量能</span><span class="formula-w">15%</span><span class="formula-math">OBV 5日净量能流、量价背离、年化波动率代理</span></div>
     </div>
     <div class="formula-section"><h4>综合评分</h4>
-      <div class="formula-math" style="font-size:14px;text-align:center;padding:4px 0"><b>S</b> = M<sub>MACD</sub> × 0.40 + F<sub>因子</sub> × 0.30 + V<sub>估值</sub> × 0.15 + Q<sub>量能</sub> × 0.15</div>
+      <div class="formula-math" style="font-size:14px;text-align:center;padding:4px 0"><b>S</b> = M<sub>MACD</sub> × 0.40 + F<sub>因子</sub> × 0.30 + P<sub>价格位置</sub> × 0.15 + Q<sub>量能</sub> × 0.15</div>
     </div>
     <div class="formula-section"><h4>质量门禁（任一项触发即否决买入）</h4>
       <div class="gate-row">
-        <span class="gate-tag">OBV<sub>5</sub> / MA<sub>20</sub> &lt; 0.90</span>
+        <span class="gate-tag">OBV 5日净量能流 &lt; −60%</span>
         <span class="gate-tag">RSI &gt; 92</span>
         <span class="gate-tag">M<sub>MACD</sub> &lt; 35 ∧ F<sub>因子</sub> &lt; 40</span>
       </div>
     </div>
     <div class="formula-section"><h4>交易规则</h4>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 16px;font-size:12px">
-        <div style="color:#2e7d32"><b>🟢 买入</b> &nbsp; S ≥ 65 ∧ 通过门禁</div>
+        <div style="color:#2e7d32"><b>🟢 买入</b> &nbsp; 收盘信号后，下一交易日开盘执行</div>
         <div style="color:#c62828"><b>🔴 卖出</b> &nbsp; 止损−8% | 止盈+25%</div>
         <div style="color:#1565C0"><b>📐 形态</b> &nbsp; M顶/头肩顶破颈线→强制卖出</div>
         <div style="color:#f57f17"><b>⚠️ 信号</b> &nbsp; S&lt;35 | 获利回吐 | 顶背离</div>

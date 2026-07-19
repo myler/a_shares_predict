@@ -1,0 +1,48 @@
+/* 主分析页样式 */
+
+.opts-row { display: flex; gap: 12px; margin-bottom: 12px; }
+.opt-item { display: flex; align-items: center; gap: 4px; font-size: 14px; padding: 4px 8px; border-radius: 4px; color: #999; }
+.opt-item.on { color: #1a237e; font-weight: bold; }
+.opt-icon { font-size: 16px; }
+
+/* 公式卡片 */
+.formula-card { border-left: 3px solid #1a237e; }
+.formula-text { font-size: 16px; font-weight: bold; color: #1a237e; text-align: center; padding: 6px; background: #e8eaf6; border-radius: 4px; margin-bottom: 6px; }
+.formula-detail { display: flex; flex-direction: column; gap: 2px; font-size: 12px; color: #666; margin-bottom: 6px; }
+.formula-gates, .formula-rules { font-size: 12px; margin-top: 4px; }
+.gate-label { color: #c62828; font-weight: bold; }
+.gate-text { color: #666; }
+
+/* 维度展开头 */
+.dim-header {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 8px 10px; margin: 2px 0;
+  border-radius: 6px; background: #fafafa;
+}
+.dim-name { font-size: 14px; font-weight: bold; }
+.dim-sub { font-size: 11px; color: #999; display: block; }
+.dim-score { font-size: 18px; font-weight: bold; min-width: 40px; text-align: right; }
+
+/* 评分明细 */
+.breakdown-list {
+  margin: 4px 0 8px 10px;
+  border-left: 2px solid #e0e0e0;
+  padding-left: 8px;
+}
+.breakdown-row {
+  display: flex; justify-content: space-between;
+  padding: 3px 0; font-size: 12px;
+}
+.breakdown-rule { color: #666; flex: 1; }
+.breakdown-adj { font-weight: bold; min-width: 30px; text-align: right; color: #999; }
+.adj-plus { color: #2e7d32; }
+.adj-minus { color: #c62828; }
+
+/* 图表切换 */
+.chart-tabs { display: flex; gap: 4px; margin: 12px 0 4px; }
+.chart-tab { flex: 1; height: 32px; line-height: 32px; text-align: center; background: #fff; border-radius: 6px; font-size: 13px; color: #666; }
+.chart-tab.on { background: #1a237e; color: #fff; font-weight: bold; }
+
+/* 折叠 */
+.collapse-header { display: flex; justify-content: space-between; align-items: center; background: #fff; padding: 12px; border-radius: 8px; margin: 12px 0 4px; font-size: 14px; font-weight: bold; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+.collapse-arrow { font-size: 12px; color: #999; }
