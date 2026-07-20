@@ -11,13 +11,14 @@ engine.py         → 核心引擎：MACD/多因子/融合策略/形态检测/OB
 fetcher.py        → 数据层：K线多源降级抓取、分红抓取、股票名称
 db.py             → SQLite缓存（stock_cache.db），K线和分红均缓存
 batch_backtest.py → 批量回测工具，固定100只股票分板块
+mainboard_baseline.py → 沪深主板全量基线，冻结股票池、持续抓取与失败重试
 ```
 
 ## 关键约定
 - PEP 668 环境，pip install 需加 `--break-system-packages`
 - 数据源优先级：新浪 → 腾讯(不复权) → 东方财富(不复权)
 - 所有新 K 线统一使用不复权价格；现金分红和送转由回测单独计入
-- DB 已加入 .gitignore，其他机器 clone 后自动重建
+- `stock_cache.db` 是本地缓存，已由 `.gitignore` 排除；包含缓存、冻结股票池和基线任务，全量运行会持续修改该文件
 - 字体文件 wqy-zenhei.ttf 可选，缺失时图表无中文但不崩溃
 
 ## 核心概念
@@ -39,10 +40,23 @@ batch_backtest.py → 批量回测工具，固定100只股票分板块
 **门禁**：OBV 5日净量能流<-60%否决 | RSI>92否决 | 双弱(M<35∧F<40)否决
 
 **买卖规则**：
-- 买入：收盘 S ≥ 65 且通过门禁，下一交易日开盘执行
-- 卖出：止损−8% | 止盈+25% | S<35 | 获利回吐(S<50且盈利>12%) | 顶背离 | 形态破颈线
+- 买入：收盘 S ≥ 69 且通过门禁，下一交易日开盘执行
+- 卖出：止损−12% | 止盈+15% | S<35 | 获利回吐(S<50且盈利>12%) | 顶背离 | 形态破颈线
 
-**100只批量回测（2026-07-19）**：均胜率 47.5%，均顺序复利 +81.1%，45只买入信号；买卖已计入双边佣金和卖出印花税
+**旧版 v2 的 100 只批量回测（2026-07-19）**：均胜率 47.5%，均顺序复利 +81.1%，45只买入信号；买卖已计入双边佣金和卖出印花税。
+
+**v3 全量缓存重放（2026-07-20）**：在同一 3,146 只可比较主板样本上，等权平均胜率 52.45%，等权平均价差复利 -1.20%，全交易胜率 52.59%（120,678 / 229,451），完整只读重放耗时 13.57 分钟。参数来自该历史样本筛选，属于样本内验证，不保证未来表现。
+
+### 沪深主板全量基线
+- `mainboard_baseline.py` 冻结沪市 `600/601/603/605`、深市 `000/001/002/003` 的当前有效报价股票池；2026-07-19 为 3,189 只（沪 1,698 / 深 1,491）
+- `baseline_runs` 保存基线运行元数据；`baseline_jobs` 保存每只股票的 `pending/running/success/failed` 状态、重试、错误和回测摘要
+- 使用 `--until-complete` 持续重试失败池直到 `failed_count=0`；同一代码连续 12 次抓取失败后归档为 `fetch_failed` 排除项
+- 严格刷新 K 线时不回退旧缓存；网络失败进入失败池指数退避
+- 少于 300 根 K 线或最后日线超过冻结日 60 天的股票记为已处理排除项，不计入可比收益均值
+- 全量基线先只计算含费用的价差复利，不批量抓取分红
+- 已完成基线：`cn_sh_sz_mainboard_20260719_20260719T165921Z`，活动主板 3,189 只；可比较 3,146 只、历史不足 43 只、失败 0 只；等权平均胜率 45.42%，等权平均价差复利 -13.08%，全交易胜率 45.57%
+- `python3 mainboard_baseline.py --replay-cached` 只读 SQLite 缓存重放指定或最新基线，锁定该运行的冻结日期，不发网络请求，也不写回历史摘要
+- `--repair-success-metrics` 只允许写回同策略版本的运行；跨版本参数比较使用只读重放，避免覆盖历史版本摘要
 
 ### MACD择时策略（代码保留，Web隐藏）
 - 买入：底背离(熊市抄底) | 零轴上金叉(牛市追涨)
@@ -87,7 +101,10 @@ batch_backtest.py → 批量回测工具，固定100只股票分板块
 ./run_cli.py multi 600329        # CLI 多因子共振
 ./web.py 8099                    # Web (默认8080)
 python3 batch_backtest.py        # 批量回测100只股票
-python3 -m unittest discover -s unittests -v  # 53个测试
+python3 mainboard_baseline.py --until-complete --request-delay 0.3
+python3 mainboard_baseline.py --status --show-failed 20
+python3 mainboard_baseline.py --replay-cached
+python3 -m unittest discover -s unittests -v  # 66个测试
 ```
 
 ## GitHub

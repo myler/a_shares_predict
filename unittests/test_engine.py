@@ -316,7 +316,7 @@ class TestMultifactor(unittest.TestCase):
 
         def score_at_index(*args):
             index = args[-1]
-            composite = 65 if index == 60 else 30
+            composite = 69 if index == 60 else 30
             return 50, 50, 50, 50, 0.0, composite, True, {}, {}
 
         with patch('engine._score_comprehensive', side_effect=score_at_index):
@@ -328,6 +328,47 @@ class TestMultifactor(unittest.TestCase):
         self.assertEqual(trades[0]['sell_date'], _mkdates(count)[62])
         self.assertEqual(trades[0]['buy_price'], opens[61])
         self.assertEqual(trades[0]['sell_price'], opens[62])
+
+    def test_comprehensive_prediction_uses_buy_threshold(self):
+        from engine import predict_comprehensive
+        count = 70
+        closes = np.linspace(10, 20, count)
+        highs = closes + 0.5
+        lows = closes - 0.5
+        volumes = np.full(count, 100.0)
+        details = {
+            'rv': 50.0, 'kv': 50.0, 'dv': 50.0, 'jv': 50.0,
+            'wv': 50.0, 'bb_pos': 50.0,
+        }
+
+        def score_at_index(*args):
+            composite = 68 if args[-1] == count - 1 else 50
+            return 50, 50, 50, 50, 0.0, composite, True, details, {}
+
+        with patch('engine._score_comprehensive', side_effect=score_at_index):
+            prediction = predict_comprehensive(
+                _mkdates(count), closes, highs, lows, volumes)
+
+        self.assertEqual(prediction['action'], '观望')
+
+    def test_comprehensive_respects_custom_buy_threshold(self):
+        from engine import backtest_comprehensive
+        count = 65
+        closes = np.linspace(10, 20, count)
+        highs = closes + 0.5
+        lows = closes - 0.5
+        volumes = np.full(count, 100.0)
+
+        def score_at_index(*args):
+            index = args[-1]
+            composite = 65 if index == 60 else 30
+            return 50, 50, 50, 50, 0.0, composite, True, {}, {}
+
+        with patch('engine._score_comprehensive', side_effect=score_at_index):
+            trades = backtest_comprehensive(
+                _mkdates(count), closes, highs, lows, volumes, buy_score=66)
+
+        self.assertEqual(trades, [])
 
     def test_kdj_output(self):
         from engine import calc_kdj
