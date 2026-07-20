@@ -9,7 +9,8 @@ from fetcher import fetch_kline, get_name, fetch_dividends, enrich_trades_with_d
 from db import save_stock_name
 from engine import (make_output_dir, calc_macd, detect_regime, find_divergences,
                     zero_line_cycles, backtest, predict, format_predict,
-                    backtest_multifactor, predict_multifactor, format_predict_multifactor)
+                    backtest_multifactor, predict_multifactor, format_predict_multifactor,
+                    predict_comprehensive)
 from plotting import plot_all
 
 HELP = """
@@ -21,7 +22,7 @@ A股策略分析工具
   ./run_cli.py chart   <股票代码>   仅出图
   ./run_cli.py backtest <股票代码>  仅回测(MACD)
   ./run_cli.py multi   <股票代码>   多因子共振策略
-  ./run_cli.py predict <股票代码>   仅预测
+    ./run_cli.py predict <股票代码>   融合策略预测（不回测、不出图）
   ./run_cli.py help                 帮助
 
 示例:
@@ -30,8 +31,81 @@ A股策略分析工具
   ./run_cli.py backtest 002371   北方华创 (仅回测)
 
 策略:
-  MACD择时策略 — 牛市追涨、熊市空仓，背离信号触发买卖
+  融合策略 — MACD择时、多因子、价格位置/趋势和量能综合评分
 """
+
+
+def format_comprehensive_cli_prediction(prediction, name, code, dates):
+    if 'error' in prediction:
+        return [f"{name}({code}) 融合策略", prediction['error']]
+
+    scores = prediction['scores']
+    lines = [
+        '=' * 60,
+        f"  {name}({code}) 融合策略",
+        '=' * 60,
+        f"数据: {dates[0]} ~ {dates[-1]} ({len(dates)}K线)",
+        f"收盘: {prediction['close']:.2f} | 信号: {prediction['signal']} | 建议: {prediction['action']}",
+        "\n── 融合策略四维评分 ──",
+        f"  MACD核心 (40%): {scores['macd']['score']:.1f} 分 — "
+        f"DIF{scores['macd']['dif']:.2f}/DEA{scores['macd']['dea']:.2f} "
+        f"BAR{scores['macd']['bar']:.2f}",
+        f"  多因子 (30%): {scores['multifactor']['score']:.1f} 分 — "
+        f"RSI{scores['multifactor']['rsi']:.0f} "
+        f"K{scores['multifactor']['k']:.0f}/D{scores['multifactor']['d']:.0f}/"
+        f"J{scores['multifactor']['j']:.0f} WR{scores['multifactor']['wr']:.0f}",
+        f"  {scores['fundamental']['label']} (15%): "
+        f"{scores['fundamental']['score']:.1f} 分",
+        f"  量能 (15%): {scores['game']['score']:.1f} 分 — "
+        f"OBV 5日净量能流 {scores['game']['obv_flow']:+.0%}",
+        f"  四维基础分 S: {prediction['base_composite']:.1f} "
+        f"(M{scores['macd']['score']:.0f}×0.40 + "
+        f"F{scores['multifactor']['score']:.0f}×0.30 + "
+        f"价{scores['fundamental']['score']:.0f}×0.15 + "
+        f"量{scores['game']['score']:.0f}×0.15)",
+        f"  辅助共识修正: {prediction['auxiliary_adjustment']:+.1f} "
+        f"(A={prediction['auxiliary_consensus']['consensus_score']:+.0f}, "
+        f"β={prediction['auxiliary_beta']:.2f})",
+        f"  有效评分 S*: {prediction['composite']:.1f}",
+        "\n── 质量门禁 ──",
+    ]
+
+    if prediction['gates']['passed']:
+        lines.append("  全部通过")
+    else:
+        for gate in prediction['gates']['details']:
+            if gate['gate'] == 'OBV净量能流':
+                lines.append(f"  OBV 5日净量能流过低 ({gate['value']:+.0%} < -60%) -> 否决")
+            elif gate['gate'] == 'RSI':
+                lines.append(f"  RSI极度超买 ({gate['value']:.0f} > 92) -> 否决")
+            elif gate['gate'] == '双弱':
+                lines.append("  双弱 (MACD<35 且 多因子<40) -> 否决")
+
+    auxiliary = prediction['auxiliary_consensus']
+    lines.extend([
+        f"\n── 辅助指标投票面板 ({auxiliary['total_indicators']}个指标) ──",
+        f"  共识度 {auxiliary['consensus_score']:+.0f} "
+        f"({auxiliary['consensus_pct']:.0f}%看多) | 修正 {prediction['auxiliary_adjustment']:+.1f} | "
+        f"看多{auxiliary['bullish_count']} 看空{auxiliary['bearish_count']} 中性{auxiliary['neutral_count']}",
+    ])
+    for vote in auxiliary['votes']:
+        value = vote['value']
+        if isinstance(value, dict):
+            value = ', '.join(f'{key}={item}' for key, item in value.items())
+        label = '看多' if vote['vote'] > 0 else ('看空' if vote['vote'] < 0 else '中性')
+        lines.append(f"  {vote['name']}: {value} -> {label}")
+
+    for title, key in (
+        ('MACD核心评分 (40%)', 'macd'),
+        ('多因子评分 (30%)', 'multifactor'),
+        ('价格位置/趋势 (15%)', 'fundamental'),
+        ('量能 (15%)', 'game'),
+    ):
+        lines.append(f"\n── {title} ──")
+        for item in prediction['breakdown'][key]:
+            lines.append(f"  {item['rule']}: {item['adj']}")
+
+    return lines
 
 
 if __name__ == '__main__':
@@ -108,6 +182,23 @@ if __name__ == '__main__':
             print(f"  价差收益: {total:+.1f}%")
             print(f"  分红收益: {total_cash:.2f}元/股（折合{total_div:+.1f}%）")
             print(f"  总收益:   {total+total_div:+.1f}%")
+        sys.exit(0)
+
+    if mode == 'predict':
+        code = codes[0]
+        data = fetch_kline(code)
+        name = get_name(code)
+        save_stock_name(code, name)
+        dates = [row['day'] for row in data]
+        opens = np.array([float(row['open']) for row in data])
+        closes = np.array([float(row['close']) for row in data])
+        highs = np.array([float(row['high']) for row in data])
+        lows = np.array([float(row['low']) for row in data])
+        volumes = np.array([float(row['volume']) for row in data])
+        prediction = predict_comprehensive(
+            dates, closes, highs, lows, volumes, opens=opens)
+        print('\n'.join(format_comprehensive_cli_prediction(
+            prediction, name, code, dates)))
         sys.exit(0)
 
     code = codes[0]  # 非json/multi模式取第一个
