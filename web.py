@@ -497,7 +497,9 @@ class Handler(BaseHTTPRequestHandler):
           <tr style="background:#fff3e0"><td><b>多因子 (30%)</b></td><td style="font-weight:bold;font-size:1.2em">{score_level(scores['multifactor']['score'])} {scores['multifactor']['score']:.1f}</td><td style="font-size:11px;color:#888">RSI{scores['multifactor']['rsi']:.0f} K{scores['multifactor']['k']:.0f}/D{scores['multifactor']['d']:.0f}/J{scores['multifactor']['j']:.0f} WR{scores['multifactor']['wr']:.0f}</td></tr>
           <tr style="background:#e8f5e9"><td><b>{scores['fundamental']['label']} (15%)</b></td><td style="font-weight:bold;font-size:1.2em">{score_level(scores['fundamental']['score'])} {scores['fundamental']['score']:.1f}</td><td style="font-size:11px;color:#888">价格序列代理，非财务基本面</td></tr>
           <tr style="background:#f3e5f5"><td><b>量能 (15%)</b></td><td style="font-weight:bold;font-size:1.2em">{score_level(scores['game']['score'])} {scores['game']['score']:.1f}</td><td style="font-size:11px;color:#888">OBV 5日净量能流 {scores['game']['obv_flow']:+.0%}</td></tr>
-          <tr style="background:#f5f5f5"><td><b>综合加权</b></td><td style="font-weight:bold;font-size:1.4em">{score_level(prediction['composite'])} {prediction['composite']:.1f}</td><td>M{scores['macd']['score']:.0f}×0.40+F{scores['multifactor']['score']:.0f}×0.30+价{scores['fundamental']['score']:.0f}×0.15+量{scores['game']['score']:.0f}×0.15</td></tr>
+                    <tr style="background:#f5f5f5"><td><b>四维基础分 S</b></td><td style="font-weight:bold;font-size:1.2em">{score_level(prediction['base_composite'])} {prediction['base_composite']:.1f}</td><td>M{scores['macd']['score']:.0f}×0.40+F{scores['multifactor']['score']:.0f}×0.30+价{scores['fundamental']['score']:.0f}×0.15+量{scores['game']['score']:.0f}×0.15</td></tr>
+                    <tr style="background:#fff8e1"><td><b>辅助共识修正</b></td><td style="font-weight:bold;font-size:1.2em">{prediction['auxiliary_adjustment']:+.1f}</td><td>A={prediction['auxiliary_consensus']['consensus_score']:+.0f}，β={prediction['auxiliary_beta']:.2f}</td></tr>
+                    <tr style="background:#f5f5f5"><td><b>有效评分 S*</b></td><td style="font-weight:bold;font-size:1.4em">{score_level(prediction['composite'])} {prediction['composite']:.1f}</td><td>S* = S − βA</td></tr>
         </table>
         <br>
         <table class="overview">
@@ -532,7 +534,7 @@ class Handler(BaseHTTPRequestHandler):
             <br>
             <table class="overview">
               <tr><th colspan="3">辅助指标投票面板 ({aux['total_indicators']}个指标)</th></tr>
-              <tr><td colspan="3" style="text-align:center;font-weight:bold">共识度 {aux['consensus_score']:+.0f} ({aux['consensus_pct']:.0f}%看多) | 看多{aux['bullish_count']} 看空{aux['bearish_count']} 中性{aux['neutral_count']}</td></tr>
+              <tr><td colspan="3" style="text-align:center;font-weight:bold">共识度 {aux['consensus_score']:+.0f} ({aux['consensus_pct']:.0f}%看多) | 修正 {prediction['auxiliary_adjustment']:+.1f} | 看多{aux['bullish_count']} 看空{aux['bearish_count']} 中性{aux['neutral_count']}</td></tr>
               {vote_rows}
             </table>"""
 

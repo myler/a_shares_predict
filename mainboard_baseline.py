@@ -29,7 +29,7 @@ from fetcher import fetch_kline, fetch_mainboard_universe
 
 
 UNIVERSE_NAME = 'cn_sh_sz_mainboard'
-STRATEGY_VERSION = 'comprehensive_next_open_v3'
+STRATEGY_VERSION = 'comprehensive_next_open_v4_auxiliary'
 MIN_KLINES = 300
 MAX_STALE_DAYS = 60
 

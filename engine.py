@@ -12,6 +12,7 @@ COMPREHENSIVE_STOP_LOSS_PCT = -12
 COMPREHENSIVE_TAKE_PROFIT_PCT = 15
 COMPREHENSIVE_PROFIT_PROTECT_PCT = 12
 COMPREHENSIVE_PROFIT_PROTECT_SCORE = 50
+COMPREHENSIVE_AUXILIARY_CONTRARIAN_BETA = 0.08
 
 
 def make_output_dir(code):
@@ -711,6 +712,133 @@ def calc_auxiliary_consensus(closes, highs, lows, volumes, opens=None):
     }
 
 
+def calc_auxiliary_consensus_series(closes, highs, lows, volumes, opens=None):
+    """返回每个交易日的 18 项辅助指标共识度，计算只使用该日及此前数据。"""
+    closes = np.asarray(closes, dtype=float)
+    highs = np.asarray(highs, dtype=float)
+    lows = np.asarray(lows, dtype=float)
+    volumes = np.asarray(volumes, dtype=float)
+    n = len(closes)
+    consensus = np.zeros(n)
+    if n < 60:
+        return consensus
+
+    if opens is None:
+        opens = np.empty(n, dtype=float)
+        opens[0] = closes[0]
+        opens[1:] = closes[:-1]
+    else:
+        opens = np.asarray(opens, dtype=float)
+        if len(opens) != n:
+            raise ValueError('opens 长度必须与 closes 一致')
+
+    def finite_or(values, default):
+        return np.where(np.isfinite(values), values, default)
+
+    def rolling_mean(period):
+        result = np.full(n, np.nan)
+        if n >= period:
+            sums = np.concatenate(([0.0], np.cumsum(closes, dtype=float)))
+            result[period - 1:] = (sums[period:] - sums[:-period]) / period
+        return result
+
+    bullish_count = np.zeros(n, dtype=int)
+    bearish_count = np.zeros(n, dtype=int)
+
+    def add_votes(bullish, bearish):
+        bullish_count[:] += bullish.astype(int)
+        bearish_count[:] += (~bullish & bearish).astype(int)
+
+    pdi, mdi, adx, _ = calc_dmi(highs, lows, closes)
+    pdi = finite_or(pdi, 0)
+    mdi = finite_or(mdi, 0)
+    adx = finite_or(adx, 0)
+    add_votes((pdi > mdi) & (adx > 20), (mdi > pdi) & (adx > 20))
+
+    cci = finite_or(calc_cci(highs, lows, closes), 0)
+    add_votes(cci < -100, cci > 100)
+
+    bias6 = finite_or(calc_bias(closes, 6), 0)
+    add_votes(bias6 < -3, bias6 > 5)
+
+    bias12 = finite_or(calc_bias(closes, 12), 0)
+    add_votes(bias12 < -5, bias12 > 8)
+
+    expma12 = finite_or(calc_expma(closes, 12), 0)
+    expma50 = finite_or(calc_expma(closes, 50), 0)
+    add_votes((expma12 > expma50) & (closes > expma12),
+              (expma12 < expma50) & (closes < expma12))
+
+    bbi = finite_or(calc_bbi(closes), 0)
+    add_votes(closes > bbi, closes < bbi)
+
+    trix = finite_or(calc_trix(closes), 0)
+    add_votes(trix > 0.05, trix < -0.05)
+
+    vr = finite_or(calc_vr(closes, volumes), 100)
+    add_votes(vr < 70, vr > 350)
+
+    br, ar = calc_brar(opens, highs, lows, closes)
+    br = finite_or(br, 100)
+    ar = finite_or(ar, 100)
+    add_votes(br < 60, br > 300)
+    add_votes(ar < 60, ar > 200)
+
+    cr = finite_or(calc_cr(highs, lows, closes), 100)
+    add_votes(cr < 50, cr > 300)
+
+    dma = finite_or(calc_dma(closes), 0)
+    ma10 = rolling_mean(10)
+    ma20 = rolling_mean(20)
+    add_votes((dma > 0) & (closes > ma10),
+              (dma < 0) & (closes < ma20))
+
+    dpo = finite_or(calc_dpo(closes), 0)
+    add_votes(dpo < -closes * 0.05, dpo > closes * 0.05)
+
+    mtm = finite_or(calc_mtm(closes), 0)
+    add_votes(mtm > 0, mtm < 0)
+
+    skdj_k, skdj_d = calc_skdj(highs, lows, closes)
+    skdj_k = finite_or(skdj_k, 50)
+    skdj_d = finite_or(skdj_d, 50)
+    add_votes((skdj_k < 20) | ((skdj_k > skdj_d) & (skdj_k < 50)),
+              (skdj_k > 80) | ((skdj_k < skdj_d) & (skdj_k > 50)))
+
+    lwr1, lwr2 = calc_lwr(highs, lows, closes)
+    lwr1 = finite_or(lwr1, 50)
+    lwr2 = finite_or(lwr2, 50)
+    add_votes((lwr1 > 80) & (lwr2 > 70),
+              (lwr1 < 20) & (lwr2 < 30))
+
+    ene_upper, _, ene_lower = calc_ene(closes)
+    ene_valid = np.isfinite(ene_upper) & np.isfinite(ene_lower) & (ene_upper != ene_lower)
+    ene_position = np.full(n, 50.0)
+    ene_position[ene_valid] = (
+        (closes[ene_valid] - ene_lower[ene_valid]) /
+        (ene_upper[ene_valid] - ene_lower[ene_valid]) * 100)
+    add_votes(ene_position < 10, ene_position > 90)
+
+    lon_upper, _, lon_lower = calc_lon(highs, lows, closes)
+    lon_valid = np.isfinite(lon_upper) & np.isfinite(lon_lower) & (lon_upper != lon_lower)
+    lon_position = np.full(n, 50.0)
+    lon_position[lon_valid] = (
+        (closes[lon_valid] - lon_lower[lon_valid]) /
+        (lon_upper[lon_valid] - lon_lower[lon_valid]) * 100)
+    add_votes(lon_position < 20, lon_position > 80)
+
+    consensus[59:] = np.round(
+        (bullish_count[59:] - bearish_count[59:]) / 18 * 100, 1)
+    return consensus
+
+
+def apply_auxiliary_consensus_adjustment(base_score, consensus_score, beta):
+    """以辅助共识作小幅反向修正，保留四维主评分的主导地位。"""
+    if not 0 <= beta <= 0.2:
+        raise ValueError('auxiliary_beta 必须在 0 到 0.2 之间')
+    return base_score - beta * np.clip(consensus_score, -100, 100)
+
+
 _INDICATOR_NAMES = [
     'DMI', 'CCI', 'BIAS(6)', 'BIAS(12)', 'EXPMA', 'BBI', 'TRIX', 'VR', 'BR',
     'AR', 'CR', 'DMA', 'DPO', 'MTM', 'SKDJ', 'LWR', 'ENE', 'LON',
@@ -1363,7 +1491,8 @@ def backtest_comprehensive(dates, closes, highs, lows, volumes, opens=None,
                            stop_loss_pct=COMPREHENSIVE_STOP_LOSS_PCT,
                            take_profit_pct=COMPREHENSIVE_TAKE_PROFIT_PCT,
                            profit_protect_pct=COMPREHENSIVE_PROFIT_PROTECT_PCT,
-                           profit_protect_score=COMPREHENSIVE_PROFIT_PROTECT_SCORE):
+                           profit_protect_score=COMPREHENSIVE_PROFIT_PROTECT_SCORE,
+                           auxiliary_beta=COMPREHENSIVE_AUXILIARY_CONTRARIAN_BETA):
     """融合策略回测：收盘生成信号，下一交易日开盘成交并计入比例交易成本。"""
     n = len(closes)
     if n < 60:
@@ -1374,6 +1503,8 @@ def backtest_comprehensive(dates, closes, highs, lows, volumes, opens=None,
     opens = np.asarray(opens, dtype=float)
     if len(opens) != n:
         raise ValueError('opens 长度必须与 closes 一致')
+    if not 0 <= auxiliary_beta <= 0.2:
+        raise ValueError('auxiliary_beta 必须在 0 到 0.2 之间')
 
     dif, dea, bar = calc_macd(closes)
     rsi_arr = calc_rsi(closes)
@@ -1381,6 +1512,8 @@ def backtest_comprehensive(dates, closes, highs, lows, volumes, opens=None,
     bb_u, bb_m, bb_l = calc_bollinger(closes)
     wr_arr = calc_wr(highs, lows, closes)
     obv_full = calc_obv(closes, volumes)
+    auxiliary_consensus = calc_auxiliary_consensus_series(
+        closes, highs, lows, volumes, opens) if auxiliary_beta else None
 
     trades = []
     pos = None
@@ -1394,7 +1527,7 @@ def backtest_comprehensive(dates, closes, highs, lows, volumes, opens=None,
                 'signal_date': pending['signal_date'],
                 'macd': pending['macd'], 'mf': pending['mf'],
                 'fund': pending['fund'], 'game': pending['game'],
-                'comp': pending['comp'],
+                'comp': pending['comp'], 'aux': pending['aux'],
             }
             pending = None
         elif pending and pending['side'] == 'sell' and pos is not None:
@@ -1407,7 +1540,7 @@ def backtest_comprehensive(dates, closes, highs, lows, volumes, opens=None,
                 'sell_signal_date': pending['signal_date'],
                 'buy_price': pos['bp'], 'sell_price': sell_price,
                 'profit_pct': round(pnl, 2), 'hold_days': i - pos['bi'],
-                'buy_reason': f'融合{pos["comp"]:.0f}(M{pos["macd"]:.0f}/F{pos["mf"]:.0f}/价{pos["fund"]:.0f}/量{pos["game"]:.0f})',
+                'buy_reason': f'融合{pos["comp"]:.0f}(M{pos["macd"]:.0f}/F{pos["mf"]:.0f}/价{pos["fund"]:.0f}/量{pos["game"]:.0f}/辅{pos["aux"]:+.1f})',
                 'sell_reason': pending['reason'],
                 'commission_rate': commission_rate,
                 'stamp_duty_rate': stamp_duty_rate,
@@ -1422,6 +1555,12 @@ def backtest_comprehensive(dates, closes, highs, lows, volumes, opens=None,
             _score_comprehensive(closes, highs, lows, volumes,
                                  dif, dea, bar, rsi_arr, k_arr, d_arr, j_arr,
                                  bb_u, bb_l, wr_arr, obv_full, i)
+        if auxiliary_consensus is not None:
+            auxiliary_adjustment = -auxiliary_beta * auxiliary_consensus[i]
+            composite = apply_auxiliary_consensus_adjustment(
+                composite, auxiliary_consensus[i], auxiliary_beta)
+        else:
+            auxiliary_adjustment = 0.0
 
         if pos is None:
             if (pending is None and i + 1 < n and
@@ -1430,7 +1569,8 @@ def backtest_comprehensive(dates, closes, highs, lows, volumes, opens=None,
                     'side': 'buy', 'signal_date': dates[i],
                     'macd': round(macd_score, 1), 'mf': round(mf_score, 1),
                     'fund': round(fund_score, 1), 'game': round(game_score, 1),
-                    'comp': round(composite, 1)
+                    'comp': round(composite, 1),
+                    'aux': round(auxiliary_adjustment, 1),
                 }
         else:
             pnl = calc_net_trade_return(
@@ -1469,11 +1609,14 @@ def backtest_comprehensive(dates, closes, highs, lows, volumes, opens=None,
 # 融合策略预测 (结构化)
 # ═══════════════════════════
 def predict_comprehensive(dates, closes, highs, lows, volumes, holding=False,
-                          opens=None):
+                          opens=None,
+                          auxiliary_beta=COMPREHENSIVE_AUXILIARY_CONTRARIAN_BETA):
     """融合策略当前状态预测 — 返回结构化 dict"""
     n = len(closes)
     if n < 60:
         return {'error': '数据不足，需要至少60根K线'}
+    if not 0 <= auxiliary_beta <= 0.2:
+        raise ValueError('auxiliary_beta 必须在 0 到 0.2 之间')
 
     dif, dea, bar = calc_macd(closes)
     rsi_arr = calc_rsi(closes)
@@ -1490,6 +1633,12 @@ def predict_comprehensive(dates, closes, highs, lows, volumes, holding=False,
         _score_comprehensive(closes, highs, lows, volumes,
                              dif, dea, bar, rsi_arr, k_arr, d_arr, j_arr,
                              bb_u, bb_l, wr_arr, obv_full, i)
+    base_composite = composite
+    aux_consensus = calc_auxiliary_consensus(
+        closes, highs, lows, volumes, opens=opens)
+    auxiliary_adjustment = -auxiliary_beta * aux_consensus['consensus_score']
+    composite = apply_auxiliary_consensus_adjustment(
+        base_composite, aux_consensus['consensus_score'], auxiliary_beta)
 
     # 信号映射
     if gates_pass:
@@ -1548,10 +1697,6 @@ def predict_comprehensive(dates, closes, highs, lows, volumes, holding=False,
     ma20 = np.mean(closes[-20:])
     ma60 = np.mean(closes[-60:])
 
-    # 辅助指标投票面板
-    aux_consensus = calc_auxiliary_consensus(
-        closes, highs, lows, volumes, opens=opens)
-
     return {
         'strategy': 'comprehensive',
         'date': dates[-1],
@@ -1576,6 +1721,9 @@ def predict_comprehensive(dates, closes, highs, lows, volumes, holding=False,
                      # 小程序尚未迁移；该字段只用于兼容旧接口，非当前门禁依据。
                      'obv_ratio': round(float(legacy_obv_ratio), 2)},
         },
+        'base_composite': round(base_composite, 1),
+        'auxiliary_adjustment': round(auxiliary_adjustment, 1),
+        'auxiliary_beta': auxiliary_beta,
         'composite': round(composite, 1),
 
         # 门禁
@@ -1656,11 +1804,15 @@ def format_predict_comprehensive(pred, holding=False):
         lines.append(f"  机构代理: {inst_label} 波动率{v:.1f}%{inst_sig}")
 
     lines.append(f"\n── 🎯 综合判断 ──")
-    lines.append(f"  加权总分: {pred['composite']:.1f} "
+    lines.append(f"  四维基础分 S: {pred['base_composite']:.1f} "
                  f"(M{s['macd']['score']:.0f}×0.40 + "
                  f"F{s['multifactor']['score']:.0f}×0.30 + "
                  f"基{s['fundamental']['score']:.0f}×0.15 + "
                  f"量{s['game']['score']:.0f}×0.15)")
+    lines.append(f"  辅助共识修正: {pred['auxiliary_adjustment']:+.1f} "
+                 f"(A={pred['auxiliary_consensus']['consensus_score']:+.0f}, "
+                 f"β={pred['auxiliary_beta']:.2f})")
+    lines.append(f"  有效评分 S*: {pred['composite']:.1f}")
 
     # 门禁
     if not pred['gates']['passed']:
