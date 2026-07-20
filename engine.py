@@ -7,6 +7,12 @@ import numpy as np
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 
+COMPREHENSIVE_BUY_SCORE = 69
+COMPREHENSIVE_STOP_LOSS_PCT = -12
+COMPREHENSIVE_TAKE_PROFIT_PCT = 15
+COMPREHENSIVE_PROFIT_PROTECT_PCT = 12
+COMPREHENSIVE_PROFIT_PROTECT_SCORE = 50
+
 
 def make_output_dir(code):
     today = datetime.now().strftime('%Y%m%d')
@@ -1352,7 +1358,12 @@ def _score_comprehensive(closes, highs, lows, volumes,
 # 融合策略回测
 # ═══════════════════════════
 def backtest_comprehensive(dates, closes, highs, lows, volumes, opens=None,
-                           commission_rate=0.0003, stamp_duty_rate=0.0005):
+                           commission_rate=0.0003, stamp_duty_rate=0.0005,
+                           buy_score=COMPREHENSIVE_BUY_SCORE,
+                           stop_loss_pct=COMPREHENSIVE_STOP_LOSS_PCT,
+                           take_profit_pct=COMPREHENSIVE_TAKE_PROFIT_PCT,
+                           profit_protect_pct=COMPREHENSIVE_PROFIT_PROTECT_PCT,
+                           profit_protect_score=COMPREHENSIVE_PROFIT_PROTECT_SCORE):
     """融合策略回测：收盘生成信号，下一交易日开盘成交并计入比例交易成本。"""
     n = len(closes)
     if n < 60:
@@ -1413,7 +1424,8 @@ def backtest_comprehensive(dates, closes, highs, lows, volumes, opens=None,
                                  bb_u, bb_l, wr_arr, obv_full, i)
 
         if pos is None:
-            if pending is None and i + 1 < n and composite >= 65 and gates_pass:
+            if (pending is None and i + 1 < n and
+                    composite >= buy_score and gates_pass):
                 pending = {
                     'side': 'buy', 'signal_date': dates[i],
                     'macd': round(macd_score, 1), 'mf': round(mf_score, 1),
@@ -1426,13 +1438,13 @@ def backtest_comprehensive(dates, closes, highs, lows, volumes, opens=None,
             sell = False
             reason = ''
 
-            if pnl < -8:
+            if pnl < stop_loss_pct:
                 sell = True; reason = f'止损{pnl:.1f}%'
-            elif pnl > 25:
+            elif pnl > take_profit_pct:
                 sell = True; reason = f'止盈+{pnl:.1f}%'
             elif composite < 35:
                 sell = True; reason = f'综合分{composite:.0f}<35'
-            elif pnl > 12 and composite < 50:
+            elif pnl > profit_protect_pct and composite < profit_protect_score:
                 sell = True; reason = f'获利回吐+{pnl:.1f}%'
 
             if not sell:
@@ -1484,7 +1496,7 @@ def predict_comprehensive(dates, closes, highs, lows, volumes, holding=False,
         if composite >= 70:
             signal = '强烈看多'
             action = '增持' if holding else '买入'
-        elif composite >= 65:
+        elif composite >= COMPREHENSIVE_BUY_SCORE:
             signal = '偏多'
             action = '拿住' if holding else '买入'
         elif composite >= 50:

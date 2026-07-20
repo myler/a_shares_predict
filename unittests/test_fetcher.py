@@ -7,7 +7,8 @@ import json
 import unittest
 from unittest.mock import patch
 
-from fetcher import enrich_trades_with_dividends, fetch_kline, get_name
+from fetcher import (enrich_trades_with_dividends, fetch_kline,
+                     fetch_mainboard_universe, get_name)
 
 
 class TestEnrichTrades(unittest.TestCase):
@@ -132,6 +133,64 @@ class TestKlinePriceBasis(unittest.TestCase):
         self.assertNotIn('qfq', tencent_url)
         self.assertEqual(result[0]['close'], '10.5')
         save_klines.assert_called_once_with('000001', result)
+
+    def test_force_refresh_overwrites_cached_kline(self):
+        class Response:
+            def __init__(self, payload):
+                self.payload = payload
+
+            def read(self):
+                return self.payload.encode('utf-8')
+
+        refreshed = [{'day': '2024-01-02', 'open': '10', 'high': '11',
+                      'low': '9', 'close': '10.5', 'volume': '1000'}]
+        with patch('fetcher.load_klines', return_value=[{'day': 'old'}]), \
+             patch('fetcher.save_klines') as save_klines, \
+             patch('fetcher.urllib.request.urlopen', return_value=Response(
+                 json.dumps(refreshed))):
+            result = fetch_kline('000001', days=1, max_retries=1,
+                                 force_refresh=True)
+
+        self.assertEqual(result, refreshed)
+        save_klines.assert_called_once_with('000001', refreshed, replace=True)
+
+    def test_strict_force_refresh_does_not_fall_back_to_cache(self):
+        with patch('fetcher.load_klines', return_value=[{'day': 'old'}]), \
+             patch('fetcher.urllib.request.urlopen', side_effect=TimeoutError('offline')):
+            with self.assertRaises(RuntimeError):
+                fetch_kline('000001', days=1, max_retries=1,
+                            force_refresh=True, allow_stale_on_refresh=False)
+
+
+class TestMainboardUniverse(unittest.TestCase):
+    def test_filters_mainboard_prefixes_across_pages(self):
+        class Response:
+            def __init__(self, payload):
+                self.payload = json.dumps(payload).encode('utf-8')
+
+            def read(self):
+                return self.payload
+
+        page_one = {'data': {'total': 100, 'diff': [
+            {'f2': 10.0, 'f12': '600000', 'f13': 1, 'f14': '浦发银行', 'f26': 19991110},
+            {'f2': 11.0, 'f12': '605001', 'f13': 1, 'f14': '沪主板', 'f26': 20200101},
+            {'f2': 12.0, 'f12': '688001', 'f13': 1, 'f14': '科创板', 'f26': 20200101},
+            {'f2': None, 'f12': '600001', 'f13': 1, 'f14': '退市股', 'f26': 19900101},
+        ]}}
+        page_two = {'data': {'total': 100, 'diff': [
+            {'f2': 13.0, 'f12': '000001', 'f13': 0, 'f14': '平安银行', 'f26': 19910403},
+            {'f2': 14.0, 'f12': '003001', 'f13': 0, 'f14': '深主板', 'f26': 20210101},
+            {'f2': 15.0, 'f12': '300001', 'f13': 0, 'f14': '创业板', 'f26': 20100101},
+            {'f2': 0, 'f12': '000004', 'f13': 0, 'f14': '退市股', 'f26': 19900101},
+        ]}}
+        with patch('fetcher.urllib.request.urlopen', side_effect=[
+                Response(page_one), Response(page_two)]):
+            stocks = fetch_mainboard_universe(max_retries=1, page_size=100)
+
+        self.assertEqual([stock['code'] for stock in stocks],
+                         ['000001', '003001', '600000', '605001'])
+        self.assertEqual(stocks[0]['list_date'], '1991-04-03')
+        self.assertEqual(stocks[-1]['exchange'], 'SH')
 
 
 if __name__ == '__main__':

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """数据层：K线抓取、分红抓取、股票名称、多源降级"""
 
-import sys, os, json, urllib.request, time, re
+import sys, os, json, urllib.parse, urllib.request, time, re
 import numpy as np
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
@@ -10,14 +10,15 @@ from db import (load_klines, save_klines, load_dividends, save_dividends,
                 save_stock_name, load_stock_name)
 
 
-def fetch_kline(code, days=2500, max_retries=3):
+def fetch_kline(code, days=2500, max_retries=3, force_refresh=False,
+                allow_stale_on_refresh=True):
     """
     多源降级拉取不复权 K 线: 优先本地DB → 新浪 → 腾讯 → 东方财富。
     分红由 enrich_trades_with_dividends 单独计入，不能与前复权价格混用。
     首次拉全量并缓存，之后从DB秒读。
     """
     cached = load_klines(code)
-    if cached:
+    if cached and not force_refresh:
         return cached
 
     sc = f'sh{code}' if code.startswith('6') else f'sz{code}'
@@ -50,7 +51,10 @@ def fetch_kline(code, days=2500, max_retries=3):
                         elif isinstance(r, dict):
                             result.append({'day': r.get('date',''), 'open': str(r.get('open','')), 'high': str(r.get('high','')), 'low': str(r.get('low','')), 'close': str(r.get('close','')), 'volume': str(r.get('volume',''))})
                     if result:
-                        save_klines(code, result)
+                        if force_refresh:
+                            save_klines(code, result, replace=True)
+                        else:
+                            save_klines(code, result)
                         return result
                     raise ValueError('腾讯: 解析失败')
 
@@ -63,14 +67,20 @@ def fetch_kline(code, days=2500, max_retries=3):
                         parts = r.split(',')
                         result.append({'day': parts[0], 'open': parts[1], 'high': parts[3], 'low': parts[4], 'close': parts[2], 'volume': parts[5]})
                     if result:
-                        save_klines(code, result)
+                        if force_refresh:
+                            save_klines(code, result, replace=True)
+                        else:
+                            save_klines(code, result)
                         return result
                     raise ValueError('东方财富: 解析失败')
 
                 else:  # 新浪
                     data = json.loads(raw)
                     if not data: raise ValueError('新浪: 空数据')
-                    save_klines(code, data)
+                    if force_refresh:
+                        save_klines(code, data, replace=True)
+                    else:
+                        save_klines(code, data)
                     return data
 
             except Exception as e:
@@ -85,6 +95,9 @@ def fetch_kline(code, days=2500, max_retries=3):
 
         continue
 
+    if cached and allow_stale_on_refresh:
+        print(f'  ⚠ {code} 刷新失败，使用已有缓存', file=sys.stderr)
+        return cached
     print('\n'.join(errors), file=sys.stderr)
     raise RuntimeError(f'所有数据源失败 ({len(errors)}次尝试)。请检查网络连接。')
 
@@ -112,6 +125,85 @@ def get_name(code):
                 return result
         except: continue
     return code
+
+
+_SH_MAINBOARD_PREFIXES = ('600', '601', '603', '605')
+_SZ_MAINBOARD_PREFIXES = ('000', '001', '002', '003')
+
+
+def _format_list_date(value):
+    value = str(value or '')
+    if len(value) == 8 and value.isdigit():
+        return f'{value[:4]}-{value[4:6]}-{value[6:]}'
+    return ''
+
+
+def fetch_mainboard_universe(max_retries=3, page_size=100):
+    """获取并冻结当前沪深主板股票池，不包含科创、创业、北交所和 B 股。"""
+    page_size = max(1, min(int(page_size), 100))
+    base_params = {
+        'pz': page_size,
+        'po': 1,
+        'np': 1,
+        'fltt': 2,
+        'invt': 2,
+        'fid': 'f12',
+        'fields': 'f2,f12,f13,f14,f26',
+    }
+    headers = {
+        'User-Agent': 'Mozilla/5.0',
+        'Referer': 'https://quote.eastmoney.com/',
+    }
+    stocks = {}
+    boards = (
+        ('SH', 'm:1+t:2', _SH_MAINBOARD_PREFIXES),
+        ('SZ', 'm:0+t:6', _SZ_MAINBOARD_PREFIXES),
+    )
+    for exchange, market_filter, prefixes in boards:
+        total = None
+        page = 1
+        while total is None or page <= (total + page_size - 1) // page_size:
+            params = {**base_params, 'pn': page, 'fs': market_filter}
+            url = 'https://push2.eastmoney.com/api/qt/clist/get?' + \
+                urllib.parse.urlencode(params)
+            last_error = None
+            data = None
+            for attempt in range(max_retries):
+                try:
+                    request = urllib.request.Request(url, headers=headers)
+                    payload = json.loads(urllib.request.urlopen(
+                        request, timeout=20).read().decode('utf-8'))
+                    data = payload.get('data') or {}
+                    if 'diff' not in data:
+                        raise ValueError('东方财富股票清单缺少 diff 字段')
+                    break
+                except Exception as error:
+                    last_error = error
+                    if attempt < max_retries - 1:
+                        time.sleep(min(5, attempt + 1))
+            if data is None:
+                raise RuntimeError(
+                    f'主板股票池 {exchange} 第{page}页抓取失败: {last_error}')
+
+            total = int(data.get('total') or 0)
+            for row in data.get('diff') or []:
+                code = str(row.get('f12') or '').zfill(6)
+                price = row.get('f2')
+                # 退市历史代码仍会出现在板块列表中，但没有当前有效报价。
+                if (not code.startswith(prefixes) or
+                        not isinstance(price, (int, float)) or price <= 0):
+                    continue
+                stocks[code] = {
+                    'code': code,
+                    'name': str(row.get('f14') or code),
+                    'exchange': exchange,
+                    'list_date': _format_list_date(row.get('f26')),
+                }
+            page += 1
+
+    if not stocks:
+        raise RuntimeError('活动主板股票池为空，请检查东方财富股票清单接口')
+    return [stocks[code] for code in sorted(stocks)]
 
 
 def fetch_dividends(code):
