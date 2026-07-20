@@ -290,6 +290,26 @@ class TestMultifactor(unittest.TestCase):
         self.assertEqual(consensus['neutral_count'], 18)
         self.assertEqual(len(consensus['votes']), 18)
 
+    def test_auxiliary_consensus_series_matches_current_vote_panel(self):
+        from engine import calc_auxiliary_consensus, calc_auxiliary_consensus_series
+        opens = self.closes - 0.1
+        series = calc_auxiliary_consensus_series(
+            self.closes, self.highs, self.lows, self.vols, opens=opens)
+
+        for index in (59, 199, len(self.closes) - 1):
+            panel = calc_auxiliary_consensus(
+                self.closes[:index + 1], self.highs[:index + 1],
+                self.lows[:index + 1], self.vols[:index + 1],
+                opens=opens[:index + 1])
+            self.assertAlmostEqual(series[index], panel['consensus_score'])
+
+    def test_auxiliary_beta_applies_contrarian_adjustment(self):
+        from engine import apply_auxiliary_consensus_adjustment
+        self.assertAlmostEqual(
+            apply_auxiliary_consensus_adjustment(70, 25, 0.08), 68)
+        self.assertAlmostEqual(
+            apply_auxiliary_consensus_adjustment(70, -25, 0.08), 72)
+
     def test_net_trade_return_includes_both_side_costs(self):
         from engine import calc_net_trade_return
         self.assertAlmostEqual(
@@ -321,7 +341,8 @@ class TestMultifactor(unittest.TestCase):
 
         with patch('engine._score_comprehensive', side_effect=score_at_index):
             trades = backtest_comprehensive(
-                _mkdates(count), closes, highs, lows, volumes, opens=opens)
+                _mkdates(count), closes, highs, lows, volumes, opens=opens,
+                auxiliary_beta=0)
 
         self.assertEqual(len(trades), 1)
         self.assertEqual(trades[0]['buy_date'], _mkdates(count)[61])
@@ -347,7 +368,8 @@ class TestMultifactor(unittest.TestCase):
 
         with patch('engine._score_comprehensive', side_effect=score_at_index):
             prediction = predict_comprehensive(
-                _mkdates(count), closes, highs, lows, volumes)
+                _mkdates(count), closes, highs, lows, volumes,
+                auxiliary_beta=0)
 
         self.assertEqual(prediction['action'], '观望')
 
@@ -366,9 +388,58 @@ class TestMultifactor(unittest.TestCase):
 
         with patch('engine._score_comprehensive', side_effect=score_at_index):
             trades = backtest_comprehensive(
-                _mkdates(count), closes, highs, lows, volumes, buy_score=66)
+                _mkdates(count), closes, highs, lows, volumes, buy_score=66,
+                auxiliary_beta=0)
 
         self.assertEqual(trades, [])
+
+    def test_default_auxiliary_beta_promotes_oversold_entry(self):
+        from engine import backtest_comprehensive
+        count = 65
+        closes = np.linspace(10, 20, count)
+        highs = closes + 0.5
+        lows = closes - 0.5
+        volumes = np.full(count, 100.0)
+
+        def score_at_index(*args):
+            composite = 68 if args[-1] == 60 else 30
+            return 50, 50, 50, 50, 0.0, composite, True, {}, {}
+
+        with patch('engine._score_comprehensive', side_effect=score_at_index), \
+             patch('engine.calc_auxiliary_consensus_series',
+                   return_value=np.full(count, -25.0)):
+            trades = backtest_comprehensive(
+                _mkdates(count), closes, highs, lows, volumes)
+
+        self.assertEqual(len(trades), 1)
+        self.assertIn('融合70', trades[0]['buy_reason'])
+
+    def test_default_auxiliary_beta_is_used_by_prediction(self):
+        from engine import predict_comprehensive
+        count = 70
+        closes = np.linspace(10, 20, count)
+        highs = closes + 0.5
+        lows = closes - 0.5
+        volumes = np.full(count, 100.0)
+        details = {
+            'rv': 50.0, 'kv': 50.0, 'dv': 50.0, 'jv': 50.0,
+            'wv': 50.0, 'bb_pos': 50.0,
+        }
+
+        def score_at_index(*args):
+            return 50, 50, 50, 50, 0.0, 68, True, details, {}
+
+        with patch('engine._score_comprehensive', side_effect=score_at_index), \
+             patch('engine.calc_auxiliary_consensus', return_value={
+                 'consensus_score': -25.0, 'votes': [],
+             }):
+            prediction = predict_comprehensive(
+                _mkdates(count), closes, highs, lows, volumes)
+
+        self.assertEqual(prediction['action'], '买入')
+        self.assertEqual(prediction['base_composite'], 68)
+        self.assertEqual(prediction['auxiliary_adjustment'], 2)
+        self.assertEqual(prediction['composite'], 70)
 
     def test_kdj_output(self):
         from engine import calc_kdj

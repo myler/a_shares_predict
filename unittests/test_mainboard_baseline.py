@@ -71,7 +71,7 @@ class TestBaselineWorker(unittest.TestCase):
         with patch('mainboard_baseline.list_baseline_jobs', return_value=[job]), \
              patch('mainboard_baseline.get_baseline_progress', return_value={
                  'as_of_date': '2026-07-19',
-                 'strategy_version': 'comprehensive_next_open_v3',
+                 'strategy_version': 'comprehensive_next_open_v4_auxiliary',
              }), \
              patch('mainboard_baseline.load_klines', return_value=data) as load, \
              patch('mainboard_baseline.fetch_kline') as fetch, \

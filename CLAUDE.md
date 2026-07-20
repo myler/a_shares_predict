@@ -32,6 +32,7 @@ mainboard_baseline.py → 沪深主板全量基线，冻结股票池、持续抓
 - **设计理念**：MACD 择时 + 多因子确认 + 价格位置/趋势过滤 + 量能确认
 - **权重**：MACD核心 40% + 多因子 30% + 价格位置/趋势 15% + 量能 15%
 - **评分公式**：S = M×0.40 + F×0.30 + P×0.15 + Q×0.15
+- **辅助共识修正**：18 项投票共识 A=(N看多−N看空)/18×100；有效评分 S*=S−0.08A。偏空共识小幅加分、偏多共识小幅减分，最大调整 ±8 分；不改变三项门禁
 - **MACD核心 (M)**：DIF/DEA 多空状态、零轴、DIF斜率、BAR趋势、前高/前低动能背离
 - **多因子 (F)**：RSI(14)/KDJ(9,3,3)/Bollinger(20,2)/WR(10)
 - **价格位置/趋势 (P)**：250日价格位置 + 年价格涨幅；不是财务基本面
@@ -40,8 +41,8 @@ mainboard_baseline.py → 沪深主板全量基线，冻结股票池、持续抓
 **门禁**：OBV 5日净量能流<-60%否决 | RSI>92否决 | 双弱(M<35∧F<40)否决
 
 **买卖规则**：
-- 买入：收盘 S ≥ 69 且通过门禁，下一交易日开盘执行
-- 卖出：止损−12% | 止盈+15% | S<35 | 获利回吐(S<50且盈利>12%) | 顶背离 | 形态破颈线
+- 买入：收盘 S* ≥ 69 且通过门禁，下一交易日开盘执行
+- 卖出：止损−12% | 止盈+15% | S*<35 | 获利回吐(S*<50且盈利>12%) | 顶背离 | 形态破颈线
 
 **旧版 v2 的 100 只批量回测（2026-07-19）**：均胜率 47.5%，均顺序复利 +81.1%，45只买入信号；买卖已计入双边佣金和卖出印花税。
 
@@ -104,7 +105,7 @@ python3 batch_backtest.py        # 批量回测100只股票
 python3 mainboard_baseline.py --until-complete --request-delay 0.3
 python3 mainboard_baseline.py --status --show-failed 20
 python3 mainboard_baseline.py --replay-cached
-python3 -m unittest discover -s unittests -v  # 66个测试
+python3 -m unittest discover -s unittests -v  # 70个测试
 ```
 
 ## GitHub
