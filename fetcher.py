@@ -2,12 +2,86 @@
 """数据层：K线抓取、分红抓取、股票名称、多源降级"""
 
 import sys, os, json, urllib.parse, urllib.request, time, re
+from numbers import Integral
 import numpy as np
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 
 from db import (load_klines, save_klines, load_dividends, save_dividends,
                 save_stock_name, load_stock_name)
+
+
+class SourceResponseFormatError(ValueError):
+    """Raised when a provider returns a response that cannot match its API schema."""
+
+
+def _validate_stock_code(code):
+    if not isinstance(code, str):
+        raise ValueError('股票代码必须为6位数字字符串')
+    code = code.strip()
+    if re.fullmatch(r'[0-9]{6}', code) is None:
+        raise ValueError('股票代码必须为6位数字')
+    return code
+
+
+def _validate_positive_int(value, name):
+    if isinstance(value, bool) or not isinstance(value, Integral):
+        raise ValueError(f'{name} 必须为正整数')
+    value = int(value)
+    if value < 1:
+        raise ValueError(f'{name} 必须为正整数')
+    return value
+
+
+def _load_json_response(raw, source):
+    try:
+        return json.loads(raw)
+    except json.JSONDecodeError as error:
+        raise SourceResponseFormatError(
+            f'{source} 返回的内容不是有效 JSON') from error
+
+
+def _parse_tencent_day_klines(payload, symbol):
+    if not isinstance(payload, dict):
+        raise SourceResponseFormatError(
+            f'腾讯响应格式错误：期望 JSON 对象，实际为 {type(payload).__name__}')
+    data = payload.get('data')
+    if not isinstance(data, dict):
+        raise SourceResponseFormatError('腾讯响应格式错误：缺少 data 对象')
+    stock_data = data.get(symbol)
+    if not isinstance(stock_data, dict):
+        raise SourceResponseFormatError(f'腾讯响应格式错误：缺少 {symbol} 日线对象')
+    klines = stock_data.get('day')
+    if not isinstance(klines, list) or not klines:
+        raise SourceResponseFormatError('腾讯: 空日线数据')
+
+    result = []
+    for row_number, row in enumerate(klines, 1):
+        if isinstance(row, list):
+            if len(row) < 6:
+                raise SourceResponseFormatError(
+                    f'腾讯响应格式错误：第 {row_number} 根日线字段不足')
+            entry = {
+                'day': str(row[0]), 'open': str(row[1]), 'high': str(row[2]),
+                'low': str(row[3]), 'close': str(row[4]), 'volume': str(row[5]),
+            }
+        elif isinstance(row, dict):
+            entry = {
+                'day': str(row.get('date', '')),
+                'open': str(row.get('open', '')),
+                'high': str(row.get('high', '')),
+                'low': str(row.get('low', '')),
+                'close': str(row.get('close', '')),
+                'volume': str(row.get('volume', '')),
+            }
+        else:
+            raise SourceResponseFormatError(
+                f'腾讯响应格式错误：第 {row_number} 根日线不是数组或对象')
+        if any(not entry[field] for field in ('day', 'open', 'high', 'low', 'close', 'volume')):
+            raise SourceResponseFormatError(
+                f'腾讯响应格式错误：第 {row_number} 根日线存在空字段')
+        result.append(entry)
+    return result
 
 
 def fetch_kline(code, days=2500, max_retries=3, force_refresh=False,
@@ -17,6 +91,14 @@ def fetch_kline(code, days=2500, max_retries=3, force_refresh=False,
     分红由 enrich_trades_with_dividends 单独计入，不能与前复权价格混用。
     首次拉全量并缓存，之后从DB秒读。
     """
+    code = _validate_stock_code(code)
+    days = _validate_positive_int(days, 'days')
+    max_retries = _validate_positive_int(max_retries, 'max_retries')
+    if not isinstance(force_refresh, bool):
+        raise ValueError('force_refresh 必须为布尔值')
+    if not isinstance(allow_stale_on_refresh, bool):
+        raise ValueError('allow_stale_on_refresh 必须为布尔值')
+
     cached = load_klines(code)
     if cached and not force_refresh:
         return cached
@@ -41,30 +123,34 @@ def fetch_kline(code, days=2500, max_retries=3, force_refresh=False,
                 raw = urllib.request.urlopen(req, timeout=15).read().decode('utf-8')
 
                 if name.startswith('腾讯'):
-                    data = json.loads(raw)
-                    klines = data.get('data', {}).get(sc, {}).get('day', [])
-                    if not klines: raise ValueError('腾讯: 空数据')
-                    result = []
-                    for r in klines:
-                        if isinstance(r, list):
-                            result.append({'day': r[0], 'open': str(r[1]), 'high': str(r[2]), 'low': str(r[3]), 'close': str(r[4]), 'volume': str(r[5])})
-                        elif isinstance(r, dict):
-                            result.append({'day': r.get('date',''), 'open': str(r.get('open','')), 'high': str(r.get('high','')), 'low': str(r.get('low','')), 'close': str(r.get('close','')), 'volume': str(r.get('volume',''))})
-                    if result:
-                        if force_refresh:
-                            save_klines(code, result, replace=True)
-                        else:
-                            save_klines(code, result)
-                        return result
-                    raise ValueError('腾讯: 解析失败')
+                    result = _parse_tencent_day_klines(
+                        _load_json_response(raw, '腾讯'), sc)
+                    if force_refresh:
+                        save_klines(code, result, replace=True)
+                    else:
+                        save_klines(code, result)
+                    return result
 
                 elif name.startswith('东方财富'):
-                    data = json.loads(raw)
-                    klines = data.get('data', {}).get('klines', [])
-                    if not klines: raise ValueError('东方财富: 空数据')
+                    data = _load_json_response(raw, '东方财富')
+                    if not isinstance(data, dict):
+                        raise SourceResponseFormatError(
+                            f'东方财富响应格式错误：期望 JSON 对象，实际为 {type(data).__name__}')
+                    payload = data.get('data')
+                    if not isinstance(payload, dict):
+                        raise SourceResponseFormatError('东方财富响应格式错误：缺少 data 对象')
+                    klines = payload.get('klines')
+                    if not isinstance(klines, list) or not klines:
+                        raise SourceResponseFormatError('东方财富: 空日线数据')
                     result = []
-                    for r in klines:
+                    for row_number, r in enumerate(klines, 1):
+                        if not isinstance(r, str):
+                            raise SourceResponseFormatError(
+                                f'东方财富响应格式错误：第 {row_number} 根日线不是字符串')
                         parts = r.split(',')
+                        if len(parts) < 6:
+                            raise SourceResponseFormatError(
+                                f'东方财富响应格式错误：第 {row_number} 根日线字段不足')
                         result.append({'day': parts[0], 'open': parts[1], 'high': parts[3], 'low': parts[4], 'close': parts[2], 'volume': parts[5]})
                     if result:
                         if force_refresh:
@@ -75,14 +161,20 @@ def fetch_kline(code, days=2500, max_retries=3, force_refresh=False,
                     raise ValueError('东方财富: 解析失败')
 
                 else:  # 新浪
-                    data = json.loads(raw)
-                    if not data: raise ValueError('新浪: 空数据')
+                    data = _load_json_response(raw, '新浪')
+                    if not isinstance(data, list) or not data:
+                        raise SourceResponseFormatError('新浪: 空日线数据')
                     if force_refresh:
                         save_klines(code, data, replace=True)
                     else:
                         save_klines(code, data)
                     return data
 
+            except SourceResponseFormatError as e:
+                err = f'{name}(尝试{attempt+1}/{max_retries}): {e}'
+                errors.append(err)
+                print(f'  ✗ {err} (响应格式异常，跳过该源)', file=sys.stderr)
+                break
             except Exception as e:
                 err = f'{name}(尝试{attempt+1}/{max_retries}): {e}'
                 errors.append(err)
@@ -104,6 +196,7 @@ def fetch_kline(code, days=2500, max_retries=3, force_refresh=False,
 
 def get_name(code):
     """多源获取股票名称，失败返回代码本身"""
+    code = _validate_stock_code(code)
     cached_name = load_stock_name(code)
     if cached_name:
         return cached_name
@@ -125,6 +218,47 @@ def get_name(code):
                 return result
         except: continue
     return code
+
+
+def fetch_financial_summaries(code, page_size=100, max_retries=2):
+    """获取东方财富财务摘要原始报告行，不在此处进行估值或质量判断。"""
+    code = _validate_stock_code(code)
+    page_size = min(_validate_positive_int(page_size, 'page_size'), 100)
+    max_retries = _validate_positive_int(max_retries, 'max_retries')
+    params = {
+        'reportName': 'RPT_F10_FINANCE_MAINFINADATA',
+        'columns': 'ALL',
+        'filter': f'(SECURITY_CODE="{code}")',
+        'pageNumber': 1,
+        'pageSize': page_size,
+        'sortTypes': -1,
+        'sortColumns': 'REPORT_DATE',
+        'source': 'WEB',
+        'client': 'WEB',
+    }
+    url = 'https://datacenter-web.eastmoney.com/api/data/v1/get?' + \
+        urllib.parse.urlencode(params)
+    errors = []
+    for attempt in range(max(1, max_retries)):
+        try:
+            request = urllib.request.Request(url, headers={
+                'User-Agent': 'Mozilla/5.0',
+                'Referer': 'https://data.eastmoney.com/',
+            })
+            payload = json.loads(urllib.request.urlopen(
+                request, timeout=20).read().decode('utf-8'))
+            if not payload.get('success'):
+                raise ValueError(payload.get('message') or '东方财富财务摘要返回失败')
+            rows = (payload.get('result') or {}).get('data') or []
+            if not isinstance(rows, list):
+                raise ValueError('东方财富财务摘要缺少 data 列表')
+            return rows
+        except Exception as error:
+            errors.append(str(error))
+            if attempt < max(1, max_retries) - 1:
+                time.sleep(min(3, attempt + 1))
+
+    raise RuntimeError('财务摘要获取失败: ' + ' | '.join(errors))
 
 
 _SH_MAINBOARD_PREFIXES = ('600', '601', '603', '605')
@@ -210,6 +344,7 @@ def fetch_dividends(code):
     """从新浪获取A股分红送配数据（优先本地DB缓存）
     返回: [{date, bonus_share, transfer_share, dividend_10, dividend_per_share, status, ex_date, record_date}, ...]
     """
+    code = _validate_stock_code(code)
     cached = load_dividends(code)
     if cached:
         return cached
@@ -272,6 +407,7 @@ def fetch_dividends(code):
 def fetch_institution_participation(code):
     """拉取千股千评中的机构参与度（0-1之间），失败返回 None"""
     import urllib.request, json, re
+    code = _validate_stock_code(code)
     try:
         secid = f'1.{code}' if code.startswith('6') else f'0.{code}'
         url = f'https://push2.eastmoney.com/api/qt/stock/get?secid={secid}&fields=f162,f167,f43,f170,f116,f117'

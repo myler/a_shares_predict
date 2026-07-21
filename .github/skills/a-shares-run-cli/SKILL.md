@@ -1,7 +1,7 @@
 ---
 name: a-shares-run-cli
 description: "Use when: running, explaining, or troubleshooting this repository's run_cli.py A-share analysis commands; requests mentioning CLI stock prediction, fusion strategy, run_cli.py predict, stock code analysis, MACD backtests, or charts."
-argument-hint: "[predict|chart|backtest|multi] <6-digit-stock-code>"
+argument-hint: "[predict|chart|backtest|multi|bmfund] <6-digit-stock-code>"
 user-invocable: true
 ---
 
@@ -22,7 +22,7 @@ When the terminal is already inside the `Ubuntu01` WSL distribution and the repo
 python3 ./run_cli.py predict 601888
 ```
 
-Replace `601888` with the requested six-digit stock code, and replace `predict` with `chart`, `backtest`, or `multi` when needed.
+Replace `601888` with the requested six-digit stock code, and replace `predict` with `chart`, `backtest`, `multi`, or `bmfund` when needed.
 
 ## Use from Windows PowerShell
 
@@ -61,11 +61,13 @@ Do not add historical backtest performance or chart commentary to a `predict` re
 python3 ./run_cli.py chart <股票代码>
 python3 ./run_cli.py backtest <股票代码>
 python3 ./run_cli.py multi <股票代码>
+python3 ./run_cli.py bmfund <股票代码>
 ```
 
 - `chart` runs the legacy MACD workflow and creates a chart.
 - `backtest` runs the legacy MACD backtest workflow.
 - `multi` runs the multi-factor resonance workflow.
+- `bmfund` runs the independent Buffett-Munger-style financial quality screen for non-financial companies. It reports a research state, not a buy, sell, target price, or backtest result.
 - Do not present output from these modes as the current fusion strategy.
 
 ## Operating Procedure
