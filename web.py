@@ -10,8 +10,10 @@ PORT = int(sys.argv[1]) if len(sys.argv) > 1 else 8080
 ROOT = os.path.dirname(os.path.abspath(__file__))
 
 # ── 导入数据层和引擎 ──
-from fetcher import fetch_kline, get_name, fetch_dividends, enrich_trades_with_dividends
+from fetcher import (fetch_kline, get_name, fetch_dividends,
+                     enrich_trades_with_dividends, fetch_financial_summaries)
 from db import save_stock_name
+from fundamentals import screen_value_quality
 from engine import (calc_macd, detect_regime, find_divergences, backtest,
                     backtest_multifactor, backtest_comprehensive,
                     predict, format_predict,
@@ -54,6 +56,8 @@ class Handler(BaseHTTPRequestHandler):
             try:
                 if strategy == 'buyhold':
                     html = self.run_buyhold_analysis(code, calc_dividend)
+                elif strategy == 'value':
+                    html = self.run_value_analysis(code)
                 elif strategy == 'multi':
                     html = self.run_multifactor_analysis(code, holding, calc_dividend)
                 elif strategy == 'comprehensive':
@@ -300,6 +304,96 @@ class Handler(BaseHTTPRequestHandler):
           {overview}
           {dividend_history}
           <img src="data:image/png;base64,{img_b64}" alt="BuyHold Chart" loading="lazy">
+        </div>"""
+
+    def run_value_analysis(self, code):
+        """渲染独立的巴芒财务质量初筛，不产生交易信号或估值目标价。"""
+        rows = fetch_financial_summaries(code)
+        research = screen_value_quality(rows)
+        name = research['company'] or get_name(code)
+        if name and name != code:
+            save_stock_name(code, name)
+
+        styles = {
+            'go': ('buy', '通过财务质量初筛'),
+            'watch': ('warn', '观察并补充核验'),
+            'no_go': ('sell', '暂不进入价值候选池'),
+            'insufficient': ('warn', '数据不足'),
+            'not_applicable': ('warn', '方法不适用'),
+        }
+        css_class, headline = styles[research['status']]
+        conclusion_html = (
+            f'<div class="conclusion {css_class}">{headline}（非买卖信号）</div>'
+        )
+
+        def amount(value):
+            return '—' if value is None else f'{value / 1e8:.2f}亿元'
+
+        def percent(value):
+            return '—' if value is None else f'{value:.1f}%'
+
+        def ratio(value):
+            return '—' if value is None else f'{value:.2f}'
+
+        displayed_reports = research['annual_reports'][:5]
+        report_rows = ''.join(
+            f'<tr><td>{report["report_name"] or report["report_date"]}</td>'
+            f'<td>{report["notice_date"] or "—"}</td>'
+            f'<td>{amount(report["revenue"])}</td>'
+            f'<td>{amount(report["core_profit"])}</td>'
+            f'<td>{amount(report["operating_cash_flow"])}</td>'
+            f'<td>{percent(report["roe"])}</td><td>{percent(report["roic"])}</td>'
+            f'<td>{percent(report["debt_ratio"])}</td>'
+            f'<td>{ratio(report["current_ratio"])}</td></tr>'
+            for report in displayed_reports
+        )
+        report_table = f"""
+        <h3>最近五份已披露年报摘要</h3>
+        <table class="trades">
+          <tr><th>报告期</th><th>披露日</th><th>营收</th><th>扣非归母利润</th>
+              <th>经营现金流</th><th>ROE</th><th>ROIC</th><th>资产负债率</th><th>流动比率</th></tr>
+          {report_rows}
+        </table>""" if report_rows else '<p>未取得可用年报摘要。</p>'
+
+        check_style = {
+            'pass': '#2e7d32', 'watch': '#ef6c00', 'fail': '#c62828',
+            'unavailable': '#666',
+        }
+        check_label = {
+            'pass': '通过', 'watch': '需核验', 'fail': '未通过',
+            'unavailable': '数据不足',
+        }
+        check_rows = ''.join(
+            f'<tr><td>{check["label"]}</td><td>{check["detail"]}</td>'
+            f'<td style="color:{check_style[check["status"]]};font-weight:bold">'
+            f'{check_label[check["status"]]}</td></tr>'
+            for check in research['checks']
+        )
+        checks_table = f"""
+        <table class="overview">
+          <tr><th colspan="3">财务质量初筛</th></tr>
+          <tr><th>项目</th><th>依据</th><th>结论</th></tr>
+          {check_rows}
+        </table>"""
+        limitations = ''.join(f'<li>{item}</li>' for item in research['limitations'])
+        overview = f"""
+        <table class="overview">
+          <tr><th colspan="2">{name} ({code}) — 巴芒基本面研究</th></tr>
+          <tr><td>研究结论</td><td style="font-weight:bold">{research['status_label']}</td></tr>
+          <tr><td>当前范围</td><td>{research['scope']}</td></tr>
+          <tr><td>数据来源</td><td>{research['source']}；以年报摘要为初筛依据</td></tr>
+          <tr><td>结论说明</td><td>{research['conclusion']}</td></tr>
+        </table>"""
+        limitations_html = f"""
+        <h3>尚未覆盖的研究项</h3>
+        <ul style="line-height:1.8;color:#555">{limitations}</ul>"""
+        return f"""
+        <div class="result">
+          {conclusion_html}
+          {overview}
+          <br>{checks_table}
+          {report_table}
+          {limitations_html}
         </div>"""
 
     def run_multifactor_analysis(self, code, holding, calc_dividend=False):

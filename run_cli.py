@@ -1,12 +1,16 @@
 #!/usr/bin/env python3
 """CLI入口 — 轻量参数解析+调度"""
 
+import difflib
+import re
 import sys, os, json
 from datetime import datetime
 import numpy as np
 
-from fetcher import fetch_kline, get_name, fetch_dividends, enrich_trades_with_dividends
+from fetcher import (fetch_kline, get_name, fetch_dividends,
+                     enrich_trades_with_dividends, fetch_financial_summaries)
 from db import save_stock_name
+from fundamentals import screen_value_quality
 from engine import (make_output_dir, calc_macd, detect_regime, find_divergences,
                     zero_line_cycles, backtest, predict, format_predict,
                     backtest_multifactor, predict_multifactor, format_predict_multifactor,
@@ -23,16 +27,51 @@ A股策略分析工具
   ./run_cli.py backtest <股票代码>  仅回测(MACD)
   ./run_cli.py multi   <股票代码>   多因子共振策略
     ./run_cli.py predict <股票代码>   融合策略预测（不回测、不出图）
+    ./run_cli.py bmfund  <股票代码>   巴芒财务质量初筛（非交易信号）
   ./run_cli.py help                 帮助
 
 示例:
   ./run_cli.py 603893            瑞芯微 (全部)
   ./run_cli.py predict 000651    格力电器 (仅预测)
+    ./run_cli.py bmfund 601888     中国中免 (基本面研究)
   ./run_cli.py backtest 002371   北方华创 (仅回测)
 
 策略:
   融合策略 — MACD择时、多因子、价格位置/趋势和量能综合评分
+  巴芒基本面研究 — 非金融企业财务质量初筛，不输出买卖建议
 """
+
+CLI_MODES = ('chart', 'backtest', 'predict', 'json', 'multi', 'bmfund')
+SINGLE_CODE_MODES = frozenset(CLI_MODES) - {'json'}
+
+
+def parse_cli_args(arguments):
+    """验证命令行输入，避免把拼写错误的子命令误当成股票代码。"""
+    if not arguments:
+        raise ValueError('请指定子命令或6位股票代码')
+
+    first = arguments[0]
+    if first in CLI_MODES:
+        mode, codes = first, arguments[1:]
+    elif re.fullmatch(r'[0-9]{6}', first):
+        mode, codes = 'chart', arguments
+    else:
+        suggestion = difflib.get_close_matches(first, CLI_MODES, n=1, cutoff=0.6)
+        if suggestion:
+            raise ValueError(
+                f'未知子命令 "{first}"；是否想使用 "{suggestion[0]}"？')
+        raise ValueError(
+            f'未知子命令或无效股票代码 "{first}"；股票代码必须为6位数字')
+
+    if not codes:
+        raise ValueError(f'{mode} 需要一个6位股票代码')
+    if mode in SINGLE_CODE_MODES and len(codes) != 1:
+        raise ValueError(f'{mode} 一次只能分析一个6位股票代码')
+    invalid_codes = [code for code in codes if re.fullmatch(r'[0-9]{6}', code) is None]
+    if invalid_codes:
+        raise ValueError(
+            f'股票代码必须为6位数字：{", ".join(invalid_codes)}')
+    return mode, codes
 
 
 def format_comprehensive_cli_prediction(prediction, name, code, dates):
@@ -108,18 +147,67 @@ def format_comprehensive_cli_prediction(prediction, name, code, dates):
     return lines
 
 
+def format_bmfund_cli_research(research, name, code):
+    """格式化巴芒财务质量初筛；输出研究状态而非交易建议。"""
+    status_labels = {
+        'pass': '通过',
+        'watch': '需核验',
+        'fail': '未通过',
+        'unavailable': '数据不足',
+    }
+
+    def amount(value):
+        return '—' if value is None else f'{value / 1e8:.2f}亿元'
+
+    def percent(value):
+        return '—' if value is None else f'{value:.1f}%'
+
+    def ratio(value):
+        return '—' if value is None else f'{value:.2f}'
+
+    lines = [
+        '=' * 60,
+        f'  {name}({code}) 巴芒基本面研究',
+        '=' * 60,
+        f"研究结论: {research['status_label']}（非买卖信号）",
+        f"说明: {research['conclusion']}",
+        f"数据源: {research['source']}；以年报摘要为初筛依据",
+        f"范围: {research['scope']}",
+        '\n── 财务质量初筛 ──',
+    ]
+    for check in research['checks']:
+        lines.append(
+            f"  [{status_labels[check['status']]}] {check['label']}: {check['detail']}"
+        )
+
+    reports = research['annual_reports'][:5]
+    if reports:
+        lines.append('\n── 最近五份已披露年报摘要 ──')
+        for report in reports:
+            lines.append(
+                f"  {report['report_name'] or report['report_date']} | 披露 {report['notice_date'] or '—'} | "
+                f"营收 {amount(report['revenue'])} | 扣非归母 {amount(report['core_profit'])} | "
+                f"经营现金流 {amount(report['operating_cash_flow'])} | ROE {percent(report['roe'])} | "
+                f"ROIC {percent(report['roic'])} | 资产负债率 {percent(report['debt_ratio'])} | "
+                f"流动比率 {ratio(report['current_ratio'])}"
+            )
+
+    lines.append('\n── 尚未覆盖的研究项 ──')
+    lines.extend(f'  - {item}' for item in research['limitations'])
+    return lines
+
+
 if __name__ == '__main__':
     if len(sys.argv) < 2 or sys.argv[1] in ('help','-h','--help'):
         print(HELP)
         sys.exit(0)
 
-    if sys.argv[1] in ('chart','backtest','predict','json','multi'):
-        mode, codes = sys.argv[1], sys.argv[2:]
-    else:
-        mode, codes = 'chart', sys.argv[1:]
-    if not codes:
-        print("请指定股票代码")
-        sys.exit(1)
+    try:
+        mode, codes = parse_cli_args(sys.argv[1:])
+    except ValueError as error:
+        print(f'参数错误: {error}', file=sys.stderr)
+        print('使用 ./run_cli.py help 查看可用命令。', file=sys.stderr)
+        sys.exit(2)
 
     if mode == 'json':
         import json as _json
@@ -142,6 +230,15 @@ if __name__ == '__main__':
             except Exception as e:
                 results.append({"code": code, "error": str(e)})
         print(_json.dumps(results, ensure_ascii=False, default=str))
+        sys.exit(0)
+
+    if mode == 'bmfund':
+        code = codes[0]
+        research = screen_value_quality(fetch_financial_summaries(code))
+        name = research['company'] or get_name(code)
+        if name and name != code:
+            save_stock_name(code, name)
+        print('\n'.join(format_bmfund_cli_research(research, name, code)))
         sys.exit(0)
 
     # ── 多因子共振策略 ──

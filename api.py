@@ -5,8 +5,10 @@ import sys
 from datetime import datetime
 import numpy as np
 
-from fetcher import fetch_kline, get_name, fetch_dividends, enrich_trades_with_dividends
+from fetcher import (fetch_kline, get_name, fetch_dividends,
+                     enrich_trades_with_dividends, fetch_financial_summaries)
 from db import save_stock_name
+from fundamentals import screen_value_quality
 from engine import (calc_macd, detect_regime, find_divergences,
                     backtest, predict, backtest_multifactor, predict_multifactor,
                     backtest_comprehensive, predict_comprehensive)
@@ -173,6 +175,21 @@ def analyze_buyhold(code, calc_dividend=False):
     }
 
 
+def analyze_value(code):
+    """巴芒财务质量初筛 → JSON；不返回交易建议或 DCF 目标价。"""
+    rows = fetch_financial_summaries(code)
+    research = screen_value_quality(rows)
+    name = research['company'] or get_name(code)
+    if name and name != code:
+        save_stock_name(code, name)
+    return {
+        'code': code,
+        'name': name,
+        'strategy': 'value',
+        'research': research,
+    }
+
+
 # ═══════════════════════════
 # HTTP API Handler
 # ═══════════════════════════
@@ -203,6 +220,7 @@ class APIHandler(BaseHTTPRequestHandler):
                     '/api/analyze?code=XXXXXX&strategy=macd': 'MACD策略分析',
                     '/api/analyze?code=XXXXXX&strategy=multi': '多因子共振分析',
                     '/api/analyze?code=XXXXXX&strategy=buyhold': '长线持有分析',
+                    '/api/analyze?code=XXXXXX&strategy=value': '巴芒财务质量初筛（非交易信号）',
                     '/api/analyze?code=XXXXXX&holding=1': '已持仓模式',
                     '/api/analyze?code=XXXXXX&dividend=1': '含分红计算',
                 },
@@ -225,6 +243,8 @@ class APIHandler(BaseHTTPRequestHandler):
                     result = analyze_multifactor(code, holding)
                 elif strategy == 'buyhold':
                     result = analyze_buyhold(code, calc_dividend)
+                elif strategy == 'value':
+                    result = analyze_value(code)
                 else:
                     result = analyze_comprehensive(code, holding, calc_dividend)
                 self._json_response(result)

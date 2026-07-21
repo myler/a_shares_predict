@@ -8,7 +8,8 @@ import unittest
 from unittest.mock import patch
 
 from fetcher import (enrich_trades_with_dividends, fetch_kline,
-                     fetch_mainboard_universe, get_name)
+                     fetch_financial_summaries, fetch_mainboard_universe,
+                     get_name)
 
 
 class TestEnrichTrades(unittest.TestCase):
@@ -111,7 +112,59 @@ class TestGetName(unittest.TestCase):
         self.assertEqual(name, '999999')
 
 
+class TestFinancialSummaries(unittest.TestCase):
+    def test_fetches_raw_report_rows_from_eastmoney(self):
+        class Response:
+            def read(self):
+                return json.dumps({
+                    'success': True,
+                    'result': {'data': [{
+                        'SECURITY_CODE': '000651',
+                        'REPORT_TYPE': '年报',
+                        'REPORT_DATE': '2025-12-31 00:00:00',
+                    }]},
+                }).encode('utf-8')
+
+        with patch('fetcher.urllib.request.urlopen', return_value=Response()) as urlopen:
+            rows = fetch_financial_summaries('000651', page_size=5, max_retries=1)
+
+        self.assertEqual(rows[0]['REPORT_TYPE'], '年报')
+        request_url = urlopen.call_args.args[0].full_url
+        self.assertIn('reportName=RPT_F10_FINANCE_MAINFINADATA', request_url)
+        self.assertIn('pageSize=5', request_url)
+        self.assertIn('SECURITY_CODE', request_url)
+
+    def test_rejects_invalid_stock_code_without_network_request(self):
+        with patch('fetcher.urllib.request.urlopen') as urlopen:
+            with self.assertRaisesRegex(ValueError, '股票代码必须为6位数字'):
+                fetch_financial_summaries('bmfund')
+
+        urlopen.assert_not_called()
+
+
 class TestKlinePriceBasis(unittest.TestCase):
+    def test_rejects_invalid_stock_code_without_network_request(self):
+        with patch('fetcher.urllib.request.urlopen') as urlopen:
+            with self.assertRaisesRegex(ValueError, '股票代码必须为6位数字'):
+                fetch_kline('mdfund')
+
+        urlopen.assert_not_called()
+
+    def test_rejects_invalid_request_parameters_without_network_request(self):
+        invalid_cases = (
+            {'days': 0},
+            {'max_retries': 0},
+            {'force_refresh': 'yes'},
+            {'allow_stale_on_refresh': 1},
+        )
+        with patch('fetcher.urllib.request.urlopen') as urlopen:
+            for kwargs in invalid_cases:
+                with self.subTest(kwargs=kwargs):
+                    with self.assertRaises(ValueError):
+                        fetch_kline('000001', **kwargs)
+
+        urlopen.assert_not_called()
+
     def test_tencent_fallback_uses_unadjusted_day_data(self):
         class Response:
             def __init__(self, payload):
@@ -160,6 +213,30 @@ class TestKlinePriceBasis(unittest.TestCase):
             with self.assertRaises(RuntimeError):
                 fetch_kline('000001', days=1, max_retries=1,
                             force_refresh=True, allow_stale_on_refresh=False)
+
+    def test_malformed_provider_payload_skips_source_without_retries(self):
+        class Response:
+            def __init__(self, payload):
+                self.payload = payload
+
+            def read(self):
+                return self.payload.encode('utf-8')
+
+        eastmoney_payload = json.dumps({
+            'data': {'klines': ['2024-01-02,10,10.5,11,9,1000']},
+        })
+        with patch('fetcher.load_klines', return_value=None), \
+             patch('fetcher.save_klines') as save_klines, \
+             patch('fetcher.time.sleep') as sleep, \
+             patch('fetcher.urllib.request.urlopen', side_effect=[
+                 Response('[]'), Response('[]'), Response(eastmoney_payload),
+             ]) as urlopen:
+            result = fetch_kline('000001', days=1, max_retries=3)
+
+        self.assertEqual(urlopen.call_count, 3)
+        sleep.assert_not_called()
+        self.assertEqual(result[0]['close'], '10.5')
+        save_klines.assert_called_once_with('000001', result)
 
 
 class TestMainboardUniverse(unittest.TestCase):

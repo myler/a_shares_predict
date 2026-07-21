@@ -65,6 +65,7 @@ h3{margin:16px 0 8px;font-size:16px}
     <select id="strategy" onchange="onStrategyChange()" style="padding:8px 12px;font-size:16px;border:2px solid #ddd;border-radius:6px;background:#fff">
       <option value="comprehensive">融合策略</option>
       <option value="buyhold">长线持有</option>
+      <option value="value">巴芒基本面研究</option>
     </select>
   </div>
   <label class="holding">
@@ -111,6 +112,13 @@ const FORMULAS={
       <b>分红</b>：持有期间所有已实施分红累加<br>
       <b>对比</b>：直观比较 <i>"择时交易 vs 买入不动"</i> 的收益差异
     </div>`
+  },
+  value:{title:'巴芒基本面研究',html:`
+    <div style="font-size:13px;line-height:1.8;color:#555">
+      <b>财务质量初筛</b>：连续扣非盈利、经营现金流转化、ROE、杠杆与流动性<br>
+      <b>数据口径</b>：已披露年报摘要；未替代年报原文、治理审查或行业研究<br>
+      <b>输出边界</b>：只给候选池研究状态，不生成买卖信号或 DCF 目标价
+    </div>`
   }
 };
 function getStrategy(){return document.getElementById('strategy').value;}
@@ -120,8 +128,14 @@ function onStrategyChange(){
   const f=FORMULAS[s];
   const box=document.getElementById('formulaBox');
   box.innerHTML='<h3>📐 策略公式 — '+f.title+'</h3>'+f.html;
-  if(s==='buyhold'){holding.checked=true;holding.disabled=true;document.getElementById('divLabel').style.display='flex';}
-  else{holding.disabled=false;toggleDividend();}
+  if(s==='buyhold'){
+    holding.checked=true;holding.disabled=true;
+    document.getElementById('divLabel').style.display='flex';
+  }else if(s==='value'){
+    holding.checked=false;holding.disabled=true;
+    document.getElementById('calcDividend').checked=false;
+    document.getElementById('divLabel').style.display='none';
+  }else{holding.disabled=false;toggleDividend();}
 }
 function toggleDividend(){
   const holding=document.getElementById('holding').checked;

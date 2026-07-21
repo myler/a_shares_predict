@@ -1,13 +1,14 @@
 # A股策略分析 — 项目说明
 
 ## 项目概述
-A股量化分析工具，Web端仅保留融合策略 + 长线持有。MACD择时、多因子共振代码保留在 engine.py 中但 Web 端已隐藏。
+A股分析工具，Web端提供融合策略、长线持有和巴芒基本面研究。MACD择时、多因子共振代码保留在 engine.py 中但 Web 端已隐藏。
 
 ## 架构
 ```
 run_cli.py        → CLI入口，仅参数解析+格式化输出，不写逻辑
-web.py            → Web入口，HTTP服务，HTML模板在 templates/page.html
+web.py            → Web入口，HTTP服务，HTML模板在 templates/page.html；含独立巴芒财务质量初筛入口
 engine.py         → 核心引擎：MACD/多因子/融合策略/形态检测/OBV/ATR
+fundamentals.py   → 非金融企业财务质量初筛，不产生买卖信号或估值目标价
 fetcher.py        → 数据层：K线多源降级抓取、分红抓取、股票名称
 db.py             → SQLite缓存（stock_cache.db），K线和分红均缓存
 batch_backtest.py → 批量回测工具，固定100只股票分板块
@@ -73,6 +74,13 @@ mainboard_baseline.py → 沪深主板全量基线，冻结股票池、持续抓
 - 数据起始日一次性买入，持有至今不卖
 - Web端选中此策略自动锁定"已持仓"
 
+### 巴芒基本面研究
+- 独立研究入口，不参与融合策略的四维评分或历史回测
+- 使用东方财富财务摘要中的已披露年报行，初筛扣非盈利连续性、经营现金流转化、ROE、杠杆与收入趋势
+- 输出：通过初筛 / 观察并补充核验 / 暂不进入候选池 / 数据不足 / 方法不适用
+- 银行、保险、券商等金融机构触发方法不适用；少于三份年报不作结论
+- 不是完整巴菲特-芒格尽调：未替代原始年报、审计意见、护城河、治理审查或 DCF 估值
+
 ### 经典形态检测
 - `detect_classic_patterns()` — 全量检测（预测用）
 - `_quick_pattern_sell()` — 快速检测（回测用，每5天一次）
@@ -100,6 +108,7 @@ mainboard_baseline.py → 沪深主板全量基线，冻结股票池、持续抓
 ```bash
 ./run_cli.py 603893              # CLI MACD
 ./run_cli.py multi 600329        # CLI 多因子共振
+./run_cli.py bmfund 601888       # CLI 巴芒财务质量初筛（非交易信号）
 ./web.py 8099                    # Web (默认8080)
 python3 batch_backtest.py        # 批量回测100只股票
 python3 mainboard_baseline.py --until-complete --request-delay 0.3
