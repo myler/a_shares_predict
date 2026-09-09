@@ -255,10 +255,12 @@ A股 60 日尺度是「反转 + 低波 + 小市值」市场——reward 技术�
 ### 命令
 
 ```bash
-python3 scan_composite.py -n 20      # 横截面多因子海选 top20
+python3 scan_composite.py -n 20      # 横截面多因子海选 top20（CLI）
 python3 factor_backtest5.py           # 集成回测（横截面 + MACD 择时）
 python3 fetch_shares.py               # 抓总股本（仅 E/P 因子需要，生成 shares.json）
 ```
+
+Web 端：启动 `./web.py 8099` 后，主页顶部"横截面多因子海选"链接，或直接访问 `http://localhost:8099/scan`，浏览器里跑全市场海选（约 30~60 秒）。
 
 ## 分红收益计算
 
@@ -298,6 +300,7 @@ python3 fetch_shares.py               # 抓总股本（仅 E/P 因子需要，�
 - 勾选"已持仓"后可选择"计算分红"
 - 融合策略显示：四维评分卡 + 详细分析过程 + 门禁检查 + 三面板图表(价格/MACD/OBV)
 - 巴芒基本面研究显示：财务质量初筛、年报摘要和未覆盖的研究边界，不显示交易建议
+- 主页顶部"横截面多因子海选"链接 → 全市场 top-N 海选（低波+反转+小市值，约30~60秒）
 
 ## JSON API
 

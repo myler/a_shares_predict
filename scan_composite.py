@@ -48,60 +48,51 @@ def fetch_quotes(codes):
     return out
 
 
-def main():
-    ap = argparse.ArgumentParser()
-    ap.add_argument("-n", type=int, default=20)
-    ap.add_argument("--max-pe", type=float, default=100)
-    ap.add_argument("--min-price", type=float, default=5)
-    ap.add_argument("--max-days-stale", type=int, default=15)
-    ap.add_argument("--out", type=str, default="")
-    args = ap.parse_args()
+def run_scan(n=20, max_pe=100, min_price=5):
+    """跑横截面多因子海选，返回 (top, stats)。
 
+    top: [{code,name,close,score,pe,mcap,pct,date}] 按 score 降序
+    stats: {total_codes, passed, elapsed}
+    """
+    t0 = time.time()
     db = sqlite3.connect(DB)
     cur = db.cursor()
     codes = [r[0] for r in cur.execute(
         "SELECT DISTINCT code FROM klines").fetchall()]
     codes = [c for c in codes if is_mainboard(c)]
-    print(f"算因子 {len(codes)} 只主板...")
 
-    rows = []  # (code, date, factor dict)
-    t0 = time.time()
+    rows = []
     for idx, code in enumerate(codes, 1):
         rec = cur.execute(
             "SELECT date,open,high,low,close,volume FROM klines "
             "WHERE code=? ORDER BY date", (code,)).fetchall()
         if len(rec) < 300:
             continue
-        df = pd.DataFrame(rec, columns=["date", "open", "high", "low", "close", "volume"])
+        df = pd.DataFrame(rec, columns=["date", "open", "high", "low",
+                                        "close", "volume"])
         for col in ["open", "high", "low", "close", "volume"]:
             df[col] = df[col].astype(float)
         df = df.set_index("date")
         f = compute_technical_factors(df)
         last = f.iloc[-1]
         rows.append((code, df.index[-1], last))
-        if idx % 500 == 0:
-            print(f"  进度 {idx}/{len(codes)} | {time.time()-t0:.0f}s")
 
-    print(f"因子算完 {len(rows)} 只 | 横截面 rank + 合成...")
-    # 组装 factor_frame
     codes2 = [r[0] for r in rows]
     dates = {r[0]: r[1] for r in rows}
     ff = pd.DataFrame({c: {r[0]: r[2][c] for r in rows} for c in FACTOR_WEIGHTS})
     ff = ff.reindex(codes2)
     score = composite_scores(ff)
 
-    # 拉行情 + 过滤
     quotes = fetch_quotes(codes2)
-    print(f"行情 {len(quotes)} 只 | 过滤排序...")
 
     results = []
     for code in codes2:
         q = quotes.get(code)
         if not q or q["price"] <= 0:
             continue
-        if q["pe"] <= 0 or q["pe"] > args.max_pe:
+        if q["pe"] <= 0 or q["pe"] > max_pe:
             continue
-        if q["price"] < args.min_price:
+        if q["price"] < min_price:
             continue
         results.append({
             "code": code, "name": q["name"], "close": q["price"],
@@ -111,16 +102,34 @@ def main():
         })
 
     results.sort(key=lambda r: -r["score"])
-    top = results[:args.n]
+    top = results[:n]
+    stats = {
+        "total_codes": len(codes2),
+        "passed": len(results),
+        "elapsed": time.time() - t0,
+    }
+    return top, stats
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("-n", type=int, default=20)
+    ap.add_argument("--max-pe", type=float, default=100)
+    ap.add_argument("--min-price", type=float, default=5)
+    ap.add_argument("--out", type=str, default="")
+    args = ap.parse_args()
+
+    top, stats = run_scan(args.n, args.max_pe, args.min_price)
 
     print("\n" + "=" * 64)
-    print(f"  横截面多因子海选 Top {args.n}（低波+均值回归+反转）")
+    print(f"  横截面多因子海选 Top {len(top)}（低波+均值回归+反转）")
     print("=" * 64)
     for i, r in enumerate(top, 1):
         print(f"{i:2d}. {r['name']}({r['code']}) 得分{r['score']} 收{r['close']} "
               f"PE={r['pe']:.0f} 市值{r['mcap']:.0f}亿")
 
-    print(f"\n共 {len(results)} 只通过过滤 | 耗时 {(time.time()-t0)/60:.1f}分钟")
+    print(f"\n共 {stats['passed']} 只通过过滤（{stats['total_codes']} 只有效因子）| "
+          f"耗时 {stats['elapsed']/60:.1f}分钟")
 
     if args.out:
         with open(args.out, "w") as fh:
