@@ -16,10 +16,17 @@ mainboard_baseline.py → 沪深主板全量基线，冻结股票池、持续抓
 factors.py        → 横截面多因子（12技术因子 + ICIR权重）
 scan_composite.py → 横截面海选（低波+反转+小市值；run_scan() 供 CLI 和 Web /scan 复用）
 scan_top_n.py     → 海选（features快照 + PE/市值过滤，按融合策略 S* 排序）
-factor_backtest*.py → 回测v1-v5（因子IC→组合胜率→择时/退出/E/P证伪→集成MACD择时62.1%）
+factor_backtest*.py → 回测v1-v7（因子IC→组合胜率→择时/退出/E/P证伪→集成MACD择时62.1%→追强势/突破证伪）
 fetch_shares.py   → 抓总股本（E/P因子依赖，生成 shares.json）
 collect_fundamentals.py / collect_financials_all.py → 财务采集（financials表）
 build_adj_factors.py / build_features.py → 复权因子/技术快照回填
+collect_market_data.py → 龙虎榜+资金流采集（lhb/fund_flow表，新浪源）
+collect_lhb_10y.py / collect_lhb_resume.py → 龙虎榜10年补采（分年 / 按月+超时+重试）
+lhb_pick.py / lhb_factor_analysis.py / lhb_lianban_height.py → 龙虎榜选股/单因子IC/精确连板高度
+fund_flow_analysis.py / fund_flow_backtest.py → 资金流涨停率/涨停前夕回测
+money_backtest*.py → 总策略资金回测（S*双路径，每支100万复利）
+money_scan_backtest.py → top-N海选资金回测（横截面低波反转，复利口径）
+money_pareto_backtest.py → 帕累托多维选股回测（非支配排序+拥挤度）
 ```
 
 ## 关键约定
@@ -123,6 +130,24 @@ python3 mainboard_baseline.py --status --show-failed 20
 python3 mainboard_baseline.py --replay-cached
 python3 -m unittest discover -s unittests -v  # 70个测试
 ```
+
+## 短线抓龙头与资金回测（研究工具）
+
+### 龙虎榜短线（lhb_*.py / fund_flow_*.py / collect_market_data.py）
+- 数据采集：`collect_market_data.py`（龙虎榜 akshare + 资金流新浪源）；龙虎榜 10 年补采用 `collect_lhb_10y.py`（分年）/ `collect_lhb_resume.py`（按月+超时+重试，大范围一次采集会卡死）
+- 最优策略：净买占比>15% + 换手率<12.5% + 连板≥2（K线精确算连续涨停天数）= 2日 +8.5%/胜67%
+- 连板高度陷阱：首板是陷阱（5日 -2.11%），2板 +8.57%、4板+ +15.28%；计算连续涨停必须用 `涨幅>=9.5%`，`if pct` 会把负值和 NaN 都当 truthy 误判
+- 资金流方向相反：主力净流入（涨停前预测）是弱/负期望；龙虎榜净买（涨停后接力）才是强正期望
+
+### 总策略资金回测（money_backtest*.py）
+- 每支独立 100 万复利，期末清仓算总盈亏金额（不用胜率）
+- S* 双路径：路径1 技术达标（S*≥69 稳健建仓）+ 路径2 龙虎榜龙头（满仓持有2日卖出）
+- 10年（2016-09~2026-09）+1.494%（未计手续费），S*≥69 触发 3304/3350 只无差别买入摊平收益
+
+### 横截面海选 vs 帕累托多维（money_scan_backtest.py / money_pareto_backtest.py）
+- top-N 海选（横截面低波反转）：10年复利 +161%（含手续费，500万→1306万），远胜融合策略 +1.494%——横截面排序 >> 绝对阈值信号
+- 帕累托多维（5维非支配排序+拥挤度）：-9.54% vs 一维加权 -21.23%，多维少亏 11.7% 验证多维优于标量化
+- 核心：加权求和 = 线性标量化，相反方向子策略互相抵消；帕累托保留多维结构不抵消。下一步 PCA 降维后做 12 维帕累托
 
 ## GitHub
 https://github.com/myler/a_shares_predict (private)
