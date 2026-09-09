@@ -13,6 +13,13 @@ fetcher.py        → 数据层：K线多源降级抓取、分红抓取、股票
 db.py             → SQLite缓存（stock_cache.db），K线和分红均缓存
 batch_backtest.py → 批量回测工具，固定100只股票分板块
 mainboard_baseline.py → 沪深主板全量基线，冻结股票池、持续抓取与失败重试
+factors.py        → 横截面多因子（12技术因子 + ICIR权重）
+scan_composite.py → 横截面海选（低波+反转+小市值；run_scan() 供 CLI 和 Web /scan 复用）
+scan_top_n.py     → 海选（features快照 + PE/市值过滤，按融合策略 S* 排序）
+factor_backtest*.py → 回测v1-v5（因子IC→组合胜率→择时/退出/E/P证伪→集成MACD择时62.1%）
+fetch_shares.py   → 抓总股本（E/P因子依赖，生成 shares.json）
+collect_fundamentals.py / collect_financials_all.py → 财务采集（financials表）
+build_adj_factors.py / build_features.py → 复权因子/技术快照回填
 ```
 
 ## 关键约定
