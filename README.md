@@ -213,6 +213,53 @@ $$
 
 它的用途是先判断一家公司是否值得进入长期研究候选池。后续若要作为融合策略的候选池门禁，必须使用披露日可得的历史财报做独立、滚动的样本外验证，不能直接把当前质量结论回填到历史回测。
 
+## 横截面多因子海选与回测（研究工具）
+
+与融合策略（单只股票四维评分）不同，这是一套**全市场横截面选股**工具：每个调仓日对全市场主板股票按多因子排序取 top-N。
+
+### 因子与权重
+
+`factors.py` 定义 12 个技术因子，权重由 60 日持仓 ICIR 归一化训练（2026-09 全量 3330 只主板）：
+
+- **最强正因子**：低波动率(low_vol)、低ATR(atr_amp)、小市值/低成交额(liq_factor)
+- **反向因子**（回避强势股）：动量(mom_60/mom_250)、多头排列(ma_align)、量价齐升(pv_corr)
+
+### 回测结论
+
+**纯横截面选股天花板 = 56.4%**（技术12 + 基本面4因子，top50，持有60日）。
+
+A股 60 日尺度是「反转 + 低波 + 小市值」市场——reward 技术面被打压、低波动的股票；不 reward 基本面质量（毛利率/净利率/增速 IC 均≈0）、不 reward 财务估值便宜（E/P 证伪）、也不 reward 趋势动量。
+
+三个"突破杠杆"均已回测证伪（不要重试）：
+
+| 杠杆 | 结果 | 原因 |
+|------|------|------|
+| 市场择时（牛市才买）| 54.2%（空仓78%时间）| 追牛市与反转逻辑矛盾 |
+| 止损止盈退出机制 | 50.0% | 反转股"先跌后大涨"被止损截断 |
+| 价值因子 E/P | 52.7%（单独IC+0.03但组合降）| 60日尺度不 reward 便宜 |
+
+### 集成 MACD 择时（突破 62%）
+
+`factor_backtest5.py` 把横截面选股与个股级 MACD 择时集成：
+
+**横截面 top200 候选池（买哪只）+ 个股 MACD 底背离（何时买）+ 超时强平60日（何时卖）= 62.1%**，基线纯 MACD 择时 58.9%（+3.2pp）。
+
+三步贡献：横截面过滤 +1.4pp → 只保留底背离（去掉零轴上金叉）+0.3pp → 超时强平60日 +1.5pp。
+
+关键发现：
+- 零轴上金叉在横截面"弱股"池里是负信号（胜率57.6%、平均收益−0.28%），底背离（抄底）才与低波/反转契合
+- 超时强平是决定性参数（参数扫描平滑单调，非单点过拟合）
+
+⚠️ **样本内选参 + 分段衰减**：前半段 63.6%、后半段 60.7%，近年有效性下降；62.1% 是"贴线"突破，样本外可能更低。
+
+### 命令
+
+```bash
+python3 scan_composite.py -n 20      # 横截面多因子海选 top20
+python3 factor_backtest5.py           # 集成回测（横截面 + MACD 择时）
+python3 fetch_shares.py               # 抓总股本（仅 E/P 因子需要，生成 shares.json）
+```
+
 ## 分红收益计算
 
 自动拉取 A 股历史分红数据（送股、转增、派息），计算每笔交易持股期间到手的每股分红金额。
@@ -264,14 +311,28 @@ $$
 
 ```
 a_shares_predict/
-├── run_cli.py          # CLI入口
+├── run_cli.py          # CLI入口（MACD择时/多因子共振/巴芒初筛）
 ├── web.py              # Web界面（融合策略路由 + 图表）
+├── api.py              # JSON API
 ├── engine.py           # 核心引擎（MACD/多因子/融合策略/形态检测/OBV/ATR）
 ├── fundamentals.py     # 巴芒基本面研究：非金融企业财务质量初筛
 ├── fetcher.py          # 数据层（K线抓取、分红抓取、多源降级）
 ├── db.py               # SQLite缓存模块
+├── plotting.py         # 图表层（matplotlib）
+├── factors.py          # 横截面多因子（12技术因子 + ICIR权重）
+├── scan_composite.py   # 横截面海选（低波+反转+小市值，top-N）
+├── scan_top_n.py       # 海选（features快照 + PE/市值过滤）
+├── factor_backtest*.py # 回测v1-v5（因子IC→组合胜率→集成MACD择时62.1%）
+├── fetch_shares.py     # 抓总股本（E/P因子依赖，生成 shares.json）
+├── collect_fundamentals.py    # 财务采集（financials表）
+├── collect_financials_all.py  # 全市场财务采集
+├── build_adj_factors.py       # 复权因子回填
+├── build_features.py          # 技术快照回填（features表）
+├── batch_backtest.py   # 批量回测100只
+├── mainboard_baseline.py  # 全量主板基线
 ├── templates/
 │   └── page.html       # Web页面模板
+├── wechat_app/         # 微信小程序（纯本地计算）
 ├── requirements.txt
 ├── CLAUDE.md           # AI开发文档
 └── README.md
