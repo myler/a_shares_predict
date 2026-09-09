@@ -3,6 +3,8 @@ __pycache__/
 *.pyo
 output/
 stock_cache.db
+stock_cache.db-shm
+stock_cache.db-wal
 web.log
 *.png
 *.jpg
