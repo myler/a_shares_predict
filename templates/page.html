@@ -7,8 +7,8 @@
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect x='4' y='4' width='3' height='24' fill='%23ef5350'/><rect x='10' y='10' width='3' height='18' fill='%234caf50'/><rect x='16' y='7' width='3' height='21' fill='%234caf50'/><rect x='22' y='13' width='3' height='15' fill='%23ef5350'/><rect x='28' y='16' width='3' height='12' fill='%234caf50'/></svg>">
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
-body{font-family:-apple-system,system-ui,sans-serif;background:#f5f5f5;color:#333;padding:20px}
-h1{font-size:20px;margin-bottom:16px}
+body{font-family:-apple-system,system-ui,sans-serif;background:#f5f5f5;color:#333;padding:20px;max-width:920px;margin:0 auto}
+h1{font-size:20px;margin-bottom:12px}
 form{display:flex;flex-direction:column;gap:8px;margin-bottom:16px;max-width:520px}
 input{width:100%;padding:10px 14px;font-size:16px;border:2px solid #ddd;border-radius:6px;outline:none}
 input:focus{border-color:#1565C0}
@@ -26,8 +26,6 @@ label.holding input{width:auto}
 .buy{background:#e8f5e9;color:#2e7d32;border:2px solid #4caf50}
 .sell{background:#fce4ec;color:#c62828;border:2px solid #ef5350}
 .warn{background:#fff8e1;color:#f57f17;border:2px solid #ffc107}
-.top-row{display:flex;gap:20px;margin-bottom:16px}
-.top-row>*{flex:1;min-width:0}
 table{border-collapse:collapse;width:100%;margin:0;font-size:13px}
 table.overview td{padding:8px 12px;border-bottom:1px solid #eee}
 table.overview td:first-child{font-weight:bold;color:#666;width:120px}
@@ -55,11 +53,33 @@ h3{margin:16px 0 8px;font-size:16px}
 .gate-row{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:12px;color:#666}
 .gate-tag{background:#f5f5f5;padding:2px 8px;border-radius:3px;font-family:'SF Mono',Consolas,monospace}
 .gate-tag.fail{background:#fce4ec;color:#c62828}
+
+/* ── Tab ── */
+.tabs{display:flex;gap:8px;margin-bottom:16px;border-bottom:2px solid #ddd}
+.tab{padding:10px 20px;font-size:15px;background:transparent;color:#666;border:none;border-bottom:3px solid transparent;border-radius:0;cursor:pointer}
+.tab.active{color:#1565C0;font-weight:bold;border-bottom-color:#1565C0;background:transparent}
+.tab:hover{color:#1565C0;background:transparent}
+
+/* ── 海选表格 ── */
+.scan-table{border-collapse:collapse;width:100%;margin-top:12px;font-size:14px}
+.scan-table th,.scan-table td{padding:8px 10px;border-bottom:1px solid #eee;text-align:left}
+.scan-table th{background:#f5f5f5}
+.scan-meta{color:#888;font-size:12px;margin-top:8px}
+.scan-form{display:flex;align-items:center;gap:10px;margin:14px 0;flex-wrap:wrap}
+.scan-form input{width:64px;padding:6px 10px;font-size:14px;border:2px solid #ddd;border-radius:6px}
+.scan-form button{padding:8px 16px;font-size:14px}
+.hint{color:#888;font-size:13px;line-height:1.8}
 </style>
 </head>
 <body>
 <h1>📊 A股策略分析</h1>
-<div style="margin:4px 0 10px"><a href="/scan" style="color:#1565C0;text-decoration:none;font-size:14px;font-weight:bold">🔍 横截面多因子海选（全市场 top-N）→</a></div>
+<div class="tabs">
+  <button class="tab active" onclick="switchTab('analyze')">策略分析</button>
+  <button class="tab" onclick="switchTab('scan')">Top-N 海选</button>
+</div>
+
+<!-- ══════════ Tab 1: 策略分析 ══════════ -->
+<div id="tab-analyze">
 <form onsubmit="analyze(event)">
   <input id="code" type="text" placeholder="输入股票代码，如 603893" autofocus required>
   <div style="margin:8px 0">
@@ -79,31 +99,65 @@ h3{margin:16px 0 8px;font-size:16px}
   <button id="btn" type="submit">分析</button>
 </form>
 <div id="result"></div>
+</div>
+
+<!-- ══════════ Tab 2: Top-N 海选 ══════════ -->
+<div id="tab-scan" style="display:none">
+  <div class="strategy">
+    <h3>📐 Top-N 海选算法</h3>
+    <p class="hint">
+      全市场主板（600/601/603/605/000/001/002/003）每只股票算 <b>12 个技术因子</b>：
+      低波动率、低 ATR、低成交额（小市值效应）、均值回归（接近 MA20）、超买超卖健康度、
+      动量、均线多头度、量比、OBV 净量能流、量价配合等。<br>
+      每个因子在<b>横截面做百分位排名</b>，用回测训练出的 <b>ICIR 权重</b>加权合成总分，
+      再<b>过滤亏损股（PE≤0）、高 PE（&gt;100）、低价股（&lt;5 元）</b>，按总分降序取 top-N。
+      约 30~60 秒。
+    </p>
+  </div>
+  <div class="scan-form">
+    <label>Top N <input id="scanN" value="5" type="number" min="1" max="100"></label>
+    <label>PE上限 <input id="scanPe" value="100" type="number" step="10"></label>
+    <label>最低价 <input id="scanPrice" value="5" type="number" step="0.5"></label>
+    <button onclick="runScan()">开始海选</button>
+  </div>
+  <div id="scan-result"></div>
+</div>
+
 <script>
 const FORMULAS={
-  comprehensive:{title:'融合策略',html:`
-    <div class="formula-grid">
-      <div class="formula-item"><span class="formula-label">MACD核心</span><span class="formula-w">40%</span><span class="formula-math">DIF/DEA多空状态、零轴位置、5日DIF斜率、3日BAR趋势、前高/前低动能背离</span></div>
-      <div class="formula-item"><span class="formula-label">多因子</span><span class="formula-w">30%</span><span class="formula-math">RSI、KDJ多空状态、J值、布林位置、WR超买超卖</span></div>
-      <div class="formula-item"><span class="formula-label">价格位置/趋势</span><span class="formula-w">15%</span><span class="formula-math">250日价格位置与年价格涨幅；仅为价格代理，不代表财务基本面</span></div>
-      <div class="formula-item"><span class="formula-label">量能</span><span class="formula-w">15%</span><span class="formula-math">OBV 5日净量能流、量价背离、年化波动率代理</span></div>
+  comprehensive:{title:'融合策略（双路径）',html:`
+    <div class="formula-section"><h4>核心评分 S*</h4>
+      <div class="formula-math" style="font-size:14px;text-align:center;padding:4px 0"><b>S*</b> = M<sub>MACD</sub>×0.40 + F<sub>因子</sub>×0.30 + P<sub>价格位置</sub>×0.15 + Q<sub>量能</sub>×0.15 − 0.08×A<sub>18副指标共识</sub> + Z<sub>资金流</sub></div>
     </div>
-    <div class="formula-section"><h4>综合评分</h4>
-      <div class="formula-math" style="font-size:14px;text-align:center;padding:4px 0"><b>S</b> = M<sub>MACD</sub> × 0.40 + F<sub>因子</sub> × 0.30 + P<sub>价格位置</sub> × 0.15 + Q<sub>量能</sub> × 0.15</div>
+    <div class="formula-grid">
+      <div class="formula-item"><span class="formula-label">MACD核心</span><span class="formula-w">40%</span><span class="formula-math">DIF/DEA多空、零轴、5日DIF斜率、3日BAR趋势、底/顶背离</span></div>
+      <div class="formula-item"><span class="formula-label">多因子</span><span class="formula-w">30%</span><span class="formula-math">RSI、KDJ、J值、布林位置、WR超买超卖</span></div>
+      <div class="formula-item"><span class="formula-label">价格位置/趋势</span><span class="formula-w">15%</span><span class="formula-math">250日价格位置、年价格涨幅</span></div>
+      <div class="formula-item"><span class="formula-label">量能</span><span class="formula-w">15%</span><span class="formula-math">OBV 5日净量能流、量价背离、机构吸筹代理</span></div>
+    </div>
+    <div class="formula-section"><h4>18 项辅助指标共识 A（−8 ~ +8 反向修正）</h4>
+      <div class="formula-math" style="font-size:12px">DMI、CCI、BIAS(6/12)、EXPMA、BBI、TRIX、VR、BR、AR、CR、DMA、DPO、MTM、SKDJ、LWR、ENE、LON —— 各投 +1看多/−1看空/0中性，A=(N多−N空)/18×100</div>
+    </div>
+    <div class="formula-section"><h4>资金流加分 Z</h4>
+      <div class="formula-math" style="font-size:12px">主力净流入当日横截面百分位 rank × 10（0~10 分）</div>
+    </div>
+    <div class="formula-section"><h4>🟢 双路径买入</h4>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px 16px;font-size:12px">
+        <div><b style="color:#1565C0">路径1 技术达标</b><br>S*≥69 → 首仓25%<br>分数增强加仓：≥75→50%、≥80→75%、≥85→100%</div>
+        <div><b style="color:#e65100">路径2 龙虎榜龙头</b><br>连板≥2+净买&gt;15%+换手&lt;12.5%<br>→ 满仓100万，持有2日卖出</div>
+      </div>
+    </div>
+    <div class="formula-section"><h4>🔴 减仓 / 清仓</h4>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 16px;font-size:12px">
+        <div style="color:#f57f17"><b>减仓</b> &nbsp; S*&lt;35 或 炸板 → 减至50%</div>
+        <div style="color:#c62828"><b>清仓</b> &nbsp; 移动止盈(回撤8%) | 止损−8% | 跌破5日线</div>
+      </div>
     </div>
     <div class="formula-section"><h4>质量门禁（任一项触发即否决买入）</h4>
       <div class="gate-row">
         <span class="gate-tag">OBV 5日净量能流 &lt; −60%</span>
         <span class="gate-tag">RSI &gt; 92</span>
-        <span class="gate-tag">M<sub>MACD</sub> &lt; 35 ∧ F<sub>因子</sub> &lt; 40</span>
-      </div>
-    </div>
-    <div class="formula-section"><h4>交易规则</h4>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 16px;font-size:12px">
-        <div style="color:#2e7d32"><b>🟢 买入</b> &nbsp; 收盘信号后，下一交易日开盘执行</div>
-        <div style="color:#c62828"><b>🔴 卖出</b> &nbsp; 止损−8% | 止盈+25%</div>
-        <div style="color:#1565C0"><b>📐 形态</b> &nbsp; M顶/头肩顶破颈线→强制卖出</div>
-        <div style="color:#f57f17"><b>⚠️ 信号</b> &nbsp; S&lt;35 | 获利回吐 | 顶背离</div>
+        <span class="gate-tag">M&lt;35 ∧ F&lt;40</span>
       </div>
     </div>`
   },
@@ -122,6 +176,13 @@ const FORMULAS={
     </div>`
   }
 };
+function switchTab(name){
+  document.getElementById('tab-analyze').style.display = name==='analyze'?'block':'none';
+  document.getElementById('tab-scan').style.display = name==='scan'?'block':'none';
+  const tabs=document.querySelectorAll('.tab');
+  tabs[0].classList.toggle('active',name==='analyze');
+  tabs[1].classList.toggle('active',name==='scan');
+}
 function getStrategy(){return document.getElementById('strategy').value;}
 function onStrategyChange(){
   const s=getStrategy();
@@ -142,6 +203,19 @@ function toggleDividend(){
   const holding=document.getElementById('holding').checked;
   document.getElementById('divLabel').style.display=holding?'flex':'none';
   if(!holding)document.getElementById('calcDividend').checked=false;
+}
+async function runScan(){
+  const n=document.getElementById('scanN').value;
+  const pe=document.getElementById('scanPe').value;
+  const price=document.getElementById('scanPrice').value;
+  const box=document.getElementById('scan-result');
+  box.innerHTML='<div class=loading>⏳ 海选中，约 30~60 秒...</div>';
+  try{
+    const url='/scan?n='+encodeURIComponent(n)+'&max_pe='+encodeURIComponent(pe)+'&min_price='+encodeURIComponent(price);
+    const resp=await fetch(url);
+    if(!resp.ok){const t=await resp.text();box.innerHTML='<div class=error>'+t+'</div>'}
+    else{box.innerHTML=await resp.text()}
+  }catch(err){box.innerHTML='<div class=error>请求失败: '+err.message+'</div>'}
 }
 async function analyze(e){
   e.preventDefault();

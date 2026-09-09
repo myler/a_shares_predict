@@ -107,37 +107,11 @@ class Handler(BaseHTTPRequestHandler):
                 f'<td>{r["pe"]:.0f}</td>'
                 f'<td>{r["mcap"]:.0f}亿</td></tr>')
         latest = top[0]['date'] if top else '—'
-        return f"""<!DOCTYPE html>
-<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>横截面多因子海选</title>
-<style>
-body{{font-family:-apple-system,'PingFang SC',sans-serif;max-width:920px;margin:20px auto;padding:0 16px;color:#333}}
-h1{{font-size:20px}}
-p.hint{{color:#888;font-size:13px}}
-table{{border-collapse:collapse;width:100%;margin-top:12px;font-size:14px}}
-th,td{{padding:8px 10px;border-bottom:1px solid #eee;text-align:left}}
-th{{background:#f5f5f5}}
-.meta{{color:#888;font-size:12px;margin-top:8px}}
-a{{color:#1565C0;text-decoration:none}}
-form{{margin:14px 0}}
-input{{padding:6px 10px;font-size:14px;border:2px solid #ddd;border-radius:6px}}
-button{{padding:8px 16px;font-size:14px;background:#1565C0;color:#fff;border:none;border-radius:6px;cursor:pointer}}
-</style></head><body>
-<h1>📊 横截面多因子海选（低波+反转+小市值）</h1>
-<p class="hint">全市场主板按 12 技术因子 ICIR 加权合成排序，过滤亏损/高PE/低价后取 top-N。约 30~60 秒。</p>
-<form method="get" action="/scan">
-  <label>Top N <input name="n" value="{n}" type="number" min="1" max="100" style="width:64px"></label>
-  <label>PE上限 <input name="max_pe" value="{max_pe:.0f}" type="number" step="10" style="width:72px"></label>
-  <label>最低价 <input name="min_price" value="{min_price:.1f}" type="number" step="0.5" style="width:72px"></label>
-  <button type="submit">开始海选</button>
-  <a href="/">← 返回单股分析</a>
-</form>
-<table>
+        return f"""<table class="scan-table">
 <tr><th>#</th><th>股票</th><th>得分</th><th>现价</th><th>涨跌</th><th>PE</th><th>市值</th></tr>
 {rows_html}
 </table>
-<div class="meta">共 {stats['passed']} 只通过过滤（{stats['total_codes']} 只有效因子）| 耗时 {stats['elapsed']:.0f}秒 | 数据日期 {latest}</div>
-</body></html>"""
+<div class="scan-meta">共 {stats['passed']} 只通过过滤（{stats['total_codes']} 只有效因子）| 耗时 {stats['elapsed']:.0f}秒 | 数据日期 {latest}</div>"""
 
     def run_analysis(self, code, holding, calc_dividend=False):
         data = fetch_kline(code)
