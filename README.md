@@ -260,7 +260,39 @@ python3 factor_backtest5.py           # 集成回测（横截面 + MACD 择时�
 python3 fetch_shares.py               # 抓总股本（仅 E/P 因子需要，生成 shares.json）
 ```
 
-Web 端：启动 `./web.py 8099` 后，主页顶部"横截面多因子海选"链接，或直接访问 `http://localhost:8099/scan`，浏览器里跑全市场海选（约 30~60 秒）。
+Web 端：启动 `./web.py 8099` 后，主页**「Top-N 海选」tab**（与「策略分析」并列），或直接访问 `http://localhost:8099/scan`，浏览器里跑全市场海选（约 30~60 秒）。N 输入框默认 5，可调 PE 上限/最低价。
+
+## 短线抓龙头与资金回测（研究工具）
+
+### 龙虎榜短线（lhb_*.py / fund_flow_*.py / collect_market_data.py）
+
+龙虎榜 + 主力资金流采集入库（`stock_cache.db` 的 `lhb` / `fund_flow` 两表），短线抓龙头回测。
+
+- **数据采集**：`collect_market_data.py`（龙虎榜 akshare `stock_lhb_detail_em` + 资金流新浪源）；龙虎榜 10 年补采用 `collect_lhb_10y.py`（分年）/ `collect_lhb_resume.py`（按月+超时+重试，大范围一次采集会卡死）
+- **最优策略**：净买占比>15% + 换手率<12.5% + 连板≥2（K线精确算连续涨停天数）= 2日 +8.5%/胜67%
+- **连板高度陷阱**：首板是陷阱（5日 -2.11%），2板 +8.57%、4板+ +15.28%；计算连续涨停必须用 `涨幅>=9.5%`，`if pct` 会把负值和 NaN 都当 truthy 误判
+- **资金流方向相反**：主力净流入（涨停前预测）是弱/负期望（次日平均 -0.02%）；龙虎榜净买（涨停后接力）才是强正期望
+
+### 总策略资金回测（money_backtest*.py）
+
+每支独立 100 万复利，期末清仓算总盈亏金额（不用胜率）。
+
+- **总策略 v4（S\* 双路径）**：路径1 技术达标（S\*≥69 稳健建仓）+ 路径2 龙虎榜龙头（满仓持有2日卖出）
+- 10年（2016-09~2026-09）**+1.494%**（未计手续费）——S\*≥69 绝对阈值触发 3304/3350 只，无差别买入摊平收益
+
+### top-N 海选资金回测（money_scan_backtest.py）
+
+横截面低波反转排序，每期选 top-N × 100万，复利滚动。
+
+- **10年复利 +161%（含手续费）**（500万→1306万，月度调仓121期，去重460只）
+- 对比融合策略 +1.494%：**横截面排序选股远胜绝对阈值信号**——A股短期的钱在「排序」里不在「绝对信号」里
+
+### 帕累托多维选股（money_pareto_backtest.py）
+
+非支配排序 + 拥挤度收敛，验证"多维是否优于一维标量化"。
+
+- 同样 5 维因子：**帕累托 -9.54% vs 一维加权 -21.23%**（多维少亏 11.7%，验证多维优于标量化）
+- 但两者都亏，因维度未选全——只用了 5 个正向因子，漏了"回避强势/放量"的反向因子（完整 12 因子才是 +161%）。下一步：PCA 降维后做 12 维帕累托
 
 ## 分红收益计算
 
@@ -300,7 +332,7 @@ Web 端：启动 `./web.py 8099` 后，主页顶部"横截面多因子海选"链
 - 勾选"已持仓"后可选择"计算分红"
 - 融合策略显示：四维评分卡 + 详细分析过程 + 门禁检查 + 三面板图表(价格/MACD/OBV)
 - 巴芒基本面研究显示：财务质量初筛、年报摘要和未覆盖的研究边界，不显示交易建议
-- 主页顶部"横截面多因子海选"链接 → 全市场 top-N 海选（低波+反转+小市值，约30~60秒）
+- 主页 2 个 tab：「策略分析」（单股分析）/「Top-N 海选」（全市场 top-N 低波反转，N 默认 5，含算法说明 + 表格）
 
 ## JSON API
 
@@ -325,10 +357,21 @@ a_shares_predict/
 ├── factors.py          # 横截面多因子（12技术因子 + ICIR权重）
 ├── scan_composite.py   # 横截面海选（低波+反转+小市值，top-N）
 ├── scan_top_n.py       # 海选（features快照 + PE/市值过滤）
-├── factor_backtest*.py # 回测v1-v5（因子IC→组合胜率→集成MACD择时62.1%）
+├── factor_backtest*.py # 回测v1-v7（因子IC→组合胜率→集成MACD择时62.1%→追强势/突破证伪）
 ├── fetch_shares.py     # 抓总股本（E/P因子依赖，生成 shares.json）
 ├── collect_fundamentals.py    # 财务采集（financials表）
 ├── collect_financials_all.py  # 全市场财务采集
+├── collect_market_data.py     # 龙虎榜+资金流采集（lhb/fund_flow表，新浪源）
+├── collect_lhb_10y.py         # 龙虎榜10年补采（分年）
+├── collect_lhb_resume.py      # 龙虎榜续采（按月+超时+重试）
+├── lhb_pick.py                # 每日龙虎榜选股（连板≥2+净买>15%+缩量）
+├── lhb_factor_analysis.py     # 龙虎榜单因子IC + 组合寻优
+├── lhb_lianban_height.py      # K线精确连板高度回测
+├── fund_flow_analysis.py      # 资金流涨停率分析
+├── fund_flow_backtest.py      # 资金流涨停前夕回测
+├── money_backtest*.py         # 总策略资金回测（S*双路径，每支100万复利）
+├── money_scan_backtest.py     # top-N海选资金回测（横截面低波反转）
+├── money_pareto_backtest.py   # 帕累托多维选股回测（非支配排序+拥挤度）
 ├── build_adj_factors.py       # 复权因子回填
 ├── build_features.py          # 技术快照回填（features表）
 ├── batch_backtest.py   # 批量回测100只
