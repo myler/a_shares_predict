@@ -712,16 +712,16 @@ def calc_auxiliary_consensus(closes, highs, lows, volumes, opens=None):
     }
 
 
-def calc_auxiliary_consensus_series(closes, highs, lows, volumes, opens=None):
-    """返回每个交易日的 18 项辅助指标共识度，计算只使用该日及此前数据。"""
+def calc_auxiliary_votes_series(closes, highs, lows, volumes, opens=None):
+    """返回 (n, 18) int8 独立投票，列序同面板，前 59 行全零；仅使用前缀。"""
     closes = np.asarray(closes, dtype=float)
     highs = np.asarray(highs, dtype=float)
     lows = np.asarray(lows, dtype=float)
     volumes = np.asarray(volumes, dtype=float)
     n = len(closes)
-    consensus = np.zeros(n)
+    votes = np.zeros((n, 18), dtype=np.int8)
     if n < 60:
-        return consensus
+        return votes
 
     if opens is None:
         opens = np.empty(n, dtype=float)
@@ -742,12 +742,12 @@ def calc_auxiliary_consensus_series(closes, highs, lows, volumes, opens=None):
             result[period - 1:] = (sums[period:] - sums[:-period]) / period
         return result
 
-    bullish_count = np.zeros(n, dtype=int)
-    bearish_count = np.zeros(n, dtype=int)
+    column = 0
 
     def add_votes(bullish, bearish):
-        bullish_count[:] += bullish.astype(int)
-        bearish_count[:] += (~bullish & bearish).astype(int)
+        nonlocal column
+        votes[:, column] = np.where(bullish, 1, np.where(bearish, -1, 0))
+        column += 1
 
     pdi, mdi, adx, _ = calc_dmi(highs, lows, closes)
     pdi = finite_or(pdi, 0)
@@ -827,9 +827,14 @@ def calc_auxiliary_consensus_series(closes, highs, lows, volumes, opens=None):
         (lon_upper[lon_valid] - lon_lower[lon_valid]) * 100)
     add_votes(lon_position < 20, lon_position > 80)
 
-    consensus[59:] = np.round(
-        (bullish_count[59:] - bearish_count[59:]) / 18 * 100, 1)
-    return consensus
+    votes[:59] = 0
+    return votes
+
+
+def calc_auxiliary_consensus_series(closes, highs, lows, volumes, opens=None):
+    """返回每个交易日的 18 项辅助指标共识度，保持原有汇总值及方向。"""
+    votes = calc_auxiliary_votes_series(closes, highs, lows, volumes, opens=opens)
+    return np.round(votes.sum(axis=1) / 18 * 100, 1)
 
 
 def apply_auxiliary_consensus_adjustment(base_score, consensus_score, beta):

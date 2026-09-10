@@ -2,10 +2,12 @@
 """Web界面 — 轻量HTTP服务"""
 
 import sys, os, json, base64, io, urllib.parse
+import inspect
+from html import escape
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 from datetime import datetime, timedelta
 
-PORT = int(sys.argv[1]) if len(sys.argv) > 1 else 8080
+PORT = 8080
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 
@@ -19,17 +21,35 @@ from engine import (calc_macd, detect_regime, find_divergences, backtest,
                     predict, format_predict,
                     predict_multifactor, format_predict_multifactor,
                     predict_comprehensive, format_predict_comprehensive,
-                    calc_bollinger, calc_obv, calc_rsi, calc_kdj, calc_wr,
                     summarize_trades)
 from plotting import make_chart, make_comprehensive_chart, plot_multifactor
 from scan_composite import run_scan
+import pareto_web
 
 import numpy as np
 
 # ── 加载HTML模板 ──
 TEMPLATE_PATH = os.path.join(ROOT, 'templates', 'page.html')
 with open(TEMPLATE_PATH, 'r', encoding='utf-8') as f:
-    PAGE = f.read()
+    PAGE_TEMPLATE = f.read()
+
+
+def render_page():
+    """首页不读数据；新旧策略说明分别取对应模型默认值。"""
+    defaults = inspect.signature(backtest_comprehensive).parameters
+    config = {name: defaults[name].default for name in (
+        'buy_score', 'stop_loss_pct', 'take_profit_pct',
+        'profit_protect_pct', 'profit_protect_score', 'auxiliary_beta',
+        'commission_rate', 'stamp_duty_rate',
+    )}
+    # HTML is a JSON string, not a template literal; prevent script termination
+    # even if a future model label contains externally supplied text.
+    pareto_formula = json.dumps(pareto_web.render_methodology()).replace('<', '\\u003c').replace('>', '\\u003e')
+    return (PAGE_TEMPLATE.replace('__COMPREHENSIVE_CONFIG__', json.dumps(config))
+            .replace('__PARETO_FORMULA__', pareto_formula))
+
+
+PAGE = render_page()
 
 
 # ═══════════════════════════
@@ -37,25 +57,32 @@ with open(TEMPLATE_PATH, 'r', encoding='utf-8') as f:
 # ═══════════════════════════
 class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
-        if self.path == '/' or self.path == '/index.html':
+        parsed = urllib.parse.urlparse(self.path)
+        if parsed.path in ('/', '/index.html'):
             self.send_response(200); self.send_header('Content-type','text/html; charset=utf-8'); self.end_headers()
             self.wfile.write(PAGE.encode())
             return
 
-        if self.path.startswith('/analyze'):
-            qs = urllib.parse.urlparse(self.path).query
+        if parsed.path == '/analyze':
+            qs = parsed.query
             params = urllib.parse.parse_qs(qs)
             code = params.get('code', [''])[0].strip()
             holding = params.get('holding', ['0'])[0] == '1'
             calc_dividend = params.get('dividend', ['0'])[0] == '1'
-            strategy = params.get('strategy', ['macd'])[0]
+            strategy = params.get('strategy', ['pareto'])[0]
 
-            if not code or not code.isdigit() or len(code) != 6:
+            if not code.isascii() or not code.isdigit() or len(code) != 6:
                 self.send_response(400); self.send_header('Content-type','text/html; charset=utf-8'); self.end_headers()
                 self.wfile.write('请输入6位股票代码'.encode()); return
 
+            if strategy not in ('pareto', 'comprehensive', 'buyhold', 'value', 'macd', 'multi'):
+                self.send_response(400); self.send_header('Content-type','text/html; charset=utf-8'); self.end_headers()
+                self.wfile.write('不支持的策略'.encode()); return
+
             try:
-                if strategy == 'buyhold':
+                if strategy == 'pareto':
+                    html = self.run_pareto_analysis(code)
+                elif strategy == 'buyhold':
                     html = self.run_buyhold_analysis(code, calc_dividend)
                 elif strategy == 'value':
                     html = self.run_value_analysis(code)
@@ -63,34 +90,54 @@ class Handler(BaseHTTPRequestHandler):
                     html = self.run_multifactor_analysis(code, holding, calc_dividend)
                 elif strategy == 'comprehensive':
                     html = self.run_comprehensive_analysis(code, holding, calc_dividend)
-                else:
+                elif strategy == 'macd':
                     html = self.run_analysis(code, holding, calc_dividend)
                 self.send_response(200); self.send_header('Content-type','text/html; charset=utf-8'); self.end_headers()
                 self.wfile.write(html.encode())
             except Exception as e:
                 self.send_response(500); self.send_header('Content-type','text/html; charset=utf-8'); self.end_headers()
-                self.wfile.write(f'<div class=error>分析失败: {e}</div>'.encode())
+                self.wfile.write(f'<div class=error>分析失败: {escape(str(e))}</div>'.encode())
             return
 
-        if self.path.startswith('/scan'):
-            qs = urllib.parse.urlparse(self.path).query
+        if parsed.path == '/pareto-summary':
+            params = urllib.parse.parse_qs(parsed.query)
+            try:
+                n = max(1, min(100, int(params.get('n', ['5'])[0])))
+            except ValueError:
+                n = 5
+            # Only n is accepted. RUN_DIR is service configuration, not a URL path.
+            try:
+                html = pareto_web.render_population(n)
+                self.send_response(200); self.send_header('Content-type','text/html; charset=utf-8'); self.end_headers()
+                self.wfile.write(html.encode())
+            except Exception as e:
+                self.send_response(500); self.send_header('Content-type','text/html; charset=utf-8'); self.end_headers()
+                self.wfile.write(f'<div class=error>读取多维回测失败: {escape(str(e))}</div>'.encode())
+            return
+
+        if parsed.path == '/scan':
+            qs = parsed.query
             params = urllib.parse.parse_qs(qs)
             try:
-                n = int(params.get('n', ['20'])[0])
+                n = int(params.get('n', ['5'])[0])
                 max_pe = float(params.get('max_pe', ['100'])[0])
                 min_price = float(params.get('min_price', ['5'])[0])
             except ValueError:
-                n, max_pe, min_price = 20, 100.0, 5.0
+                n, max_pe, min_price = 5, 100.0, 5.0
             try:
                 html = self.run_scan_html(n, max_pe, min_price)
                 self.send_response(200); self.send_header('Content-type','text/html; charset=utf-8'); self.end_headers()
                 self.wfile.write(html.encode())
             except Exception as e:
                 self.send_response(500); self.send_header('Content-type','text/html; charset=utf-8'); self.end_headers()
-                self.wfile.write(f'<div style="color:#c62828;padding:16px">海选失败: {e}</div>'.encode())
+                self.wfile.write(f'<div style="color:#c62828;padding:16px">旧加权海选失败: {escape(str(e))}</div>'.encode())
             return
 
         self.send_response(404); self.end_headers()
+
+    def run_pareto_analysis(self, code):
+        """Read completed local artifacts; never fall back to the weighted engine."""
+        return pareto_web.render_stock_report(code)
 
     def run_scan_html(self, n, max_pe, min_price):
         top, stats = run_scan(n, max_pe, min_price)
@@ -100,18 +147,22 @@ class Handler(BaseHTTPRequestHandler):
             pct_color = '#2e7d32' if pct >= 0 else '#c62828'
             rows_html += (
                 f'<tr><td>{i}</td>'
-                f'<td>{r["name"]} <span style="color:#999">({r["code"]})</span></td>'
+                f'<td>{escape(str(r["name"]))} <span style="color:#999">({escape(str(r["code"]))})</span></td>'
                 f'<td><b>{r["score"]:.1f}</b></td>'
                 f'<td>{r["close"]:.2f}</td>'
                 f'<td style="color:{pct_color}">{pct:+.2f}%</td>'
                 f'<td>{r["pe"]:.0f}</td>'
-                f'<td>{r["mcap"]:.0f}亿</td></tr>')
-        latest = top[0]['date'] if top else '—'
-        return f"""<table class="scan-table">
-<tr><th>#</th><th>股票</th><th>得分</th><th>现价</th><th>涨跌</th><th>PE</th><th>市值</th></tr>
-{rows_html}
-</table>
-<div class="scan-meta">共 {stats['passed']} 只通过过滤（{stats['total_codes']} 只有效因子）| 耗时 {stats['elapsed']:.0f}秒 | 数据日期 {latest}</div>"""
+                f'<td>{r["mcap"]:.0f}亿</td>'
+                f'<td>{escape(str(r["date"]))}</td></tr>')
+        return (
+            '<h2>旧加权海选（非帕累托）</h2>'
+            '<p class="method-note">横截面因子加权相对分 Top-N，不是每日 Pareto34 前沿或独立账户回测；此旧入口可能联网取报价。</p>'
+            '<table class="scan-table">'
+            '<tr><th>#</th><th>股票</th><th>加权相对分</th><th>现价</th><th>涨跌</th><th>PE</th><th>市值</th><th>因子日期</th></tr>'
+            + rows_html + '</table>'
+            + f'<div class="scan-meta">共 {stats["passed"]} 只通过过滤（{stats["total_codes"]} 只有效因子）| 耗时 {stats["elapsed"]:.0f}秒 | '
+            '因子按各股缓存末日计算，未统一日期；现价来自本次报价。相对分不是融合 S*。</div>'
+        )
 
     def run_analysis(self, code, holding, calc_dividend=False):
         data = fetch_kline(code)
@@ -695,320 +746,15 @@ class Handler(BaseHTTPRequestHandler):
         return f"""
         <div class="result">
           {conclusion_html}
+                    <p class="hint">当前建议仅按评分和是否持仓映射；“增持/减持”不代表分仓执行，也未结合实际买入成本。</p>
           {overview}
+                    <p class="hint">回测为收盘信号、下一交易日开盘成交；汇总仅含已完成交易，不计期末未平仓。权息风控和不可成交约束尚不完整，非完整账户收益。</p>
           <br>{score_card}
           {aux_html}
           {analysis_html}
           {trade_table}
           <img src="data:image/png;base64,{image}" alt="Comprehensive Chart" loading="lazy">
         </div>"""
-
-    def _run_comprehensive_analysis_legacy(self, code, holding, calc_dividend=False):
-        """综合策略：三面量化评分 (技术30% + 博弈45% + 基本面25%)"""
-        import engine as eng
-        data = fetch_kline(code)
-        name = get_name(code)
-        save_stock_name(code, name)
-        dates = [d['day'] for d in data]
-        closes = np.array([float(d['close']) for d in data])
-        highs = np.array([float(d['high']) for d in data])
-        lows = np.array([float(d['low']) for d in data])
-        vols = np.array([float(d['volume']) for d in data])
-
-        trades = backtest_comprehensive(dates, closes, highs, lows, vols)
-        pred_data = predict_comprehensive(dates, closes, highs, lows, vols, holding=holding)
-
-        dividends = []
-        if calc_dividend:
-            dividends = fetch_dividends(code)
-            if dividends:
-                trades = enrich_trades_with_dividends(trades, dividends)
-
-        wins = [t for t in trades if t['profit_pct'] > 0]
-        total_pnl = sum(t['profit_pct'] for t in trades) if trades else 0
-        d0 = datetime.strptime(dates[0], '%Y-%m-%d').date()
-        d1 = datetime.strptime(dates[-1], '%Y-%m-%d').date()
-        years = max((d1 - d0).days / 365.25, 0.01)
-
-        # 当前评分
-        tech_score, tech_dim, patterns = eng.score_technical(closes, highs, lows, vols)
-        game_score, game_dim = eng.score_game_theory(closes, vols, highs, lows)
-        fund_score, fund_dim = eng.score_fundamental(closes, vols)
-        
-        # 融合策略四维评分（回测同款）
-        dif, dea, bar = calc_macd(closes)
-        rsi_arr = calc_rsi(closes)
-        k_arr, d_arr, j_arr = calc_kdj(highs, lows, closes)
-        bb_u, bb_m, bb_l = calc_bollinger(closes)
-        wr_arr = calc_wr(highs, lows, closes)
-        obv_full = calc_obv(closes, vols)
-        i = len(closes) - 1
-        
-        macd_score = 50
-        if dif[i] > dea[i]: macd_score += 15
-        else: macd_score -= 15
-        if dif[i] > 0: macd_score += 12
-        else: macd_score -= 8
-        if i >= 5 and dif[i] > dif[i-5]: macd_score += 8
-        else: macd_score -= 5
-        if i >= 3 and bar[i] > bar[i-3]: macd_score += 5
-        
-        mf_score = 50
-        rv = rsi_arr[i] if not np.isnan(rsi_arr[i]) else 50
-        kv = k_arr[i] if not np.isnan(k_arr[i]) else 50
-        dv = d_arr[i] if not np.isnan(d_arr[i]) else 50
-        jv = j_arr[i] if not np.isnan(j_arr[i]) else 50
-        wv = wr_arr[i] if not np.isnan(wr_arr[i]) else 50
-        if 30 <= rv <= 65: mf_score += 10
-        elif rv < 30: mf_score += 15
-        elif rv > 80: mf_score -= 15
-        if kv > dv: mf_score += 10
-        elif kv < dv: mf_score -= 8
-        if jv < 0: mf_score += 8
-        bb_pos = (closes[i] - bb_l[i]) / (bb_u[i] - bb_l[i]) * 100 if not np.isnan(bb_u[i]) and bb_u[i] != bb_l[i] else 50
-        if bb_pos < 10: mf_score += 12
-        elif bb_pos > 90: mf_score -= 8
-        if wv > 80: mf_score += 8
-        
-        game_score2 = 50
-        obv_ma20 = np.mean(obv_full[max(0,i-20):i]) if i >= 20 else np.mean(obv_full[:i])
-        obv_ma5 = np.mean(obv_full[max(0,i-4):i+1])
-        obv_ratio = obv_full[i] / obv_ma20 if obv_ma20 > 0 else 1
-        if obv_ma5 > obv_ma20 * 1.08: game_score2 += 12
-        elif obv_ma5 < obv_ma20 * 0.92: game_score2 -= 12
-        
-        fund_score2 = 50
-        if i >= 249:
-            h250 = np.max(closes[i-249:i+1])
-            l250 = np.min(closes[i-249:i+1])
-            pos250 = (closes[i] - l250) / (h250 - l250) * 100 if h250 != l250 else 50
-            if pos250 < 25: fund_score2 += 20
-            elif pos250 < 40: fund_score2 += 10
-            elif pos250 > 80: fund_score2 -= 15
-        
-        composite = macd_score * 0.40 + mf_score * 0.30 + fund_score2 * 0.15 + game_score2 * 0.15
-
-        overview = f"""
-        <table class="overview">
-          <tr><th colspan="2">{name} ({code}) — 综合策略</th></tr>
-          <tr><td>数据范围</td><td>{dates[0]} ~ {dates[-1]}（{years:.1f}年）</td></tr>
-          <tr><td>K线数量</td><td>{len(data)} 根</td></tr>
-          <tr><td>回测交易</td><td>{len(trades)} 笔 · 胜率 {len(wins)/len(trades)*100:.0f}%</td></tr>"""
-        if calc_dividend and dividends:
-            total_div_pct = sum(t.get('dividend_yield_pct', 0) for t in trades)
-            total_div_cash = sum(t.get('dividend_total', 0) for t in trades)
-            total_return = total_pnl + total_div_pct
-            overview += f"""
-          <tr style="background:#e8f5e9"><td>价差收益</td><td style="font-weight:bold">{total_pnl:+.1f}%</td></tr>
-          <tr style="background:#e8f5e9"><td>分红收益</td><td style="font-weight:bold">{total_div_cash:.2f}元/股（{total_div_pct:+.1f}%）</td></tr>
-          <tr style="background:#c8e6c9"><td>总收益</td><td style="font-weight:bold;font-size:1.1em">{total_return:+.1f}%</td></tr>"""
-        else:
-            overview += f"""
-          <tr style="background:#c8e6c9"><td>总收益</td><td style="font-weight:bold;font-size:1.1em">{total_pnl:+.1f}%</td></tr>"""
-
-        # 三面评分卡
-        dim_colors = {'趋势':'🔵','动量':'🟠','量能':'🟢','通道/波动':'🟣','形态/结构':'🔴','筹码':'⚪'}
-        score_level = lambda s: '🟢' if s >= 60 else ('🟡' if s >= 45 else '🔴')
-        tech_rows = ''.join(f'<tr><td>{dim_colors.get(k,"")} {k}</td><td>{v:.1f}</td></tr>' for k, v in tech_dim.items())
-        game_rows = ''.join(f'<tr><td>{k}</td><td>{v:.1f}</td></tr>' for k, v in game_dim.items())
-        fund_rows = ''.join(f'<tr><td>{k}</td><td>{v:.1f}</td></tr>' for k, v in fund_dim.items())
-
-        # ── 机构参与度（优先真实数据，失败降级代理）──
-        inst_data = None
-        try:
-            from fetcher import fetch_institution_participation, estimate_institution_proxy
-            inst_data = fetch_institution_participation(code)
-        except: pass
-        
-        if inst_data and inst_data.get('institution_participation') is not None:
-            inst_val = inst_data['institution_participation'] * 100
-            if inst_val > 50: inst_label = f'🏛️ 机构主导 ({inst_val:.0f}%)'
-            elif inst_val > 30: inst_label = f'🤝 均衡型 ({inst_val:.0f}%)'
-            else: inst_label = f'👤 散户活跃 ({inst_val:.0f}%)'
-            inst_source = '千股千评'
-        else:
-            # 代理：用波动率估算
-            from fetcher import estimate_institution_proxy
-            inst_proxy = estimate_institution_proxy(closes, highs, lows, vols)
-            if inst_proxy > 65: inst_label = '🏛️ 机构主导 (代理)'
-            elif inst_proxy > 45: inst_label = '🤝 均衡型 (代理)'
-            else: inst_label = '👤 散户活跃 (代理)'
-            inst_source = '波动率代理'
-            inst_val = inst_proxy
-
-        # ── 博弈反弹信号 ──
-        reb_signal = ''
-        if i >= 5:
-            ret_5d_val = (closes[i] - closes[max(0,i-5)]) / closes[max(0,i-5)] * 100
-            if ret_5d_val < -3 and (inst_val > 30):
-                reb_signal = f'<br><span style="color:#2e7d32;font-size:11px">⚡ 下跌{ret_5d_val:+.1f}% + 机构参与{inst_val:.0f}% → 博弈反弹信号</span>'
-        analysis_html = f"""<h3>🔍 分析过程</h3>
-        <table class="overview">
-          <tr><th colspan="3">MACD核心评分 (40%)</th></tr>
-          <tr><td>DIF vs DEA</td><td style="font-family:monospace">{dif[i]:.2f} {">" if dif[i]>dea[i] else "<"} {dea[i]:.2f} → {"金叉" if dif[i]>dea[i] else "死叉"}</td><td style="color:{'#2e7d32' if dif[i]>dea[i] else '#c62828'}">{'+15' if dif[i]>dea[i] else '−15'}</td></tr>
-          <tr><td>零轴位置</td><td style="font-family:monospace">DIF={dif[i]:.2f} {">0 做多区" if dif[i]>0 else "<0 做空区"}</td><td style="color:{'#2e7d32' if dif[i]>0 else '#c62828'}">{'+12' if dif[i]>0 else '−8'}</td></tr>
-          <tr><td>DIF 5日斜率</td><td style="font-family:monospace">{dif[i]-dif[max(0,i-5)]:+.2f}</td><td style="color:{'#2e7d32' if i>=5 and dif[i]>dif[i-5] else '#c62828'}">{'+8' if i>=5 and dif[i]>dif[i-5] else '−5'}</td></tr>
-          <tr><td>BAR 3日趋势</td><td style="font-family:monospace">{bar[i]:+.2f} (3日前:{bar[max(0,i-3)]:+.2f})</td><td style="color:{'#2e7d32' if i>=3 and bar[i]>bar[i-3] else '#888'}">{'+5' if i>=3 and bar[i]>bar[i-3] else '0'}</td></tr>"""
-
-        # 底背离/顶背离
-        if i >= 30:
-            rlo = np.min(closes[max(0,i-30):i])
-            if closes[i] > rlo * 1.03 and dif[i] > dif[max(0,i-30)]:
-                analysis_html += f'<tr><td>底背离 30日</td><td style="font-family:monospace">价{closes[i]:.2f}>低{rlo:.2f} DIF↑</td><td style="color:#2e7d32">+10</td></tr>'
-            rhi = np.max(closes[max(0,i-30):i])
-            if closes[i] >= rhi * 0.98 and dif[i] < dif[max(0,i-30)] * 0.9:
-                analysis_html += f'<tr><td>🔴 顶背离 30日</td><td style="font-family:monospace">价{closes[i]:.2f}≈高{rhi:.2f} DIF↓</td><td style="color:#c62828">−15</td></tr>'
-        
-        analysis_html += f"""<tr style="background:#e3f2fd"><td><b>MACD小计</b></td><td></td><td style="font-weight:bold;font-size:1.1em">{macd_score:.0f}</td></tr>
-        </table>
-        <br>
-        <table class="overview">
-          <tr><th colspan="3">多因子评分 (30%)</th></tr>
-          <tr><td>RSI(14)</td><td style="font-family:monospace">{rv:.0f}</td><td style="color:{'#2e7d32' if 30<=rv<=65 else ('#2e7d32' if rv<30 else ('#c62828' if rv>80 else '#888'))}">{'+10 (30-65)' if 30<=rv<=65 else ('+15 (<30超卖)' if rv<30 else ('−15 (>80超买)' if rv>80 else '−8 (>70偏强)' if rv>70 else '0'))}</td></tr>
-          <tr><td>KDJ</td><td style="font-family:monospace">K={kv:.0f} D={dv:.0f} J={jv:.0f}</td><td style="color:{'#2e7d32' if kv>dv else '#c62828'}">{'+10 金叉' if kv>dv else '−8 死叉'}{' +8(J<0)' if jv<0 else ''}{' −8(J>100)' if jv>100 else ''}</td></tr>"""
-
-        bb_pos_val = (closes[i] - bb_l[i]) / (bb_u[i] - bb_l[i]) * 100 if not np.isnan(bb_u[i]) and bb_u[i] != bb_l[i] else 50
-        analysis_html += f"""<tr><td>布林带</td><td style="font-family:monospace">位置 {bb_pos_val:.0f}%（下{bb_l[i]:.2f}/上{bb_u[i]:.2f}）</td><td style="color:{'#2e7d32' if bb_pos_val<10 else ('#c62828' if bb_pos_val>90 else '#888')}">{'+12 下轨' if bb_pos_val<10 else ('−8 上轨' if bb_pos_val>90 else '0')}</td></tr>
-          <tr><td>WR(10)</td><td style="font-family:monospace">{wv:.0f}</td><td style="color:{'#2e7d32' if wv>80 else ('#c62828' if wv<20 else '#888')}">{'+8' if wv>80 else ('−8' if wv<20 else '0')}</td></tr>
-          <tr style="background:#fff3e0"><td><b>多因子小计</b></td><td></td><td style="font-weight:bold;font-size:1.1em">{mf_score:.0f}</td></tr>
-        </table>
-        <br>
-        <table class="overview">
-          <tr><th colspan="3">基本面 & 量能</th></tr>
-          <tr><td>250日估值</td><td style="font-family:monospace">{"位置 "+str(int(pos250))+"%" if i>=249 else "数据不足"}</td><td style="color:{'#2e7d32' if i>=249 and pos250<40 else ('#c62828' if i>=249 and pos250>80 else '#888')}">{'+20 低估' if i>=249 and pos250<25 else ('+10 偏低' if i>=249 and pos250<40 else ('−15 高估' if i>=249 and pos250>80 else '0'))}</td></tr>
-          <tr><td>基本面 (15%)</td><td></td><td style="font-weight:bold">{fund_score2:.0f}</td></tr>
-          <tr><td>OBV比值</td><td style="font-family:monospace">MA₅/MA₂₀ = {obv_ratio:.2f}</td><td style="color:{'#2e7d32' if obv_ratio>1.08 else ('#c62828' if obv_ratio<0.92 else '#888')}">{'+12' if obv_ratio>1.08 else ('−12' if obv_ratio<0.92 else '0')}</td></tr>
-          <tr><td>量能 (15%)</td><td></td><td style="font-weight:bold">{game_score2:.0f}</td></tr>
-          <tr><td>机构参与</td><td style="font-size:12px">{inst_label} <small>({inst_source})</small>{reb_signal}</td><td></td></tr>
-        </table>
-        <br>
-        <table class="overview">
-          <tr><th colspan="3">综合 & 门禁</th></tr>
-          <tr><td><b>S = M×0.40 + F×0.30 + V×0.15 + Q×0.15</b></td><td style="font-family:monospace">{macd_score:.0f}×0.40 + {mf_score:.0f}×0.30 + {fund_score2:.0f}×0.15 + {game_score2:.0f}×0.15</td><td style="font-weight:bold;font-size:1.2em">{score_level(composite)} {composite:.1f}</td></tr>
-          <tr><td>OBV门禁</td><td style="font-family:monospace">{obv_ratio:.2f} {"≥" if obv_ratio>=0.90 else "<"} 0.90</td><td style="color:{'#2e7d32' if obv_ratio>=0.90 else '#c62828'}">{'✅ 通过' if obv_ratio>=0.90 else '🔴 否决'}</td></tr>
-          <tr><td>RSI门禁</td><td style="font-family:monospace">{rv:.0f} {"≤" if rv<=92 else ">"} 92</td><td style="color:{'#2e7d32' if rv<=92 else '#c62828'}">{'✅ 通过' if rv<=92 else '🔴 否决'}</td></tr>
-          <tr><td>双弱门禁</td><td style="font-family:monospace">M={macd_score:.0f} F={mf_score:.0f}</td><td style="color:{'#2e7d32' if not (macd_score<35 and mf_score<40) else '#c62828'}">{'✅ 通过' if not (macd_score<35 and mf_score<40) else '🔴 否决'}</td></tr>"""
-
-        # 信号
-        gates_pass = obv_ratio >= 0.90 and rv <= 92 and not (macd_score < 35 and mf_score < 40)
-        if gates_pass:
-            if composite >= 70: sig='🟢 强烈看多'; act='买入'
-            elif composite >= 65: sig='🟢 偏多'; act='买入'
-            elif composite >= 50: sig='🟡 中性'; act='观望'
-            elif composite >= 40: sig='🟠 偏空'; act='不买'
-            else: sig='🔴 看空'; act='不买'
-        else:
-            sig='🔴 门禁否决'; act='观望'
-        sig_color = '#2e7d32' if '🟢' in sig else ('#c62828' if '🔴' in sig else '#f57f17')
-        analysis_html += f"""<tr style="background:#f5f5f5"><td><b>信号</b></td><td></td><td style="font-weight:bold;font-size:1.2em;color:{sig_color}">{sig} → {act}</td></tr>
-        </table>"""
-
-        # 结论横幅
-        conclusion_html = ''
-        action = pred_data.get('action', '')
-        score = pred_data.get('composite', 50)
-        if pred_data.get('signal') == '门禁否决':
-            conclusion_html = f'<div class="conclusion sell">🔴 门禁否决 → 观望</div>'
-        elif action in ('买入', '增持', '拿住'):
-            n = min(10, max(1, int(score / 10)))
-            conclusion_html = f'<div class="conclusion buy">{"✅" * n} {action}</div>'
-        elif action == '卖出':
-            conclusion_html = f'<div class="conclusion sell">{"❌" * min(10, max(1, int(score / 10)))} {action}</div>'
-        else:
-            conclusion_html = f'<div class="conclusion warn">{"⚠️" * min(10, max(1, int(score / 10)))} {action}</div>'
-
-        # ── 单列布局 ──
-        overview = f"""
-        {overview}
-        <br>
-        <table class="overview">
-          <tr><th colspan="3">📊 融合策略四维评分</th></tr>
-          <tr style="background:#e3f2fd"><td><b>MACD核心 (40%)</b></td><td style="font-weight:bold;font-size:1.2em">{score_level(macd_score)} {macd_score:.1f}</td><td style="font-size:11px;color:#888">DIF{dif[i]:.2f}/DEA{dea[i]:.2f} BAR{bar[i]:.2f}</td></tr>
-          <tr style="background:#fff3e0"><td><b>多因子 (30%)</b></td><td style="font-weight:bold;font-size:1.2em">{score_level(mf_score)} {mf_score:.1f}</td><td style="font-size:11px;color:#888">RSI{rv:.0f} K{kv:.0f}/D{dv:.0f}/J{jv:.0f} WR{wv:.0f}</td></tr>
-          <tr style="background:#e8f5e9"><td><b>基本面 (15%)</b></td><td style="font-weight:bold;font-size:1.2em">{score_level(fund_score2)} {fund_score2:.1f}</td><td style="font-size:11px;color:#888"><table>{fund_rows}</table></td></tr>
-          <tr style="background:#f3e5f5"><td><b>量能 (15%)</b></td><td style="font-weight:bold;font-size:1.2em">{score_level(game_score2)} {game_score2:.1f}</td><td style="font-size:11px;color:#888">OBV比值{obv_ratio:.2f}<br>{inst_label}</td></tr>
-          <tr style="background:#f5f5f5"><td><b>综合加权</b></td><td style="font-weight:bold;font-size:1.4em">{score_level(composite)} {composite:.1f}</td><td>M{macd_score:.0f}×0.40+F{mf_score:.0f}×0.30+基{fund_score2:.0f}×0.15+量{game_score2:.0f}×0.15</td></tr>
-        </table>"""
-
-        # ── 辅助指标投票面板 ──
-        aux = pred_data.get('auxiliary_consensus', {})
-        if aux and aux.get('votes'):
-            n_total = aux.get('total_indicators', len(aux['votes']))
-            bull_c = aux.get('bullish_count', 0)
-            bear_c = aux.get('bearish_count', 0)
-            neutral_c = aux.get('neutral_count', 0)
-            cons_score = aux.get('consensus_score', 0)
-            cons_pct = aux.get('consensus_pct', 50)
-            if cons_score > 20:
-                cons_color = '#2e7d32'; cons_icon = '🟢'
-            elif cons_score > 5:
-                cons_color = '#f57f17'; cons_icon = '🟡'
-            elif cons_score > -5:
-                cons_color = '#888'; cons_icon = '⚪'
-            elif cons_score > -20:
-                cons_color = '#e65100'; cons_icon = '🟠'
-            else:
-                cons_color = '#c62828'; cons_icon = '🔴'
-            
-            vote_rows = ''
-            for v in aux['votes']:
-                if v['vote'] == 1:
-                    vc = '#2e7d32'; vs = '📈 ' + v.get('signal', '看多')
-                elif v['vote'] == -1:
-                    vc = '#c62828'; vs = '📉 ' + v.get('signal', '看空')
-                else:
-                    vc = '#888'; vs = '➖ ' + v.get('signal', '中性')
-                val_display = v.get('value', 0)
-                if isinstance(val_display, dict):
-                    val_display = ', '.join(f'{k}={va}' for k, va in val_display.items())
-                vote_rows += f'<tr><td style="font-size:11px">{v["name"]}</td><td style="font-family:monospace;font-size:10px">{val_display}</td><td style="color:{vc};font-weight:bold">{vs}</td></tr>'
-
-            overview += f"""
-        <br>
-        <table class="overview">
-          <tr><th colspan="3">🗳️ 辅助指标投票面板 ({n_total}个指标)</th></tr>
-          <tr style="background:#f5f5f5">
-            <td colspan="3" style="text-align:center;font-weight:bold;font-size:1.1em;color:{cons_color}">
-              {cons_icon} 共识度: {cons_score:+.0f} ({cons_pct:.0f}%看多) | 
-              📈{bull_c}看多 📉{bear_c}看空 ➖{neutral_c}中性
-            </td>
-          </tr>
-          {vote_rows}
-        </table>"""
-
-        trade_rows = ''
-        show_div = calc_dividend and dividends and any(t.get('dividend_total', 0) > 0 for t in trades)
-        for t in trades:
-            tr_class = 'win' if t['profit_pct'] > 0 else 'loss'
-            if show_div:
-                div_total = t.get('dividend_total', 0)
-                div_cell = f'<td>{div_total:.2f}元/股</td><td class="pnl">{t["total_return_pct"]:+.1f}%</td>' if div_total > 0 else f'<td>-</td><td class="pnl">{t["profit_pct"]:+.1f}%</td>'
-                trade_rows += f'<tr class="{tr_class}"><td>{t["buy_date"]}</td><td>{t["sell_date"]}</td><td>{t["buy_price"]:.2f}</td><td>{t["sell_price"]:.2f}</td><td class="pnl">{t["profit_pct"]:+.1f}%</td>{div_cell}<td>{t["hold_days"]}天</td><td class="reason">{t["buy_reason"]}→{t["sell_reason"]}</td></tr>'
-            else:
-                trade_rows += f'<tr class="{tr_class}"><td>{t["buy_date"]}</td><td>{t["sell_date"]}</td><td>{t["buy_price"]:.2f}</td><td>{t["sell_price"]:.2f}</td><td class="pnl">{t["profit_pct"]:+.1f}%</td><td>{t["hold_days"]}天</td><td class="reason">{t["buy_reason"]}→{t["sell_reason"]}</td></tr>'
-
-        div_header = '<th>分红</th><th>总收益</th>' if show_div else ''
-        trade_table = f"""
-        <h3>📈 综合策略交易记录</h3>
-        <table class="trades">
-          <tr><th>买入日</th><th>卖出日</th><th>买入价</th><th>卖出价</th><th>价差</th>{div_header}<th>持仓</th><th>触发</th></tr>
-          {trade_rows}
-        </table>""" if trades else '<h3>📈 综合策略交易记录</h3><p>无交易信号</p>'
-
-        # Chart
-        dates_dt = np.array([datetime.strptime(d, '%Y-%m-%d') for d in dates])
-        img_b64 = make_comprehensive_chart(code, name, dates_dt, closes, highs, lows, vols, trades)
-
-        return f"""
-        <div class="result">
-          {conclusion_html}
-          {overview}
-          {analysis_html}
-          {trade_table}
-          <img src="data:image/png;base64,{img_b64}" alt="Comprehensive Chart" loading="lazy">
-        </div>"""
-
-
 
     def log_message(self, format, *args):
         print(f"[{datetime.now().strftime('%H:%M:%S')}] {args[0]}", flush=True)
@@ -1040,7 +786,7 @@ class Handler(BaseHTTPRequestHandler):
                     s = pred['scores']
                     html += f'<tr><td>MACD核心</td><td>{s["macd"]["score"]:.1f} (×0.40)</td></tr>'
                     html += f'<tr><td>多因子</td><td>{s["multifactor"]["score"]:.1f} (×0.30)</td></tr>'
-                    html += f'<tr><td>基本面</td><td>{s["fundamental"]["score"]:.1f} (×0.15)</td></tr>'
+                    html += f'<tr><td>价格位置/趋势</td><td>{s["fundamental"]["score"]:.1f} (×0.15)</td></tr>'
                     html += f'<tr><td>量能</td><td>{s["game"]["score"]:.1f} (×0.15)</td></tr>'
                     html += f'<tr><td>门禁</td><td>{"✅通过" if pred["gates"]["passed"] else "🔴否决"}</td></tr>'
 
@@ -1069,6 +815,7 @@ class Handler(BaseHTTPRequestHandler):
 # ═══════════════════════════
 if __name__ == '__main__':
     import socket
+    PORT = int(sys.argv[1]) if len(sys.argv) > 1 else PORT
     print(f"A股策略分析 Web → http://localhost:{PORT}")
     print("Ctrl+C 停止\n")
     ThreadingHTTPServer.allow_reuse_address = True

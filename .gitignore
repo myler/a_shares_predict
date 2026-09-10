@@ -6,6 +6,8 @@ stock_cache.db
 stock_cache.db-shm
 stock_cache.db-wal
 web.log
+nohup.out
+.venv/
 *.png
 *.jpg
 .DS_Store

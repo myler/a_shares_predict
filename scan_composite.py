@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
-"""横截面多因子海选（新版，替换 S* 离散排名）：
-算10个技术因子 → 横截面 percentile rank → ICIR 加权合成 → PE/主板过滤 → top N。
+"""横截面多因子海选（Web /scan 与本脚本共用，不是融合策略 S*）：
+主板/至少300根缓存日线 → 13个技术因子中12项参与横截面排名和ICIR加权
+→ 报价/PE/最低价过滤 → top N。权重来自历史样本内研究，结果尚未完成样本外验证。
 
 用法: python3 scan_composite.py [-n N] [--max-pe 100] [--min-price 5] [--out file.json]
 """
