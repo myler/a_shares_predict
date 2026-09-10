@@ -1,6 +1,10 @@
 *.py text eol=lf
 *.md text eol=lf
+*.txt text eol=lf
 .gitattributes text eol=lf
 
 # The local SQLite cache must never be processed as a Git LFS object.
 stock_cache.db -filter -diff -merge -text
+
+# Preserve exported evidence bytes, including standard CSV CRLF record endings.
+reports/**/*.csv -text whitespace=cr-at-eol

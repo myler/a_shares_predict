@@ -101,15 +101,51 @@ class TestBonusAndTransferAccounting(unittest.TestCase):
 
 class TestGetName(unittest.TestCase):
     def test_format_6digit(self):
-        """6位数字代码应尝试查询"""
-        name = get_name('600519')
-        self.assertIsInstance(name, str)
-        self.assertTrue(len(name) > 0)
+        """缓存未命中时解析 API 返回的 GBK 名称并保存"""
+        with patch('fetcher.load_stock_name', return_value=None) as load_name, \
+             patch('fetcher.save_stock_name') as save_name, \
+             patch('fetcher.urllib.request.urlopen') as urlopen:
+            urlopen.return_value.read.return_value = (
+                'v_sh600519="1~贵州茅台~600519~";'.encode('gbk'))
+            name = get_name('600519')
+
+        self.assertEqual(name, '贵州茅台')
+        load_name.assert_called_once_with('600519')
+        urlopen.assert_called_once()
+        self.assertEqual(urlopen.call_args.args[0].full_url,
+                         'http://qt.gtimg.cn/q=sh600519')
+        self.assertEqual(urlopen.call_args.kwargs, {'timeout': 5})
+        save_name.assert_called_once_with('600519', '贵州茅台')
 
     def test_unknown_code(self):
-        """不存在的代码应返回代码本身"""
-        name = get_name('999999')
+        """缓存未命中且三个数据源均失败时返回代码，不保存"""
+        with patch('fetcher.load_stock_name', return_value=None) as load_name, \
+             patch('fetcher.save_stock_name') as save_name, \
+             patch('fetcher.urllib.request.urlopen',
+                   side_effect=TimeoutError('offline')) as urlopen:
+            name = get_name('999999')
+
         self.assertEqual(name, '999999')
+        load_name.assert_called_once_with('999999')
+        self.assertEqual(urlopen.call_count, 3)
+        self.assertEqual(
+            [call.args[0].full_url for call in urlopen.call_args_list],
+            ['http://qt.gtimg.cn/q=sz999999',
+             'https://hq.sinajs.cn/list=sz999999',
+             'https://push2.eastmoney.com/api/qt/stock/get?secid=0.999999&fields=f57,f58'])
+        save_name.assert_not_called()
+
+    def test_cache_hit_without_network(self):
+        """缓存命中时直接返回名称，不联网也不重复保存"""
+        with patch('fetcher.load_stock_name', return_value='贵州茅台') as load_name, \
+             patch('fetcher.save_stock_name') as save_name, \
+             patch('fetcher.urllib.request.urlopen') as urlopen:
+            name = get_name('600519')
+
+        self.assertEqual(name, '贵州茅台')
+        load_name.assert_called_once_with('600519')
+        urlopen.assert_not_called()
+        save_name.assert_not_called()
 
 
 class TestFinancialSummaries(unittest.TestCase):

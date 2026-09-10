@@ -1,0 +1,1 @@
+{"schema_version":1,"start":"2015-01-01","end":"2026-09-10","page_size":500,"endpoint":"https://datacenter-web.eastmoney.com/api/data/v1/get","dividends_report":"RPT_SHAREBONUS_DET","rights_report":"RPT_IPO_ALLOTMENT"}

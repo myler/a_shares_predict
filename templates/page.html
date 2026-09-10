@@ -7,9 +7,12 @@
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect x='4' y='4' width='3' height='24' fill='%23ef5350'/><rect x='10' y='10' width='3' height='18' fill='%234caf50'/><rect x='16' y='7' width='3' height='21' fill='%234caf50'/><rect x='22' y='13' width='3' height='15' fill='%23ef5350'/><rect x='28' y='16' width='3' height='12' fill='%234caf50'/></svg>">
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
-body{font-family:-apple-system,system-ui,sans-serif;background:#f5f5f5;color:#333;padding:20px;max-width:920px;margin:0 auto}
+body{font-family:-apple-system,system-ui,sans-serif;background:#f5f5f5;color:#333;width:100%;padding:clamp(12px,2vw,32px);margin:0}
 h1{font-size:20px;margin-bottom:12px}
-form{display:flex;flex-direction:column;gap:8px;margin-bottom:16px;max-width:520px}
+form{display:grid;grid-template-columns:minmax(240px,320px) minmax(0,1fr);gap:20px;align-items:start;margin-bottom:20px;width:100%}
+.analysis-controls{display:flex;flex-direction:column;gap:10px;min-width:0}
+form>.strategy{margin-top:0;min-width:0}
+select{max-width:100%;width:100%}
 input{width:100%;padding:10px 14px;font-size:16px;border:2px solid #ddd;border-radius:6px;outline:none}
 input:focus{border-color:#1565C0}
 button{padding:10px 24px;font-size:16px;background:#1565C0;color:#fff;border:none;border-radius:6px;cursor:pointer}
@@ -17,9 +20,14 @@ button:hover{background:#0D47A1}
 button:disabled{background:#90CAF9;cursor:wait}
 label.holding{display:flex;align-items:center;gap:8px;font-size:15px;cursor:pointer;padding:4px 0}
 label.holding input{width:auto}
-.result{background:#fff;border-radius:8px;padding:20px;box-shadow:0 1px 3px rgba(0,0,0,.1)}
+.result{background:#fff;border-radius:8px;padding:clamp(12px,2vw,20px);box-shadow:0 1px 3px rgba(0,0,0,.1);min-width:0;overflow-wrap:anywhere}
 .result h2{font-size:18px;margin-bottom:12px}
-.result img{max-width:100%;margin-top:16px;border-radius:6px;box-shadow:0 1px 3px rgba(0,0,0,.12)}
+.result img{display:block;width:100%;height:auto;margin-top:16px;border-radius:6px;box-shadow:0 1px 3px rgba(0,0,0,.12)}
+.top-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,360px),1fr));gap:20px}
+.top-row>div{min-width:0}
+.table-scroll{width:100%;max-width:100%;overflow-x:auto;overscroll-behavior-x:contain;margin:8px 0}
+.table-scroll:focus-visible{outline:2px solid #1565C0;outline-offset:2px}
+.table-scroll .trades,.table-scroll .scan-table{min-width:720px}
 .error{background:#fff0f0;color:#c62828;padding:16px;border-radius:6px;border:1px solid #ffcdd2}
 .loading{text-align:center;padding:40px;color:#666}
 .conclusion{padding:14px 20px;margin:10px 0;border-radius:6px;font-size:20px;font-weight:bold;text-align:center;letter-spacing:4px}
@@ -43,11 +51,11 @@ h3{margin:16px 0 8px;font-size:16px}
 /* ── 公式卡片 ── */
 .strategy{background:#fff;border-radius:8px;padding:16px 20px;box-shadow:0 1px 3px rgba(0,0,0,.1);margin-top:8px}
 .strategy h3{font-size:14px;margin-bottom:12px;color:#1565C0}
-.formula-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 16px}
-.formula-item{display:flex;align-items:baseline;gap:6px;font-size:13px;padding:4px 0}
+.formula-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr));gap:8px 16px}
+.formula-item{display:flex;align-items:baseline;gap:6px;font-size:13px;padding:4px 0;min-width:0}
 .formula-label{font-weight:600;white-space:nowrap;color:#555;min-width:72px}
 .formula-w{color:#1565C0;font-weight:700;min-width:32px;text-align:right;font-size:12px}
-.formula-math{color:#333;font-family:'SF Mono',Consolas,monospace;font-size:12px;line-height:1.5}
+.formula-math{color:#333;font-family:'SF Mono',Consolas,monospace;font-size:12px;line-height:1.5;min-width:0;overflow-wrap:anywhere}
 .formula-section{margin-top:10px;padding-top:8px;border-top:1px solid #eee}
 .formula-section h4{font-size:12px;color:#888;margin-bottom:6px;text-transform:uppercase;letter-spacing:1px}
 .gate-row{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:12px;color:#666}
@@ -55,7 +63,7 @@ h3{margin:16px 0 8px;font-size:16px}
 .gate-tag.fail{background:#fce4ec;color:#c62828}
 
 /* ── Tab ── */
-.tabs{display:flex;gap:8px;margin-bottom:16px;border-bottom:2px solid #ddd}
+.tabs{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px;border-bottom:2px solid #ddd}
 .tab{padding:10px 20px;font-size:15px;background:transparent;color:#666;border:none;border-bottom:3px solid transparent;border-radius:0;cursor:pointer}
 .tab.active{color:#1565C0;font-weight:bold;border-bottom-color:#1565C0;background:transparent}
 .tab:hover{color:#1565C0;background:transparent}
@@ -68,90 +76,114 @@ h3{margin:16px 0 8px;font-size:16px}
 .scan-form{display:flex;align-items:center;gap:10px;margin:14px 0;flex-wrap:wrap}
 .scan-form input{width:64px;padding:6px 10px;font-size:14px;border:2px solid #ddd;border-radius:6px}
 .scan-form button{padding:8px 16px;font-size:14px}
-.hint{color:#888;font-size:13px;line-height:1.8}
+.hint{color:#666;font-size:13px;line-height:1.8;overflow-wrap:anywhere}
+.method-note{padding:10px 12px;background:#fff8e1;border-left:3px solid #ffb300;border-radius:4px;color:#665018;font-size:13px;line-height:1.7}
+@media(max-width:900px){form{grid-template-columns:minmax(0,1fr);gap:16px}}
+@media(max-width:600px){.formula-grid{grid-template-columns:minmax(0,1fr)}.strategy{padding:14px}.scan-table{font-size:12px}.scan-table th,.scan-table td{padding:6px 4px}.conclusion{font-size:18px;letter-spacing:1px}.tab{padding:10px 12px}}
 </style>
 </head>
 <body>
 <h1>📊 A股策略分析</h1>
 <div class="tabs">
-  <button class="tab active" onclick="switchTab('analyze')">策略分析</button>
-  <button class="tab" onclick="switchTab('scan')">Top-N 海选</button>
+  <button class="tab active" data-tab="analyze" onclick="switchTab('analyze')">策略分析</button>
+  <button class="tab" data-tab="scan" onclick="switchTab('scan')">多维回测总览</button>
+  <button class="tab" data-tab="legacy-scan" onclick="switchTab('legacy-scan')">旧加权海选（非帕累托）</button>
 </div>
 
 <!-- ══════════ Tab 1: 策略分析 ══════════ -->
 <div id="tab-analyze">
 <form onsubmit="analyze(event)">
-  <input id="code" type="text" placeholder="输入股票代码，如 603893" autofocus required>
+  <div class="analysis-controls">
+  <input id="code" type="text" placeholder="输入股票代码，如 603893" oninput="resetAnalysis()" pattern="[0-9]{6}" maxlength="6" autofocus required>
   <div style="margin:8px 0">
     <select id="strategy" onchange="onStrategyChange()" style="padding:8px 12px;font-size:16px;border:2px solid #ddd;border-radius:6px;background:#fff">
-      <option value="comprehensive">融合策略</option>
+      <option value="pareto">多维融合（帕累托＋风险预算）</option>
+      <option value="comprehensive">融合评分（旧加权策略）</option>
       <option value="buyhold">长线持有</option>
       <option value="value">巴芒基本面研究</option>
     </select>
   </div>
-  <label class="holding">
+  <label class="holding" id="holdingLabel">
     <input type="checkbox" id="holding" onchange="toggleDividend()"> 已持仓
   </label>
   <label class="holding" id="divLabel" style="display:none">
-    <input type="checkbox" id="calcDividend"> 计算分红（含每股分红收益）
+    <input type="checkbox" id="calcDividend" onchange="resetAnalysis()"> 计算分红（含每股分红收益）
   </label>
-  <div class="strategy" id="formulaBox"></div>
   <button id="btn" type="submit">分析</button>
+  <p class="hint" id="paretoReadOnly">仅读取完成回测；不接受当前持仓或分红开关，不联网刷新。现金分红按历史账户账本展示。</p>
+  </div>
+  <div class="strategy" id="formulaBox"></div>
 </form>
 <div id="result"></div>
 </div>
 
-<!-- ══════════ Tab 2: Top-N 海选 ══════════ -->
+<!-- ══════════ Tab 2: 完成运行的多维回测总览 ══════════ -->
 <div id="tab-scan" style="display:none">
   <div class="strategy">
-    <h3>📐 Top-N 海选算法</h3>
+    <h3>📐 多维回测总览（全部独立账户）</h3>
+    <p class="method-note">仅读取已完成的本地 Pareto34 回测，不联网、不刷新缓存。旧缓存并非实时推荐；无完成运行时不会回落旧加权策略。</p>
     <p class="hint">
-      全市场主板（600/601/603/605/000/001/002/003）每只股票算 <b>12 个技术因子</b>：
-      低波动率、低 ATR、低成交额（小市值效应）、均值回归（接近 MA20）、超买超卖健康度、
-      动量、均线多头度、量比、OBV 净量能流、量价配合等。<br>
-      每个因子在<b>横截面做百分位排名</b>，用回测训练出的 <b>ICIR 权重</b>加权合成总分，
-      再<b>过滤亏损股（PE≤0）、高 PE（&gt;100）、低价股（&lt;5 元）</b>，按总分降序取 top-N。
-      约 30~60 秒。
+      每只主板股票独立 100 万元账户，34 个原子投票不加权；每日全部 F1 保留，风险预算动态定仓，不是 F1 满仓。<br>
+      <b>总资金、年度收益及留出期结果覆盖实际全部账户。</b>N 仅控制按代码顺序展示前几份账户，不是收益排名、加权选择或推荐 Top-N。
+      无交易和失败账户的本金仍参与统计；残余股份标记值不等于已兑现现金。
+      权息失败或未核验、配股历史账户保守隔离，全期禁买但保留本金。
     </p>
   </div>
   <div class="scan-form">
-    <label>Top N <input id="scanN" value="5" type="number" min="1" max="100"></label>
-    <label>PE上限 <input id="scanPe" value="100" type="number" step="10"></label>
-    <label>最低价 <input id="scanPrice" value="5" type="number" step="0.5"></label>
-    <button onclick="runScan()">开始海选</button>
+    <label>展示账户数 <input id="scanN" value="5" type="number" min="1" max="100"></label>
+    <button onclick="runScan()">读取完成回测</button>
   </div>
   <div id="scan-result"></div>
 </div>
 
+  <!-- 旧扫描独立保留，绝不由默认多维入口调用。 -->
+  <div id="tab-legacy-scan" style="display:none">
+    <div class="strategy">
+      <h3>旧加权海选（非帕累托）</h3>
+      <p class="method-note">横截面因子加权相对分 Top-N，不是 Pareto34 前沿或独立账户回测；可能联网取报价，仅点击此旧入口时运行。</p>
+      <p class="hint">相对分不是融合 S*。按各股缓存末日计算、未统一日期；历史表现与当前报价不能混用为收益结论。</p>
+    </div>
+    <div class="scan-form">
+      <label>Top-N <input id="legacyN" value="5" type="number" min="1" max="100"></label>
+      <label>最高 PE <input id="legacyPE" value="100" type="number" min="1"></label>
+      <label>最低价格 <input id="legacyPrice" value="5" type="number" min="0" step="0.1"></label>
+      <button onclick="runLegacyScan()">运行旧加权海选（可能联网）</button>
+    </div>
+    <div id="legacy-scan-result"></div>
+  </div>
+
 <script>
+const COMPREHENSIVE_CONFIG = __COMPREHENSIVE_CONFIG__;
+const PARETO_FORMULA = __PARETO_FORMULA__;
+const C = COMPREHENSIVE_CONFIG;
 const FORMULAS={
-  comprehensive:{title:'融合策略（双路径）',html:`
-    <div class="formula-section"><h4>核心评分 S*</h4>
-      <div class="formula-math" style="font-size:14px;text-align:center;padding:4px 0"><b>S*</b> = M<sub>MACD</sub>×0.40 + F<sub>因子</sub>×0.30 + P<sub>价格位置</sub>×0.15 + Q<sub>量能</sub>×0.15 − 0.08×A<sub>18副指标共识</sub> + Z<sub>资金流</sub></div>
+  pareto:{title:'多维融合（帕累托＋风险预算）',html:PARETO_FORMULA},
+  comprehensive:{title:'融合评分（旧加权策略）',html:`
+    <p class="method-note">此旧策略仍是加权标量化，不是帕累托多目标决策。四维内部先加减分，18 项投票先合并成共识 A，再合成 S*；相反信号可能抵消。请选择默认多维融合查看新的独立账户回测。</p>
+    <div class="formula-section"><h4>核心评分 S*（加权标量，非帕累托）</h4>
+      <div class="formula-math" style="font-size:14px;text-align:center;padding:4px 0"><b>S*</b> = M<sub>MACD</sub>×0.40 + F<sub>因子</sub>×0.30 + P<sub>价格位置</sub>×0.15 + Q<sub>量能</sub>×0.15 − ${C.auxiliary_beta}×A<sub>18项辅助共识</sub></div>
     </div>
     <div class="formula-grid">
       <div class="formula-item"><span class="formula-label">MACD核心</span><span class="formula-w">40%</span><span class="formula-math">DIF/DEA多空、零轴、5日DIF斜率、3日BAR趋势、底/顶背离</span></div>
       <div class="formula-item"><span class="formula-label">多因子</span><span class="formula-w">30%</span><span class="formula-math">RSI、KDJ、J值、布林位置、WR超买超卖</span></div>
       <div class="formula-item"><span class="formula-label">价格位置/趋势</span><span class="formula-w">15%</span><span class="formula-math">250日价格位置、年价格涨幅</span></div>
-      <div class="formula-item"><span class="formula-label">量能</span><span class="formula-w">15%</span><span class="formula-math">OBV 5日净量能流、量价背离、机构吸筹代理</span></div>
+      <div class="formula-item"><span class="formula-label">量能</span><span class="formula-w">15%</span><span class="formula-math">OBV 5日净量能流、量价背离、波动率代理</span></div>
     </div>
-    <div class="formula-section"><h4>18 项辅助指标共识 A（−8 ~ +8 反向修正）</h4>
+    <p class="hint">P 是价格序列代理，不是财务基本面；Q 不是实际主力资金流。</p>
+    <div class="formula-section"><h4>18 项辅助指标共识 A（最大 ±${C.auxiliary_beta * 100} 分反向修正）</h4>
       <div class="formula-math" style="font-size:12px">DMI、CCI、BIAS(6/12)、EXPMA、BBI、TRIX、VR、BR、AR、CR、DMA、DPO、MTM、SKDJ、LWR、ENE、LON —— 各投 +1看多/−1看空/0中性，A=(N多−N空)/18×100</div>
+      <p class="hint">偏空共识小幅加分、偏多共识小幅减分；不改变质量门禁，评分不是概率。</p>
     </div>
-    <div class="formula-section"><h4>资金流加分 Z</h4>
-      <div class="formula-math" style="font-size:12px">主力净流入当日横截面百分位 rank × 10（0~10 分）</div>
+    <div class="formula-section"><h4>🟢 回测买入</h4>
+      <div class="formula-math">S* ≥ ${C.buy_score} 且通过全部门禁。收盘形成信号，下一交易日开盘执行。</div>
     </div>
-    <div class="formula-section"><h4>🟢 双路径买入</h4>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px 16px;font-size:12px">
-        <div><b style="color:#1565C0">路径1 技术达标</b><br>S*≥69 → 首仓25%<br>分数增强加仓：≥75→50%、≥80→75%、≥85→100%</div>
-        <div><b style="color:#e65100">路径2 龙虎榜龙头</b><br>连板≥2+净买&gt;15%+换手&lt;12.5%<br>→ 满仓100万，持有2日卖出</div>
-      </div>
-    </div>
-    <div class="formula-section"><h4>🔴 减仓 / 清仓</h4>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 16px;font-size:12px">
-        <div style="color:#f57f17"><b>减仓</b> &nbsp; S*&lt;35 或 炸板 → 减至50%</div>
-        <div style="color:#c62828"><b>清仓</b> &nbsp; 移动止盈(回撤8%) | 止损−8% | 跌破5日线</div>
-      </div>
+    <div class="formula-section"><h4>🔴 回测卖出（任一条件）</h4>
+      <div class="formula-math">止损：浮动价差收益 &lt; ${C.stop_loss_pct}%<br>
+        止盈：浮动价差收益 &gt; +${C.take_profit_pct}%<br>
+        低分退出：S* &lt; 35<br>
+        获利回吐：浮动价差收益 &gt; ${C.profit_protect_pct}% 且 S* &lt; ${C.profit_protect_score}<br>
+        顶背离；持仓超过10个交易日后每5日检查 M顶/头肩顶破颈线、看跌吞没。</div>
+      <p class="hint">收益判断含比例费用。卖出也是收盘信号、次日开盘执行，不保证成交在阈值价格。</p>
     </div>
     <div class="formula-section"><h4>质量门禁（任一项触发即否决买入）</h4>
       <div class="gate-row">
@@ -159,63 +191,103 @@ const FORMULAS={
         <span class="gate-tag">RSI &gt; 92</span>
         <span class="gate-tag">M&lt;35 ∧ F&lt;40</span>
       </div>
+    </div>
+    <div class="formula-section"><h4>执行与收益边界</h4>
+      <p class="hint">双边佣金各 ${(C.commission_rate * 100).toFixed(2)}%，卖出印花税 ${(C.stamp_duty_rate * 100).toFixed(2)}%。只汇总已完成交易，不计期末未平仓。权息风控、滑点和不可成交约束尚不完整。<br>
+      当前“增持/减持”只是评分建议，不代表分仓执行，未使用实际买入成本。没有接入龙虎榜路径或资金流加分。请核对缓存日期；历史回测不等于未来收益。</p>
     </div>`
   },
   buyhold:{title:'长线持有',html:`
     <div style="font-size:13px;line-height:1.8;color:#555">
-      <b>买入</b>：数据起始日一次性买入，持有至今不卖<br>
-      <b>分红</b>：持有期间所有已实施分红累加<br>
-      <b>对比</b>：直观比较 <i>"择时交易 vs 买入不动"</i> 的收益差异
+      <b>买入</b>：缓存起始日收盘买入，展示至缓存末日的价格变化<br>
+      <b>分红</b>：勾选后展示现金分红（元/股）<br>
+      <b>限制</b>：送转股份与分红日期上限尚未完善，不是经校验的完整持有总收益
     </div>`
   },
   value:{title:'巴芒基本面研究',html:`
     <div style="font-size:13px;line-height:1.8;color:#555">
-      <b>财务质量初筛</b>：连续扣非盈利、经营现金流转化、ROE、杠杆与流动性<br>
+      <b>财务质量初筛</b>：扣非盈利、经营现金流转化、ROE、杠杆与流动性<br>
       <b>数据口径</b>：已披露年报摘要；未替代年报原文、治理审查或行业研究<br>
+      <b>适用限制</b>：金融机构需专用方法；少于三份年报不作结论，目前未严格验证年度连续性<br>
       <b>输出边界</b>：只给候选池研究状态，不生成买卖信号或 DCF 目标价
     </div>`
   }
 };
 function switchTab(name){
-  document.getElementById('tab-analyze').style.display = name==='analyze'?'block':'none';
-  document.getElementById('tab-scan').style.display = name==='scan'?'block':'none';
-  const tabs=document.querySelectorAll('.tab');
-  tabs[0].classList.toggle('active',name==='analyze');
-  tabs[1].classList.toggle('active',name==='scan');
+  document.querySelectorAll('.tab[data-tab]').forEach(tab=>{
+    const active=tab.dataset.tab===name;
+    tab.classList.toggle('active',active);
+    document.getElementById('tab-'+tab.dataset.tab).style.display=active?'block':'none';
+  });
 }
+let analysisRevision=0;
 function getStrategy(){return document.getElementById('strategy').value;}
+function resetAnalysis(){
+  // Ignore late responses for an earlier strategy, stock or holding state.
+  analysisRevision++;
+  document.getElementById('result').replaceChildren();
+  const btn=document.getElementById('btn');
+  btn.disabled=false;btn.textContent=getStrategy()==='pareto'?'读取完成回测':'分析';
+}
 function onStrategyChange(){
+  resetAnalysis();
   const s=getStrategy();
   const holding=document.getElementById('holding');
   const f=FORMULAS[s];
   const box=document.getElementById('formulaBox');
   box.innerHTML='<h3>📐 策略公式 — '+f.title+'</h3>'+f.html;
+  document.getElementById('holdingLabel').style.display=(s==='pareto' || s==='value')?'none':'flex';
+  document.getElementById('paretoReadOnly').style.display=s==='pareto'?'block':'none';
   if(s==='buyhold'){
     holding.checked=true;holding.disabled=true;
     document.getElementById('divLabel').style.display='flex';
-  }else if(s==='value'){
+  }else if(s==='value' || s==='pareto'){
     holding.checked=false;holding.disabled=true;
     document.getElementById('calcDividend').checked=false;
     document.getElementById('divLabel').style.display='none';
   }else{holding.disabled=false;toggleDividend();}
 }
 function toggleDividend(){
+  resetAnalysis();
   const holding=document.getElementById('holding').checked;
   document.getElementById('divLabel').style.display=holding?'flex':'none';
   if(!holding)document.getElementById('calcDividend').checked=false;
 }
+function prepareResultTables(container){
+  // 表格在自己的区域内滚动，不能将整个页面撑出视口；不改变原生表格语义。
+  container.querySelectorAll('table').forEach(table=>{
+    if(table.parentElement.classList.contains('table-scroll'))return;
+    const wrapper=document.createElement('div');
+    wrapper.className='table-scroll';
+    wrapper.tabIndex=0;
+    wrapper.setAttribute('role','region');
+    wrapper.setAttribute('aria-label','结果表格，可横向滚动');
+    table.before(wrapper);
+    wrapper.appendChild(table);
+  });
+}
 async function runScan(){
   const n=document.getElementById('scanN').value;
-  const pe=document.getElementById('scanPe').value;
-  const price=document.getElementById('scanPrice').value;
   const box=document.getElementById('scan-result');
-  box.innerHTML='<div class=loading>⏳ 海选中，约 30~60 秒...</div>';
+  box.innerHTML='<div class=loading>⏳ 正在读取本地完成回测...</div>';
   try{
-    const url='/scan?n='+encodeURIComponent(n)+'&max_pe='+encodeURIComponent(pe)+'&min_price='+encodeURIComponent(price);
+    const url='/pareto-summary?n='+encodeURIComponent(n);
     const resp=await fetch(url);
     if(!resp.ok){const t=await resp.text();box.innerHTML='<div class=error>'+t+'</div>'}
-    else{box.innerHTML=await resp.text()}
-  }catch(err){box.innerHTML='<div class=error>请求失败: '+err.message+'</div>'}
+    else{box.innerHTML=await resp.text();prepareResultTables(box)}
+  }catch(err){box.textContent='请求失败: '+err.message}
+}
+async function runLegacyScan(){
+  const box=document.getElementById('legacy-scan-result');
+  const n=document.getElementById('legacyN').value;
+  const pe=document.getElementById('legacyPE').value;
+  const price=document.getElementById('legacyPrice').value;
+  box.innerHTML='<div class=loading>正在运行旧加权扫描（可能联网）...</div>';
+  try{
+    const legacyUrl='/scan?n='+encodeURIComponent(n)+'&max_pe='+encodeURIComponent(pe)+'&min_price='+encodeURIComponent(price);
+    const resp=await fetch(legacyUrl);
+    box.innerHTML=await resp.text();prepareResultTables(box);
+  }catch(err){box.textContent='请求失败: '+err.message}
 }
 async function analyze(e){
   e.preventDefault();
@@ -230,15 +302,21 @@ async function analyze(e){
   }
   const btn=document.getElementById('btn');
   const result=document.getElementById('result');
+  const revision=++analysisRevision;
   btn.disabled=true;btn.textContent='分析中...';
-  result.innerHTML='<div class=loading>⏳ 正在拉取数据并计算...</div>';
+  result.innerHTML=strategy==='pareto'
+    ?'<div class=loading>⏳ 正在读取本地完成回测（非实时推荐）...</div>'
+    :'<div class=loading>⏳ 正在拉取数据并计算...</div>';
   try{
-    const url='/analyze?code='+encodeURIComponent(code)+'&holding='+(holding?'1':'0')+'&dividend='+(calcDividend?'1':'0')+'&strategy='+strategy;
+    const url='/analyze?code='+encodeURIComponent(code)+'&strategy='+encodeURIComponent(strategy)
+      +(strategy==='pareto'?'':'&holding='+(holding?'1':'0')+'&dividend='+(calcDividend?'1':'0'));
     const resp=await fetch(url);
-    if(!resp.ok){const t=await resp.text();result.innerHTML='<div class=error>'+t+'</div>'}
-    else{result.innerHTML=await resp.text()}
-  }catch(err){result.innerHTML='<div class=error>请求失败: '+err.message+'</div>'}
-  btn.disabled=false;btn.textContent='分析'
+    const text=await resp.text();
+    if(revision!==analysisRevision)return;
+    if(!resp.ok){result.innerHTML='<div class=error>'+text+'</div>'}
+    else{result.innerHTML=text;prepareResultTables(result)}
+  }catch(err){if(revision===analysisRevision)result.textContent='请求失败: '+err.message}
+  if(revision===analysisRevision){btn.disabled=false;btn.textContent=strategy==='pareto'?'读取完成回测':'分析'}
 }
 onStrategyChange();
 </script>
