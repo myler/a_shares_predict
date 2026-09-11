@@ -62,8 +62,8 @@ def _parse_tencent_day_klines(payload, symbol):
                 raise SourceResponseFormatError(
                     f'腾讯响应格式错误：第 {row_number} 根日线字段不足')
             entry = {
-                'day': str(row[0]), 'open': str(row[1]), 'high': str(row[2]),
-                'low': str(row[3]), 'close': str(row[4]), 'volume': str(row[5]),
+                'day': str(row[0]), 'open': str(row[1]), 'high': str(row[3]),
+                'low': str(row[4]), 'close': str(row[2]), 'volume': str(row[5]),
             }
         elif isinstance(row, dict):
             entry = {
