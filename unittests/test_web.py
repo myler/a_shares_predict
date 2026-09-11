@@ -1,19 +1,16 @@
-"""Web 路由、页面参数与结构化引擎契约；所有数据使用模拟输入。"""
+"""三策略 Web 路由、刷新委托与页面契约；所有数据使用模拟输入。"""
 
-import inspect
+import ast
 import io
 import json
+from html.parser import HTMLParser
 from pathlib import Path
 import re
 import sys
 import unittest
-from datetime import date, timedelta
 from unittest.mock import Mock, patch
 
-import numpy as np
-
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-import engine
 import web
 
 
@@ -27,9 +24,34 @@ def make_handler(path='/'):
     return handler
 
 
-def page_config(page):
-    return json.loads(re.search(
-        r'const COMPREHENSIVE_CONFIG = (\{[^\n]+\});', page).group(1))
+class PageControls(HTMLParser):
+    """检查真实 HTML 控件，不把脚本字符串误当作可见选项。"""
+    def __init__(self, page):
+        super().__init__()
+        self.options = []
+        self.tabs = []
+        self.elements = {}
+        self.current = None
+        self.feed(page)
+
+    def handle_starttag(self, tag, attrs):
+        attrs = dict(attrs)
+        if 'id' in attrs:
+            self.elements[attrs['id']] = attrs
+        if tag == 'option':
+            self.current = [attrs, '']
+            self.options.append(self.current)
+        elif tag == 'button' and 'data-tab' in attrs:
+            self.current = [attrs, '']
+            self.tabs.append(self.current)
+
+    def handle_data(self, text):
+        if self.current is not None:
+            self.current[1] += text
+
+    def handle_endtag(self, tag):
+        if tag in ('option', 'button'):
+            self.current = None
 
 
 class OfflineWebCase(unittest.TestCase):
@@ -39,79 +61,75 @@ class OfflineWebCase(unittest.TestCase):
 
 
 class TestPageContract(OfflineWebCase):
-    def test_config_matches_engine_defaults(self):
-        config = page_config(web.PAGE)
-        defaults = inspect.signature(engine.backtest_comprehensive).parameters
-        self.assertEqual(set(config), {
-            'buy_score', 'stop_loss_pct', 'take_profit_pct',
-            'profit_protect_pct', 'profit_protect_score', 'auxiliary_beta',
-            'commission_rate', 'stamp_duty_rate',
-        })
-        for key, value in config.items():
-            self.assertEqual(value, defaults[key].default, key)
-        self.assertNotIn('__COMPREHENSIVE_CONFIG__', web.PAGE)
-
-    def test_render_reads_updated_defaults(self):
-        signature = inspect.signature(engine.backtest_comprehensive)
-
-        def changed_backtest():
-            pass
-
-        changed_backtest.__signature__ = signature.replace(parameters=[
-            param.replace(default=72) if name == 'buy_score' else param
-            for name, param in signature.parameters.items()
+    def test_exact_three_visible_options_and_two_tabs(self):
+        controls = PageControls(web.PAGE)
+        self.assertEqual([(attrs['value'], text) for attrs, text in controls.options], [
+            ('pareto', '融合策略'), ('buyhold', '长线持有'), ('value', '巴芒基本面研究'),
         ])
-        with patch('web.backtest_comprehensive', changed_backtest):
-            self.assertEqual(page_config(web.render_page())['buy_score'], 72)
+        self.assertIn('selected', controls.options[0][0])
+        for attrs, _ in controls.options:
+            self.assertNotIn('hidden', attrs)
+            self.assertNotIn('disabled', attrs)
+            self.assertNotIn('style', attrs)
+        self.assertEqual([(attrs['data-tab'], text) for attrs, text in controls.tabs], [
+            ('analyze', '策略分析'), ('scan', '融合策略回测总览'),
+        ])
+        self.assertEqual({key for key in controls.elements if key.startswith('tab-')},
+                         {'tab-analyze', 'tab-scan'})
+        self.assertNotIn('disabled', controls.elements['holding'])
 
-    def test_formula_uses_config_and_correct_comparisons(self):
-        for text in (
-            'S* ≥ ${C.buy_score}',
-            '&lt; ${C.stop_loss_pct}%', '&gt; +${C.take_profit_pct}%',
-            '&gt; ${C.profit_protect_pct}% 且 S* &lt; ${C.profit_protect_score}',
-            '− ${C.auxiliary_beta}×A', 'S* &lt; 35',
-            'OBV 5日净量能流 &lt; −60%', 'RSI &gt; 92',
-            'M&lt;35 ∧ F&lt;40', '下一交易日开盘', '不计期末未平仓',
-            '不代表分仓执行', '不是财务基本面',
-        ):
-            self.assertIn(text, web.PAGE)
-        for obsolete in ('融合策略（双路径）', 'Z<sub>', '首仓25%',
-                         '满仓100万', '减至50%', '止损−8%', '跌破5日线'):
-            self.assertNotIn(obsolete, web.PAGE)
-
-    def test_scan_and_other_strategy_boundaries(self):
-        for text in ('多维回测总览', 'N 仅控制按代码顺序展示',
-                     '实际全部账户', '旧缓存并非实时推荐',
-                     '送转股份与分红日期上限尚未完善', '未严格验证年度连续性'):
-            self.assertIn(text, web.PAGE)
-        self.assertIn("const url='/pareto-summary?n='", web.PAGE)
-        self.assertNotIn("const url='/scan?n='", web.PAGE)
-
-    def test_pareto_is_default_and_uses_shared_methodology(self):
-        options = re.findall(r'<option value="([^"]+)"', web.PAGE)
-        self.assertEqual(options[0], 'pareto')
-        self.assertIn('comprehensive', options)
+    def test_homepage_uses_only_shared_default_methodology(self):
         formula = json.loads(re.search(r'const PARETO_FORMULA = ("[^\n]+");', web.PAGE).group(1))
         self.assertEqual(formula, web.pareto_web.render_methodology())
         self.assertNotIn('__PARETO_FORMULA__', web.PAGE)
-        self.assertIn("s==='value' || s==='pareto'", web.PAGE)
-        self.assertIn("html:PARETO_FORMULA", web.PAGE)
+        self.assertIn("pareto:{title:'融合策略',html:PARETO_FORMULA}", web.PAGE)
         self.assertIn('三值化丢失幅度', formula)
         self.assertIn('不为本策略公式、参数或盈利背书', formula)
-        with patch('web.pareto_web.render_methodology', return_value='<p></script>${evil}`</p>'):
+        self.assertIn('模型默认参数（本次实际参数以分析结果为准）', formula)
+        self.assertIn('不套用于当前单股分析', formula)
+        with patch('web.pareto_web.render_methodology', return_value='<p></script>${evil}`</p>') as method, \
+             patch('web.pareto_web.render_population') as history, \
+             patch('web.fusion_web.render_analysis') as live:
             rendered = web.render_page()
+        method.assert_called_once_with()
+        history.assert_not_called()
+        live.assert_not_called()
         self.assertIn('\\u003c/script\\u003e', rendered)
         self.assertNotIn('<p></script>', rendered)
 
-    def test_legacy_renderer_removed(self):
-        self.assertFalse(hasattr(web.Handler, '_run_comprehensive_analysis_legacy'))
+    def test_retired_web_code_and_hidden_ui_are_removed(self):
+        for obsolete in ('COMPREHENSIVE_CONFIG', 'comprehensive', 'legacy-scan',
+                         'legacyN', 'legacyPE', 'legacyPrice', 'runLegacyScan',
+                         '/scan?', '旧加权', 'paretoReadOnly'):
+            self.assertNotIn(obsolete, web.PAGE)
+        for name in ('run_scan_html', 'run_comprehensive_analysis',
+                     '_run_comprehensive_analysis_legacy', 'run_analysis',
+                     'run_multifactor_analysis', 'make_pred_table'):
+            self.assertFalse(hasattr(web.Handler, name), name)
+        tree = ast.parse(Path(web.__file__).read_text(encoding='utf-8'))
+        imported = {node.module for node in ast.walk(tree) if isinstance(node, ast.ImportFrom)}
+        imported.update(alias.name for node in ast.walk(tree)
+                        if isinstance(node, ast.Import) for alias in node.names)
+        self.assertTrue({'engine', 'scan_composite', 'plotting', 'inspect'}.isdisjoint(imported))
+        self.assertIn('fusion_web', imported)
 
-    def test_weighted_methods_are_not_presented_as_pareto(self):
-        for text in ('核心评分 S*（加权标量，非帕累托）',
-                     '此旧策略仍是加权标量化',
-                     '18 项投票先合并成共识 A', '相反信号可能抵消'):
+    def test_live_refresh_and_history_boundaries_are_explicit(self):
+        single = web.PAGE.split('<div id="tab-analyze">', 1)[1].split('<!-- ══════════ Tab 2:', 1)[0]
+        for text in ('每次分析均联网刷新本股', '来源最新已完成日线',
+                     '未成功刷新，不给出最新结论', '历史不足时仅作条件判断',
+                     '不声称完整同日 F1', '历史回测期限'):
+            self.assertIn(text, single)
+        self.assertNotIn('只读', single)
+        overview = web.PAGE.split('<div id="tab-scan"', 1)[1].split('<script>', 1)[0]
+        for text in ('历史回测只读', '不联网、不刷新缓存，不重跑',
+                     '请求区间和有效截止', '本轮冻结报告',
+                     'N 仅控制按代码顺序展示', '实际全部账户', '全期禁买但保留本金'):
+            self.assertIn(text, overview)
+        for text in ('送转股份与分红日期上限尚未完善', '未严格验证年度连续性'):
             self.assertIn(text, web.PAGE)
-        self.assertNotIn('当前 Web 尚未接入帕累托非支配排序', web.PAGE)
+        summary_request = web.PAGE.split('async function runScan(){', 1)[1].split('async function analyze(e){', 1)[0]
+        self.assertIn("const url='/pareto-summary?n='", summary_request)
+        self.assertNotIn('/analyze', summary_request)
 
     def test_fluid_layout_and_scrollable_result_tables(self):
         self.assertNotIn('max-width:920px', web.PAGE)
@@ -121,35 +139,49 @@ class TestPageContract(OfflineWebCase):
         self.assertIn('overflow-x:auto', web.PAGE)
         self.assertIn('prepareResultTables(box)', web.PAGE)
         self.assertIn('prepareResultTables(result)', web.PAGE)
+        self.assertIn('wrapper.tabIndex=0', web.PAGE)
+        self.assertIn("wrapper.setAttribute('role','region')", web.PAGE)
+        self.assertIn('width:100%;height:auto', web.PAGE)
 
-    def test_tabs_and_requests_keep_legacy_scan_explicit_and_separate(self):
-        self.assertIn('data-tab="legacy-scan"', web.PAGE)
-        self.assertIn('旧加权海选（非帕累托）', web.PAGE)
-        self.assertIn('运行旧加权海选（可能联网）', web.PAGE)
-        read_only = web.PAGE.split('async function runScan(){', 1)[1].split('async function runLegacyScan(){', 1)[0]
-        legacy = web.PAGE.split('async function runLegacyScan(){', 1)[1].split('async function analyze(e){', 1)[0]
-        self.assertIn('/pareto-summary?n=', read_only)
-        self.assertNotIn('/scan?', read_only)
-        self.assertIn('/scan?n=', legacy)
-        self.assertNotIn('/pareto-summary', legacy)
-        tab = web.PAGE.split('<div id="tab-scan"', 1)[1].split('<!-- 旧扫描独立保留', 1)[0]
-        self.assertNotIn('S*', tab)
-        self.assertIn('全期禁买但保留本金', tab)
-
-    def test_strategy_changes_clear_previous_results_and_ignore_late_responses(self):
+    def test_holding_and_dividend_states(self):
         change = web.PAGE.split('function onStrategyChange(){', 1)[1].split('function toggleDividend(){', 1)[0]
         self.assertIn('resetAnalysis();', change)
-        self.assertIn("document.getElementById('holdingLabel').style.display=(s==='pareto' || s==='value')?'none':'flex'", change)
-        self.assertIn('holding.checked=false;holding.disabled=true;', change)
+        self.assertIn("document.getElementById('holdingLabel').style.display=s==='value'?'none':'flex'", change)
+        buyhold = change.split("if(s==='buyhold'){", 1)[1].split("}else if(s==='value'){", 1)[0]
+        self.assertIn('holding.checked=true;holding.disabled=true;', buyhold)
+        self.assertIn("document.getElementById('divLabel').style.display='flex'", buyhold)
+        value = change.split("}else if(s==='value'){", 1)[1].split('}else{', 1)[0]
+        self.assertIn('holding.checked=false;holding.disabled=true;', value)
+        self.assertIn("document.getElementById('calcDividend').checked=false", value)
+        self.assertIn("document.getElementById('divLabel').style.display='none'", value)
+        self.assertIn('}else{holding.disabled=false;toggleDividend();}', change)
+        toggle = web.PAGE.split('function toggleDividend(){', 1)[1].split('function prepareResultTables', 1)[0]
+        self.assertIn('resetAnalysis();', toggle)
+        self.assertIn("style.display=holding?'flex':'none'", toggle)
+        self.assertIn("if(!holding)document.getElementById('calcDividend').checked=false", toggle)
+
+    def test_late_responses_symbol_safety_and_flags_on_every_request(self):
+        controls = PageControls(web.PAGE)
+        self.assertEqual(controls.elements['code']['oninput'], 'resetAnalysis()')
+        self.assertEqual(controls.elements['code']['pattern'], '[0-9]{6}')
+        self.assertEqual(controls.elements['calcDividend']['onchange'], 'resetAnalysis()')
         self.assertIn("document.getElementById('result').replaceChildren();", web.PAGE)
         analyze = web.PAGE.split('async function analyze(e){', 1)[1]
-        self.assertIn("strategy==='pareto'?'':'&holding='", analyze)
+        self.assertIn('if(!/^[0-9]{6}$/.test(code))return;', analyze)
+        self.assertIn('encodeURIComponent(code)', analyze)
+        self.assertIn("+'&holding='+(holding?'1':'0')+'&dividend='+(calcDividend?'1':'0')", analyze)
+        self.assertNotIn("strategy==='pareto'?'':'&holding='", analyze)
+        self.assertIn("fetch(url,{cache:'no-store'})", analyze)
+        self.assertIn('联网刷新本股→计算融合指标', analyze)
+        self.assertIn('const revision=++analysisRevision;', analyze)
+        self.assertLess(analyze.index('const text=await resp.text();'), analyze.index('if(revision!==analysisRevision)return;'))
         self.assertLess(analyze.index('if(revision!==analysisRevision)return;'), analyze.index('result.innerHTML=text'))
         self.assertIn('if(revision===analysisRevision)result.textContent=', analyze)
+        self.assertIn("if(revision===analysisRevision){btn.disabled=false;btn.textContent='分析'}", analyze)
 
 
 class TestWebRoutes(OfflineWebCase):
-    def test_homepage_renders_config(self):
+    def test_homepage_renders_formula(self):
         handler = make_handler('/')
         handler.do_GET()
         handler.send_response.assert_called_once_with(200)
@@ -157,83 +189,92 @@ class TestWebRoutes(OfflineWebCase):
 
     def test_default_strategy_is_pareto(self):
         handler = make_handler('/analyze?code=000651')
-        with patch.object(handler, 'run_pareto_analysis', return_value='pareto') as run, \
-             patch.object(handler, 'run_comprehensive_analysis') as legacy, \
+        with patch('web.fusion_web.render_analysis', return_value='fusion') as run, \
+             patch('web.pareto_web.render_stock_report') as history, \
              patch('web.fetch_kline') as fetch, patch('web.save_stock_name') as save:
             handler.do_GET()
-        run.assert_called_once_with('000651')
-        legacy.assert_not_called()
+        run.assert_called_once_with('000651', False, False)
+        history.assert_not_called()
         fetch.assert_not_called()
         save.assert_not_called()
         handler.send_response.assert_called_once_with(200)
-        self.assertEqual(handler.wfile.getvalue(), b'pareto')
+        self.assertEqual(handler.wfile.getvalue(), b'fusion')
 
     def test_explicit_routes_preserved(self):
         for strategy, method, args in (
-            ('pareto', 'run_pareto_analysis', ('000651',)),
-            ('comprehensive', 'run_comprehensive_analysis', ('000651', True, True)),
+            ('pareto', 'run_pareto_analysis', ('000651', True, True)),
             ('buyhold', 'run_buyhold_analysis', ('000651', True)),
             ('value', 'run_value_analysis', ('000651',)),
-            ('macd', 'run_analysis', ('000651', True, True)),
-            ('multi', 'run_multifactor_analysis', ('000651', True, True)),
         ):
             with self.subTest(strategy=strategy):
                 handler = make_handler(
                     f'/analyze?code=000651&strategy={strategy}&holding=1&dividend=1')
-                with patch.object(handler, method, return_value='result') as run:
+                with patch.object(handler, method, return_value='result') as run, \
+                     patch('web.fusion_web.render_analysis') as refresh:
                     handler.do_GET()
                 run.assert_called_once_with(*args)
+                refresh.assert_not_called()
                 handler.send_response.assert_called_once_with(200)
 
-    def test_unknown_strategy_rejected_before_loading_data(self):
-        handler = make_handler('/analyze?code=000651&strategy=typo')
-        with patch('web.fetch_kline') as fetch:
-            handler.do_GET()
-        handler.send_response.assert_called_once_with(400)
-        fetch.assert_not_called()
-
-    def test_invalid_stock_rejected(self):
-        handler = make_handler('/analyze?code=abc')
-        with patch('web.fetch_kline') as fetch:
-            handler.do_GET()
-        handler.send_response.assert_called_once_with(400)
-        fetch.assert_not_called()
-
-    def test_scan_defaults_match_form(self):
-        for path in ('/scan', '/scan?n=bad'):
-            with self.subTest(path=path):
-                handler = make_handler(path)
-                with patch.object(handler, 'run_scan_html', return_value='scan') as run:
+    def test_retired_and_unknown_strategies_rejected_before_data_access(self):
+        for strategy in ('comprehensive', 'macd', 'multi', 'typo'):
+            with self.subTest(strategy=strategy):
+                handler = make_handler('/analyze?code=000651&strategy=' + strategy)
+                with patch('web.fetch_kline') as fetch, \
+                     patch('web.fetch_financial_summaries') as financials, \
+                     patch('web.fusion_web.render_analysis') as refresh, \
+                     patch('web.pareto_web.render_stock_report') as history:
                     handler.do_GET()
-                run.assert_called_once_with(5, 100, 5)
+                handler.send_response.assert_called_once_with(400)
+                for mocked in (fetch, financials, refresh, history):
+                    mocked.assert_not_called()
+
+    def test_invalid_stock_rejected_for_all_three_strategies(self):
+        for strategy in ('pareto', 'buyhold', 'value'):
+            for code in ('', 'abc', '12345', '1234567', '１２３４５６', '%3Csvg%3E', '00065%26'):
+                with self.subTest(strategy=strategy, code=code):
+                    handler = make_handler(f'/analyze?code={code}&strategy={strategy}')
+                    with patch('web.fusion_web.render_analysis') as refresh, \
+                         patch('web.fetch_kline') as fetch, \
+                         patch('web.fetch_financial_summaries') as financials:
+                        handler.do_GET()
+                    handler.send_response.assert_called_once_with(400)
+                    for mocked in (refresh, fetch, financials):
+                        mocked.assert_not_called()
+
+    def test_pareto_always_delegates_refresh_and_both_flags_not_http_paths(self):
+        for holding, dividend in (('0', '0'), ('1', '0'), ('0', '1'), ('1', '1'), ('true', 'true')):
+            with self.subTest(holding=holding, dividend=dividend):
+                handler = make_handler(
+                    f'/analyze?code=000651&strategy=pareto&holding={holding}&dividend={dividend}'
+                    '&path=/other&run_dir=/other&PARETO_RUN_DIR=/other&refresh=0&force=0')
+                with patch('web.fusion_web.render_analysis', return_value='refreshed analysis') as render, \
+                     patch('web.pareto_web.render_stock_report') as history, \
+                     patch('web.fetch_kline') as fetch, patch('web.save_stock_name') as save:
+                    handler.do_GET()
+                render.assert_called_once_with('000651', holding == '1', dividend == '1')
+                for mocked in (history, fetch, save):
+                    mocked.assert_not_called()
                 handler.send_response.assert_called_once_with(200)
-        self.assertIn('id="scanN" value="5"', web.PAGE)
+                self.assertEqual(handler.wfile.getvalue(), b'refreshed analysis')
 
-    def test_pareto_report_delegates_only_code(self):
-        handler = make_handler('/analyze?code=000651&holding=1&dividend=1&path=/other&run_dir=/other&refresh=1&force=1')
-        with patch('web.pareto_web.render_stock_report', return_value='local snapshot') as render, \
-             patch('web.fetch_kline') as fetch, patch('web.save_stock_name') as save:
-            handler.do_GET()
-        render.assert_called_once_with('000651')
-        fetch.assert_not_called()
-        save.assert_not_called()
-        self.assertEqual(handler.wfile.getvalue(), b'local snapshot')
+    def test_pareto_method_defaults(self):
+        with patch('web.fusion_web.render_analysis', return_value='analysis') as render:
+            self.assertEqual(make_handler().run_pareto_analysis('000001'), 'analysis')
+        render.assert_called_once_with('000001', False, False)
 
-    def test_route_prefixes_and_non_ascii_codes_cannot_trigger_data_access(self):
-        for path in ('/analyze-refresh?code=000651', '/scan-refresh', '/pareto-summary-refresh'):
+    def test_removed_scan_and_route_prefixes_return_404_without_data_access(self):
+        for path in ('/scan', '/scan?n=5&max_pe=100', '/scan?n=bad',
+                     '/analyze-refresh?code=000651', '/scan-refresh', '/pareto-summary-refresh'):
             with self.subTest(path=path):
                 handler = make_handler(path)
-                with patch.object(handler, 'run_pareto_analysis') as stock, \
-                     patch.object(handler, 'run_scan_html') as scan:
+                with patch('web.fusion_web.render_analysis') as stock, \
+                     patch('web.fetch_kline') as fetch, \
+                     patch('web.pareto_web.render_population') as overview:
                     handler.do_GET()
                 handler.send_response.assert_called_once_with(404)
-                stock.assert_not_called()
-                scan.assert_not_called()
-        handler = make_handler('/analyze?code=１２３４５６')
-        with patch('web.pareto_web.render_stock_report') as render:
-            handler.do_GET()
-        handler.send_response.assert_called_once_with(400)
-        render.assert_not_called()
+                for mocked in (stock, fetch, overview):
+                    mocked.assert_not_called()
 
     def test_pareto_summary_n_is_display_only_and_path_is_ignored(self):
         for query, expected in (('', 5), ('?n=bad', 5), ('?n=0', 1), ('?n=1000', 100),
@@ -241,91 +282,41 @@ class TestWebRoutes(OfflineWebCase):
             with self.subTest(query=query):
                 handler = make_handler('/pareto-summary' + query)
                 with patch('web.pareto_web.render_population', return_value='all accounts') as render, \
-                     patch.object(handler, 'run_scan_html') as old_scan:
+                     patch('web.fusion_web.render_analysis') as refresh, \
+                     patch('web.fetch_kline') as fetch:
                     handler.do_GET()
                 render.assert_called_once_with(expected)
-                old_scan.assert_not_called()
+                refresh.assert_not_called()
+                fetch.assert_not_called()
                 handler.send_response.assert_called_once_with(200)
                 self.assertEqual(handler.wfile.getvalue(), b'all accounts')
 
     def test_pareto_route_errors_are_escaped(self):
-        for path, renderer in (('/analyze?code=000651', 'render_stock_report'),
-                               ('/pareto-summary', 'render_population')):
+        for path, renderer in (('/analyze?code=000651', 'web.fusion_web.render_analysis'),
+                               ('/pareto-summary', 'web.pareto_web.render_population')):
             with self.subTest(path=path):
                 handler = make_handler(path)
-                with patch('web.pareto_web.' + renderer, side_effect=RuntimeError('<script>bad</script>')):
+                with patch(renderer, side_effect=RuntimeError('<script>bad</script>')):
                     handler.do_GET()
                 handler.send_response.assert_called_once_with(500)
                 self.assertIn('&lt;script&gt;', handler.wfile.getvalue().decode())
                 self.assertNotIn('<script>', handler.wfile.getvalue().decode())
 
-    def test_legacy_scan_errors_are_escaped_and_never_call_pareto(self):
-        handler = make_handler('/scan')
-        with patch('web.run_scan', side_effect=RuntimeError('<script>bad</script>')), \
-             patch('web.pareto_web.render_population') as pareto:
+    def test_refresh_failure_never_falls_back_to_cached_or_historical_result(self):
+        handler = make_handler('/analyze?code=000651')
+        with patch('web.fusion_web.render_analysis', side_effect=RuntimeError('刷新失败')), \
+             patch('web.pareto_web.render_stock_report') as history, \
+             patch('web.fetch_kline') as fetch:
             handler.do_GET()
         handler.send_response.assert_called_once_with(500)
-        pareto.assert_not_called()
-        self.assertIn('旧加权海选失败', handler.wfile.getvalue().decode())
-        self.assertNotIn('<script>', handler.wfile.getvalue().decode())
+        history.assert_not_called()
+        fetch.assert_not_called()
+        self.assertIn('刷新失败', handler.wfile.getvalue().decode())
 
     def test_unknown_path(self):
         handler = make_handler('/not-found')
         handler.do_GET()
         handler.send_response.assert_called_once_with(404)
-
-
-class TestWebRendering(OfflineWebCase):
-    def test_scan_displays_each_factor_date(self):
-        rows = [dict(code='000001', name='模拟甲', score=12.5, close=10,
-                     pct=1, pe=20, mcap=100, date='2026-09-08'),
-                dict(code='600001', name='模拟乙', score=11, close=12,
-                     pct=-1, pe=30, mcap=200, date='2026-07-01')]
-        stats = {'passed': 2, 'total_codes': 2, 'elapsed': 0.1}
-        with patch('web.run_scan', return_value=(rows, stats)):
-            html = make_handler().run_scan_html(5, 100, 5)
-        self.assertIn('<th>因子日期</th>', html)
-        for row in rows:
-            self.assertIn(f'<td>{row["date"]}</td>', html)
-        self.assertIn('未统一日期', html)
-        self.assertIn('相对分不是融合 S*', html)
-        self.assertIn('旧加权海选（非帕累托）', html)
-        self.assertIn('加权相对分', html)
-        self.assertIn('可能联网取报价', html)
-
-    def test_scan_empty_result(self):
-        with patch('web.run_scan', return_value=([], {
-                'passed': 0, 'total_codes': 0, 'elapsed': 0})):
-            html = make_handler().run_scan_html(5, 100, 5)
-        self.assertIn('共 0 只通过过滤', html)
-
-    def test_comprehensive_passes_opens_and_compounds_completed_trades(self):
-        closes = 10 + np.sin(np.arange(320) / 10)
-        data = [dict(day=(date(2020, 1, 1) + timedelta(days=i)).isoformat(),
-                     open=float(close + 0.1), close=float(close),
-                     high=float(close + 0.5), low=float(close - 0.5), volume=1000)
-                for i, close in enumerate(closes)]
-        trades = [dict(buy_date='2020-03-01', sell_date='2020-03-10',
-                       buy_price=10, sell_price=11, profit_pct=10,
-                       hold_days=9, buy_reason='模拟买入', sell_reason='模拟卖出'),
-                  dict(buy_date='2020-04-01', sell_date='2020-04-10',
-                       buy_price=10, sell_price=9, profit_pct=-10,
-                       hold_days=9, buy_reason='模拟买入', sell_reason='模拟卖出')]
-        with patch('web.fetch_kline', return_value=data), \
-             patch('web.get_name', return_value='模拟股票'), \
-             patch('web.save_stock_name'), \
-             patch('web.backtest_comprehensive', return_value=trades) as backtest, \
-             patch('web.predict_comprehensive', wraps=engine.predict_comprehensive) as predict, \
-             patch('web.make_comprehensive_chart', return_value='chart'), \
-             patch('web.fetch_dividends') as dividends:
-            html = make_handler().run_comprehensive_analysis('000001', True)
-        for call in (backtest.call_args, predict.call_args):
-            np.testing.assert_allclose(call.kwargs['opens'], closes + 0.1)
-        self.assertTrue(predict.call_args.kwargs['holding'])
-        dividends.assert_not_called()
-        self.assertIn('-1.0%', html)  # 1.1 × 0.9 − 1，而不是价差简单相加。
-        self.assertIn('不计期末未平仓', html)
-        self.assertIn('不代表分仓执行', html)
 
 
 class TestDocumentationLinks(OfflineWebCase):

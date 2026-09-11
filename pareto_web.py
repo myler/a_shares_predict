@@ -173,6 +173,7 @@ def _table(headers, rows, css='trades'):
 
 def render_methodology(risk=None, account=None):
     """Shared homepage/report documentation, with model or frozen run defaults."""
+    parameter_label = '模型默认参数（本次实际参数以分析结果为准）' if risk is None else '本轮冻结参数'
     risk = risk or RiskConfig()
     account = account or AccountConfig()
     return f'''
@@ -180,22 +181,22 @@ def render_methodology(risk=None, account=None):
     同一市场日符合资格及门禁的股票比较非支配关系，全部第一前沿 F1 保留；F1 不等于满仓。
     支配要求所有维度不差且至少一维更优；相同向量同属一层，不因展示数量裁掉前沿成员。
     独立坐标不等于统计独立；三值化丢失幅度，不是保留全部信息，第一前沿也不提供唯一最优解或盈利保证。</p>
-    <p class="hint">每只股票独立初始账户 {_money(account.initial_capital)}（默认 100 万元），互不借资、不跨股归一化。
+    <p class="hint">历史回测每只股票独立初始账户 {_money(account.initial_capital)}（默认 100 万元），互不借资、不跨股归一化。
     缺历史、停牌、失败账户和闲置现金仍计入全部本金；闲置现金零利息，不保本。</p>
     <div class="formula-section"><h4>动态风险预算（不是 F1 = 100%）</h4>
     <div class="formula-math">wcap = min(1, σTarget / σ, ESbudget / ES95)；若配置 max_weight 更低，再取其上限。<br>
     min [0.5 λ σ² (w − wcap)² + c± |w − wprev|]，硬约束 0 ≤ w ≤ wcap；目标为 0 强制 exit，不因费用而继续持有。</div>
-    <p class="hint">本参数：σTarget={_percent(risk.annual_vol_target)}；ESbudget={_percent(risk.es_budget)}；
+    <p class="hint">{parameter_label}：σTarget={_percent(risk.annual_vol_target)}；ESbudget={_percent(risk.es_budget)}；
     λ={_decimal(risk.tracking_penalty)}；max_weight={_percent(risk.max_weight)}；风险窗口 {_text(risk.risk_window)} 个收益日，
     历史 ES 置信度 {_percent(risk.es_confidence)}（默认 ES95）。波动率为简单收益样本标准差 × √252，
     ES 为窗口最差尾部的非负日亏损均值；缺失风险、非 F1、资格或门禁未通过时目标为 0。
     风险分母下限 1e−8；成本优化的方差下限 1e−8。c± 为买卖两侧比例费用代理，不是给 34 维加权。
     Moreira–Muir 波动管理与 cvxportfolio 风险/成本优化仅提供概念参考，不为本策略公式、参数或盈利背书。</p></div>
-    <div class="formula-section"><h4>账本执行与假设</h4>
+    <div class="formula-section"><h4>历史回测账本执行与假设（非当前个人持仓）</h4>
     <p class="hint">收盘信号 → 下一市场交易日开盘执行（signal close → next open），T+1；停牌后过期买单不执行，退出请求可续行。
     买入及非零目标调减按 100 股整手，目标 0 尝试退出全部可卖股份，实际资金与最低费用在账本结算。<br>
     账户净值回撤 {_percent(account.max_drawdown)}（默认 15%）触发 exit + {_text(account.cooldown_sessions)} 个市场日 cooldown（默认 20 日）；
-    最后 5 个市场日 deadline 窗口禁止买入并尝试退出，公共截止日可另作收盘清仓尝试。这是预先已知的截止规则，不是同日预测成交。<br>
+    最后 5 个市场日 deadline 窗口禁止买入并尝试退出，公共截止日可另作收盘清仓尝试。这是预先已知的历史截止规则，不是同日预测成交，不套用于当前单股分析。<br>
     双边佣金 {_percent(account.commission_rate)}、每笔最低 {_money(account.minimum_commission)}；滑点 {_decimal(account.slippage_bps)} bp（默认 5bp）。
     卖出印花税在 2023-08-28 前 0.1%、之后 0.05%；双边过户费在 2022-04-29 前统一假设 0.002%、之后 0.001%，不是完整历史费率复原。<br>
     不复权价成交，权息连续化价格仅供信号；现金分红按除权日到账近似（cash dividend on ex-date），送转股份也近似当日可用，未计红利税，配股未建模。
@@ -417,7 +418,7 @@ def _population(folder, manifest, summary, risk, config, n):
                _money(t['validation_end_nav']), _text(t['scope_end']),
                '所选参数' if t['vol_target'] == risk.annual_vol_target else '—')
               for t in summary['trials']]
-    return (_header(manifest, '多维回测总览（全部独立账户）')
+    return (_header(manifest, '融合策略回测总览（全部独立账户）')
             + _table(('总资金口径', '完成运行汇总'), rows, 'overview')
             + '<h3>全量数据质量与保守隔离</h3>' + _table(('类别（可重叠，不相加）', '账户数'), quality)
             + '<p class="hint">以上资金及年度收益来自全量 summary，费用与现金分红已计入权益，不重复相加；'

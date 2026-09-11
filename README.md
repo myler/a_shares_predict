@@ -2,22 +2,47 @@
 
 完整结果与逐股可复核材料见 [本轮独立核账报告](reports/pareto_20260910/README.md)、[全部账户](reports/pareto_20260910/accounts.csv)和[核验记录](reports/pareto_20260910/verification.json)。
 
-34 个独立三值原子、每日非支配前沿、单股独立现金/股份账户，以及完成回测的只读 Web 展示。保留旧加权分析、海选、CLI、API、长线展示和财务初筛，不将它们一概标为废弃。
+34 个独立三值原子、每日非支配前沿、单股独立现金/股份账户；Web 将每次联网更新的单股融合分析与只读历史回测总览分开。长线展示、财务初筛仍在 Web；旧加权引擎、海选脚本、CLI、API 独立保留，不因移除旧 Web 入口而删除。
 
-> **当前状态（2026-09-10）**：已实现 `pareto_daily_atoms_risk_v1`，Web 默认 `pareto`，仅读取本地完成的历史报告，不生成实时推荐。**本轮实证失败：33.3 亿元本金，期末含残值亏损约 3.8735 亿元（−11.6320%），未实现保本盈利目标。** 技术实现完成不等于策略有效；历史缺陷证据仍见 [AUDIT_2026-09-09.md](AUDIT_2026-09-09.md)。
+> **当前状态（2026-09-10）**：已实现 `pareto_daily_atoms_risk_v1`，Web 默认「融合策略」（`pareto`），每次分析联网刷新本股至来源最新已完成日线，再计算条件诊断；不是盘中实时价，也不保证有可确认的同日 F1。第二标签只读完成的历史报告。**本轮实证失败：33.3 亿元本金，期末含残值亏损约 3.8735 亿元（−11.6320%），未实现保本盈利目标。** 技术实现完成不等于策略有效；历史缺陷证据仍见 [AUDIT_2026-09-09.md](AUDIT_2026-09-09.md)。
 
 ## 入口边界
 
+前端恰有两个标签：**「策略分析」／「融合策略回测总览」**。第一标签恰有三个选项：**「融合策略」（`pareto`，默认）／「长线持有」（`buyhold`）／「巴芒基本面研究」（`value`）**。
+
 | 用途 | 实际入口 | 行为与边界 |
 |---|---|---|
-| 默认多维历史报告 | Web `/analyze?code=000651&strategy=pareto`；省略策略也默认 `pareto` | [pareto_web.py](pareto_web.py) 只读冻结特征、前沿、账户与账本；不联网、不刷新、不回测，不接受当前持仓/分红开关 |
-| 多维回测总览 | Web `/pareto-summary?n=5` | 全部独立账户资金汇总；N 仅按代码顺序截断展示，不排名、不裁掉 F1、不改变总本金 |
+| 默认单股融合分析 | Web `/analyze?code=000651&strategy=pareto`；省略策略也默认 `pareto` | [fusion_web.py](fusion_web.py) → [fusion_analysis.py](fusion_analysis.py) → [live_data.py](live_data.py) 的 `refresh_stock()`；每次联网刷新并定向更新目标股票，再算 34 原子、门禁及条件风险；附独立历史账户摘要，不重跑回测 |
+| 融合策略回测总览 | Web `/pareto-summary?n=5` | [pareto_web.py](pareto_web.py) 只读完整报告，全部独立账户资金汇总；N 仅按代码顺序截断展示，不排名、不裁掉 F1、不改变总本金 |
+| 长线持有／巴芒基本面研究 | Web `/analyze` 的 `buyhold`／`value` | 保留旧长线展示与独立财务初筛，不走上述融合刷新链，不能套用其数据与账户保证 |
 | 多维研究运行 | [pareto_backtest.py](pareto_backtest.py) | 快照行情、解析权息、计算每日 34 维 F1、连续回放独立账户 |
-| 保留旧加权融合 | Web `comprehensive`、CLI `predict`、API 默认 `comprehensive` | [engine.py](engine.py) 四维加权＋18 项辅助共识；**不是 Pareto34**，各入口成交/汇总口径仍有差异 |
-| 保留旧加权海选 | Web「旧加权海选（非帕累托）」`/scan`、[scan_composite.py](scan_composite.py) | [factors.py](factors.py) 横截面排名加权；可能联网取报价，不是 S* 或 Pareto34 |
+| 保留旧加权融合 | CLI `predict`、API 默认 `comprehensive`、独立引擎 | [engine.py](engine.py) 四维加权＋18 项辅助共识；**不是 Pareto34**，已无对应 Web 策略入口 |
+| 保留旧加权海选 | 独立 [scan_composite.py](scan_composite.py) | [factors.py](factors.py) 横截面排名加权；可能联网取报价，不是 S* 或 Pareto34；Web `/scan` 已删除 |
 | 保留独立研究 | [money_backtest4.py](money_backtest4.py)、[money_pareto_backtest.py](money_pareto_backtest.py) 等 | 旧双路径资金/5 因子 Pareto 实验，未接入默认多维入口，不能当作新策略业绩 |
 
-默认报告目录由服务端 `PARETO_RUN_DIR` 配置，默认指向本轮输出；HTTP 参数不能指定文件路径。缺少完成标记、版本不兼容或产物不完整时报告错误，**不回落旧加权策略**。只读承诺仅适用于 Pareto 页面，不适用于显式选择的旧入口；项目没有自动下单功能。
+Web 已删除 `comprehensive`、MACD、`multi` 的策略分派及相应旧处理方法：这些策略值返回 400，`/scan` 返回 404；不是仅隐藏控件。模板内部沿用 `tab-scan`／`runScan()` 名称，但只请求 `/pareto-summary`，不表示旧海选路由仍在。
+
+历史报告目录仅由服务端 `PARETO_RUN_DIR` 配置，默认指向本轮输出；HTTP 参数不能指定报告、数据库或证据路径。总览缺少完成标记、版本不兼容或产物不完整时提示不可用，不自动重跑。单股当前诊断可在历史报告缺失时继续，但须注明无历史收益／截面及使用模型默认风险参数，**不回落旧加权策略**。[pareto_web.py](pareto_web.py) 的 `render_stock_report()` 仍保留为内部只读历史报告 helper，**不是第一标签的 HTTP 入口**。项目没有自动下单功能。
+
+## 第一标签：单股联网更新、条件诊断与历史分开展示
+
+### 行情更新与证据
+
+- 每次有效主板股票分析先调用 `refresh_stock()`；只刷新该股，不刷新全市场。按新浪→腾讯不复权→东方财富不复权尝试公开行情源，每源一次；全部失败时显示「更新失败，暂不下结论」，不拿缓存、历史报告或旧图充当本次成功结果。
+- 刷新前以只读连接保存目标股票旧行情及元数据；每次生成独立证据目录，保存原始响应字节、SHA256、请求／失败信息、成交量归一化依据和接受结果。验证后用 `BEGIN IMMEDIATE` 重查目标未被并发修改，再仅对该代码的行情和股票元数据事务 UPSERT。**保留响应窗口之外的旧历史**，提交后读取完整目标历史；不清库、不初始化表、不更新其他股票或旧分红缓存、不改冻结报告。
+- `checked_at` 是带时区的联网核验时间，**不是行情日期**；`latest_date`／`date` 才是实际最新已完成日线。时钟转上海时区，15:00 前剔除当日临时日线，拒绝未来日期和无效 OHLCV。来源末日不得早于缓存真实 `MAX(date)`；同日核验／修正允许，但不能称新增交易日。未核验节假日或停牌日历，来源只返回昨日或更早日线时须明确按该日期诊断，不冒称今日行情。
+- 有历史时，排除缓存末日，至少取得 3 对正成交量重叠日；所有缓存／来源量比须在 1% 容差内一致支持 **1、100 或 0.01** 中唯一倍数。混杂、未知或不足则拒绝该源，不拼接不明单位；无历史时按来源已知股／手单位转股。有历史则保留既有量单位，不把全库重新标为股。
+- 每次行情刷新成功后，按该代码**重新请求** EM 有日期分红（2015-01-01～上海核验日）、全部未注明除权日的已实施分红、无日期过滤的配股生命周期数据，并核验分页及行情覆盖；不复用市场冻结快照，不调用新浪权息采集。权息失败、未知或存在未建模配股时禁止买卖结论，只可显示带警告的原价诊断。**权息失败不会撤销此前已提交的行情更新**；提交后的证据写入失败也不能宣称事务已回滚。
+- EM 仅在**第一页**且同时为整数 `code=9201`、`success=false`、显式 `result=null`、精确消息「返回数据为空」时，按已知源格式规范化为空结果；原始响应、SHA256 和页证据照常保留。其他错误、字段缺失、非精确消息或后续页哨兵均不能当空。空结果只表示本次来源无记录，不证明历史没有分红／配股。权息端点拒绝／限流后停止后续权息请求，不自动重试或绕过。
+
+### 条件结论、持仓与结果布局
+
+- 当前分析复用回测的 **34 原子、资格／门禁、波动率及历史 ES**；权息通过后使用同一因果连续化价格计算信号，不计算 $S^*$ 或合成总分。完整报告可用时采用本轮冻结所选 **10%** 波动目标；报告不可用时明确标注模型默认 **15%**，不能冒充训练所选参数。
+- 只与冻结池中**精确同日**、有效、预热完成且通过门禁的股票比较；这是冻结池覆盖，不是今日全市场刷新。最新行情日期超出历史日历／有效截止（本轮 **2026-09-08**）时，**F1 未知，不给建仓／持有候选**。不得把其他股票的旧末行填到今天、沿用旧 F1，或让单股自封 F1。历史截止不截短本次新行情，历史最后 5 日退出规则也不应用于当前分析。
+- 「已持仓」可勾选；下一次分析据此区分建仓候选／持有候选，或不买入／退出信号等条件解释。该输入只有布尔值，缺少持股数量、成本、净值高点和冷静期状态，**不能计算实际增减仓、执行目标或个人账户回撤退出**。显示的条件风险上限不是实际仓位，F1 未知时不能据此买入。
+- UI 在已持仓时显示「计算分红」选项；勾选后附本次新取得权息的每股表与近 12 个日历月简单现金合计，口径为税前元／各次权息前股，不是股息率或统一初始股收益。渲染器也允许独立展示该附表；开关不影响必要权息核验，也**不增减历史账本已入账分红或历史总收益**。
+- 结果顺序：先显示 ✅／❌／⚠️ 条件结论及「非盈利概率」说明，再并列当前分析与历史摘要，分开列核验时间、行情日期、回测请求／有效截止；随后按 **M6／F5／P2／Q3／Aux18** 展示全部 34 原子、诊断统计、历史年度收益及最近 **20 次实际成交账本事件**。这些是回测 filled 事件，不是实盘订单，也不是最近 20 条混合流水。
+- 最后为三面板图：不复权价格（含 MA20／MA60 及可用历史成交标记）、权息连续化价格 MACD、34 行独立信号热图，**没有聚合评分面板**。仅热图可等距抽样到最多 1000 列并标明；价格、MACD 和成交保留完整分辨率。历史截止之后不推断新成交；权息失败须注明 MACD 改用原价，仅供诊断。图表失败保留诊断，不重刷、不替换旧图。
 
 ## 当前多维方法：34 原子 → 同日前沿 → 风险仓位
 
@@ -86,7 +111,14 @@ $$
 | [capital_account.py](capital_account.py) | `Account` 现金/股份账本、整手、T+1、费用、权息、回撤状态与逐笔记录；不取数据 |
 | [pareto_backtest.py](pareto_backtest.py) | 只读备份源库、冻结股票池/日历/参数，预处理、每日 F1、训练选参、全期连续账户及汇总产物 |
 | [action_fallback.py](action_fallback.py) / [action_snapshot.py](action_snapshot.py) | 前者批量冻结东方财富（EM）权息并交叉核验配股，后者保留独立新浪快照工具；运行器不调用新浪下载 |
-| [pareto_web.py](pareto_web.py)、[web.py](web.py)、[templates/page.html](templates/page.html) | 只读产物与资金恒等式校验、HTML 路由与界面；旧策略另走旧路径 |
+| [live_data.py](live_data.py) | 单股每次在线行情／权息核验、原始证据与 SHA256、保留历史的定向事务 UPSERT；不做策略判断 |
+| [fusion_analysis.py](fusion_analysis.py) | 先刷新，再用共享 34 原子／门禁／风险计算当前诊断，与精确同日冻结截面比较；历史账户独立读取 |
+| [fusion_web.py](fusion_web.py) | 当前结论、独立历史摘要、34 指标分组、年度／最近成交、可选新分红表的 HTML；不重复刷新 |
+| [fusion_chart.py](fusion_chart.py) | 内存三面板 PNG、仅标记历史实际成交；渲染锁保护 Matplotlib，不取数据、不写输出文件 |
+| [pareto_web.py](pareto_web.py) | 完成产物、资金恒等式校验、只读全量总览；保留内部 `render_stock_report()` 和共享方法说明 |
+| [web.py](web.py)、[templates/page.html](templates/page.html) | 两标签／三选项及 HTML 路由，第一标签融合刷新、第二标签只读；旧技术策略 Web 路由已删除 |
+
+以下执行约束属于历史独立账户回放，不是当前持仓布尔输入可执行的个人订单：
 
 - **时序**：收盘信号→下一市场交易日真实开盘价尝试成交；停牌后的过期非零目标不续用，退出请求可续行。成交用不复权价，权息连续化价格仅供信号，不回写过去信号。
 - **账户**：每只股票独立 100 万元，闲置现金零利息；买入/非零目标调减按 100 股整手，目标 0 尝试卖出全部可卖股份。净值回撤 15% 触发退出及随后 20 个市场日禁买，不保证最大实际回撤止于 15%；退出后风险峰值可重置，不能称全期本金底线。
@@ -169,7 +201,7 @@ python3 -m venv --without-pip .venv
 python3 -m pip --python .venv/bin/python install pip -r requirements.txt
 ```
 
-- 核心、图表及 Web 海选依赖：[requirements.txt](requirements.txt)（NumPy、Matplotlib、pandas）。
+- 核心、图表及 Web 依赖：[requirements.txt](requirements.txt)（NumPy、Matplotlib、pandas）。
 - 财务/龙虎榜/资金流采集另需 [requirements-research.txt](requirements-research.txt)（requests、AkShare）：
 
 ```bash
@@ -178,19 +210,28 @@ python3 -m pip --python .venv/bin/python install pip -r requirements.txt
 
 系统没有中文字体时图表可能缺字。依赖暂未锁定版本；安装成功不等于历史实验可复现。
 
-### 多维回测与只读报告
+### 融合分析与只读历史报告启动
 
-以下在 Linux / WSL 仓库根目录执行。复用本轮冻结权息目录的完整命令：
+已有完成报告只需启动 Web，无须回测。以下在 Linux / WSL 仓库根目录执行：
 
 ```bash
-.venv/bin/python -B pareto_backtest.py --output output/pareto_mainboard_20260910 --action-snapshot output/action_fallback_market_2015_20260910 --start 2016-09-10 --end 2026-09-10 --workers 8
 PARETO_RUN_DIR=output/pareto_mainboard_20260910 .venv/bin/python web.py 8099
 ```
 
-Windows PowerShell 对应回测命令：
+首页加载仅展示方法；`/pareto-summary?n=5` 仅读报告。**访问默认 `/analyze?code=000651` 会联网并更新该股数据库**，不再是只读个股历史页；仅阅读历史时不要访问此路由，应读已完成产物或内部历史 helper。`refresh=0`／`force=0` 不会把它切成离线模式。
+
+### 完整多维回放：仅明确要求时运行
+
+回放不是浏览报告，也不是修复报告缺失的自动步骤。使用新输出目录，复用本轮已冻结权息的示例：
+
+```bash
+.venv/bin/python -B pareto_backtest.py --output output/pareto_mainboard_new_run --action-snapshot output/action_fallback_market_2015_20260910 --start 2016-09-10 --end 2026-09-10 --workers 8
+```
+
+Windows PowerShell 对应命令（同样使用新的运行目录）：
 
 ```powershell
-wsl -d Ubuntu01 --cd /home/myl/a_shares_predict -- .venv/bin/python -B pareto_backtest.py --output output/pareto_mainboard_20260910 --action-snapshot output/action_fallback_market_2015_20260910 --start 2016-09-10 --end 2026-09-10 --workers 8
+wsl -d Ubuntu01 --cd /home/myl/a_shares_predict -- .venv/bin/python -B pareto_backtest.py --output output/pareto_mainboard_new_run --action-snapshot output/action_fallback_market_2015_20260910 --start 2016-09-10 --end 2026-09-10 --workers 8
 ```
 
 - `--action-snapshot` **可选**：完整冻结目录复用时不发 HTTP；覆盖日期须匹配 2015-01-01～请求截止日。省略时自动在运行输出内建立 EM 市场批量快照，一次分页取全市场后按代码匹配，**不触发新浪逐股采集，不靠重试冲击新浪限流**。目录尚未完整冻结时也可能继续公开 EM 请求，不能称无条件离线。
@@ -198,7 +239,7 @@ wsl -d Ubuntu01 --cd /home/myl/a_shares_predict -- .venv/bin/python -B pareto_ba
 - 行情来自源缓存的只读一致性备份，不刷新生产库。`--source` 可指定源库，`--limit` 仅供小样本冒烟；日期/股票池已冻结的目录续跑不因新参数自动换样本。新数据或策略版本应使用新输出目录。
 - 新运行记录源路径、limit 和 2015-01-01 特征/权息覆盖起点；不支持更早起始。续跑日期、limit、已记录源路径不符会拒绝，冻结源库字节哈希也须匹配。原生产库同路径内容变动不影响已冻结输入，续跑不重新读取它；旧清单缺少的路径字段不能追溯验证。
 - `--cached-actions` 只是禁用本轮批量解析的诊断选项；缓存补出的权息标记 `cache_unverified`，不能据此开展可信交易。正常运行不要用它代替冻结权息。
-- 运行器会重建完成汇总，不能把“重跑”当作只读浏览。等待 [output/pareto_mainboard_20260910/summary.json](output/pareto_mainboard_20260910/summary.json) 写完再读报告；已有报告只需启动 Web，无须重跑。首页方法说明读取模型默认值，具体报告读取该次所选参数。
+- 运行器会重建完成汇总，不能把“重跑”当作只读浏览；等待新运行的最终汇总完成后再读。已有本轮 [output/pareto_mainboard_20260910/summary.json](output/pareto_mainboard_20260910/summary.json) 不因浏览或单股刷新而重建。首页方法说明读取模型默认值，历史报告及有完整报告的当前分析读取该次所选参数。
 
 ### 保留的旧 CLI、海选与独立初筛
 
@@ -218,9 +259,9 @@ wsl -d Ubuntu01 --cd /home/myl/a_shares_predict -- .venv/bin/python -B pareto_ba
 
 注意：[run_cli.py](run_cli.py) **直接传股票代码、`chart`、`backtest`、`json` 仍是旧 MACD 路径**；`multi` 是旧多因子共振，`predict` 是旧加权融合，均未改为 Pareto34。
 
-## 保留旧加权融合：comprehensive / CLI predict
+## 独立旧加权引擎／CLI predict／API comprehensive（非 Web 选项）
 
-实现：[engine.py](engine.py) 的 `_score_comprehensive()`、`predict_comprehensive()`、`backtest_comprehensive()`。显式选择旧 Web `comprehensive` 时读取结构化评分并回测；CLI `predict` 只预测。以下评分、门槛与建议表**均不适用于 Pareto34**，没有资金流 Z、龙虎榜双路径或分级仓位。
+实现：[engine.py](engine.py) 的 `_score_comprehensive()`、`predict_comprehensive()`、`backtest_comprehensive()`；CLI `predict` 只预测，旧 API 仍独立调用预测／回测。当前 Web 已不接受 `comprehensive`。以下评分、门槛与建议表**均不适用于 Pareto34**，没有资金流 Z、龙虎榜双路径或分级仓位。
 
 ### 评分
 
@@ -239,7 +280,7 @@ $$A=\frac{N_{看多}-N_{看空}}{18}\times100,\qquad S^*=S-0.08A$$
 
 18 项辅助指标：DMI、CCI、BIAS(6/12)、EXPMA、BBI、TRIX、VR、BR、AR、CR、DMA、DPO、MTM、SKDJ、LWR、ENE、LON。各投 +1/0/−1，不改变质量门禁。
 
-预测至少需要 60 根日线；完整价格位置项需要更长历史。具体加减分见 CLI 输出或 Web「分析过程」，以引擎实现为准。
+预测至少需要 60 根日线；完整价格位置项需要更长历史。具体加减分见旧 CLI 输出，以引擎实现为准，不对应当前 Web 的 34 原子详情。
 
 ### 买入门禁
 
@@ -249,7 +290,7 @@ $$A=\frac{N_{看多}-N_{看空}}{18}\times100,\qquad S^*=S-0.08A$$
 - RSI **>92**；
 - M **<35** 且 F **<40**。
 
-### 回测规则：收盘决策，下一交易日开盘执行
+### 旧引擎回测规则（传入开盘价时）
 
 | 动作 | 旧加权条件 |
 |---|---|
@@ -260,10 +301,10 @@ $$A=\frac{N_{看多}-N_{看空}}{18}\times100,\qquad S^*=S-0.08A$$
 | 获利回吐卖出 | 浮动价差收益 **>12%** 且 S* **<50** |
 | 背离/形态卖出 | 顶背离；持仓超过 10 个交易日后每 5 日检查 M 顶/头肩顶破颈线、看跌吞没 |
 
-- 买卖都是收盘信号、次日开盘成交，**不是盘中触价立即成交**，实际卖价不保证等于阈值。
+- 传入 `opens` 时买卖为收盘信号、次日开盘成交，**不是盘中触价立即成交**，实际卖价不保证等于阈值。旧 API 未传 `opens`，其执行退化为次日收盘，见 API 边界。
 - 比例费用：双边佣金各 0.03%、卖出印花税 0.05%。未完整建模历史税率、最低佣金、滑点和涨跌停成交限制。
-- 按单笔持仓顺序配对并汇总已完成交易复利，**没有 25%→100% 分级仓位**。
-- 期末未平仓不强制清仓、不计入已完成交易汇总；这个汇总不是完整资金账户净值。
+- 引擎输出按单笔持仓配对的交易列表，**没有 25%→100% 分级仓位**；汇总由调用方决定，旧 API 简单相加，不是复利或独立账户收益。
+- 期末未平仓不强制清仓、不计入已完成交易列表；只汇总该列表不是完整资金账户净值。
 
 ### 旧加权建议不等于回测订单
 
@@ -280,7 +321,7 @@ $$A=\frac{N_{看多}-N_{看空}}{18}\times100,\qquad S^*=S-0.08A$$
 
 ## 保留旧加权 Top-N 横截面海选
 
-[scan_composite.py](scan_composite.py) 的 `run_scan()` 同时供旧海选 CLI 和 Web `/scan` 使用，不由默认 Pareto 报告调用：
+[scan_composite.py](scan_composite.py) 的 `run_scan()` 保留为独立旧海选 CLI／研究工具，Web `/scan` 及对应方法已移除，不由当前融合分析或回测总览调用：
 
 1. 从缓存选择沪深主板代码（600/601/603/605/000/001/002/003），至少 300 根日线。
 2. [factors.py](factors.py) 计算 **13 个技术因子，其中 12 个有权重**。
@@ -289,10 +330,10 @@ $$A=\frac{N_{看多}-N_{看空}}{18}\times100,\qquad S^*=S-0.08A$$
 
 - 分数是**横截面相对分**，不是 S*、不是 0～100 概率，不能套用融合 69 分门槛。
 - 低波、低 ATR、低成交额、均值回归等项参与评分。低成交额是流动性代理，不能直接当真实小市值。
-- 旧海选 Web 默认 N=5，独立 CLI 默认 N=20；PE 默认上限 100、最低价默认 5 元，均可调整。
+- 独立 CLI 默认 N=20；PE 默认上限 100、最低价默认 5 元，均可调整。当前 Web 总览的 N=5 只是历史账户展示数，与海选无关。
 - 海选不自动刷新全市场 K 线；不同股票的因子日期、报价日期可能不一致，应逐行查看因子日期。
 - 权重来自历史样本内研究；配套资金回测尚有调仓时点等问题，**未证明能取得稳定收益**。
-- `/scan` 返回 HTML 片段，不是 JSON API，请从首页「旧加权海选（非帕累托）」标签使用。
+- 当前 Web 不再提供旧海选标签或 `/scan` 服务；保留脚本不表示 Web 路由仍存在。
 
 ## 保留长线持有与独立财务初筛
 
@@ -319,9 +360,9 @@ $$A=\frac{N_{看多}-N_{看空}}{18}\times100,\qquad S^*=S-0.08A$$
 - http://localhost:8100/api/analyze?code=601888&strategy=value
 - http://localhost:8100/api/health
 
-API 支持 `holding=1`、`dividend=1`，默认策略仍为旧加权 `comprehensive`，没有 Pareto34 JSON 接口。新 Web 报告路由返回 HTML。
+API 支持 `holding=1`、`dividend=1`，默认策略仍为旧加权 `comprehensive`，没有 Pareto34 JSON 接口，也不走新的单股融合刷新链。当前 Web 分析与历史总览路由均返回 HTML。
 
-**尚未统一**：API 旧融合路径未传真实 `opens`，回测退化为次日收盘成交；汇总用逐笔价差简单相加，未采用旧 Web `comprehensive` 的复利/含分红汇总，也未使用 Pareto 独立账户。因此不能假定 API 与任一 Web 回测数值相同。小程序使用独立旧 JavaScript 引擎，不是 Pareto34 或 Python 旧加权策略的等价实现。
+**尚未统一**：API 旧融合路径未传真实 `opens`，回测退化为次日收盘成交；汇总用逐笔价差简单相加，非复利／完整含分红账户收益，也未使用 Pareto 独立账户。不能假定其与当前 Web 历史报告数值相同；已不存在可供比较的旧 Web `comprehensive` 路由。小程序使用独立旧 JavaScript 引擎，不是 Pareto34 或 Python 旧加权策略的等价实现。
 
 ## 保留的脚本与用途
 
@@ -329,8 +370,8 @@ API 支持 `holding=1`、`dividend=1`，默认策略仍为旧加权 `comprehensi
 |---|---|---|
 | 入口 | [run_cli.py](run_cli.py)、[web.py](web.py)、[api.py](api.py) | 模式差异见上文 |
 | 核心 | [engine.py](engine.py)、[fetcher.py](fetcher.py)、[db.py](db.py)、[plotting.py](plotting.py)、[fundamentals.py](fundamentals.py) | 计算、数据、缓存、绘图、初筛 |
-| 保留旧加权海选 | [scan_composite.py](scan_composite.py)、[factors.py](factors.py) | Web 旧海选标签实际使用，非默认多维总览 |
-| 旧 S* 快照海选 | [scan_top_n.py](scan_top_n.py)、[build_features.py](build_features.py) | 独立工具，不是 Web 旧 Top-N 算法 |
+| 保留旧加权海选 | [scan_composite.py](scan_composite.py)、[factors.py](factors.py) | 独立 CLI／研究工具，不再由 Web 导入 |
+| 旧 S* 快照海选 | [scan_top_n.py](scan_top_n.py)、[build_features.py](build_features.py) | 独立工具，不是上述旧横截面 Top-N 算法 |
 | 基线 | [batch_backtest.py](batch_backtest.py)、[mainboard_baseline.py](mainboard_baseline.py) | 100 股面板/主板全量任务，非实盘业绩 |
 | 双路径实验 | [money_backtest4.py](money_backtest4.py) | 保留最新版本；加仓抢占止损、费用/权息等问题待修 |
 | 海选资金实验 | [money_scan_backtest.py](money_scan_backtest.py)、[money_pareto_backtest.py](money_pareto_backtest.py) | 调仓资金重叠、样本内权重等问题待修 |
@@ -349,13 +390,17 @@ API 支持 `holding=1`、`dividend=1`，默认策略仍为旧加权 `comprehensi
 
 它们不是当前入口依赖。旧实验收益及“收益天花板”“某方法已证伪”“帕累托已证明优越”等结论已从首页移除；删除脚本不等于修复共用引擎缺陷。
 
+随后按两标签／三选项需求移除 Web 的 `comprehensive`、MACD、`multi`、`/scan` 分派及处理方法；没有因此删除旧 CLI／API／引擎、海选或独立研究脚本。内部只读个股报告 helper 仍保留。
+
 ## 数据安全与待修问题
 
 **不要为尝试命令而直接运行全量采集或删除缓存。** 本地 SQLite 包含行情、财务、龙虎榜、资金流、冻结股票池和任务元数据，不保证能无损重抓。
 
 - [collect_market_data.py](collect_market_data.py) 的 `lhb` 模式和 [collect_lhb_10y.py](collect_lhb_10y.py) **会先 DROP 龙虎榜表**，网络失败也可能丢旧数据。改成增量前先作一致性备份。
-- K 线/分红缓存不自动更新。强制刷新会替换该股旧历史，可能缩短窗口、破坏基线可复现性。
-- 旧行情获取仍按缓存→新浪→腾讯不复权→东方财富不复权回退；腾讯字段错位、旧 API 汇总、旧长线/融合权益风控、旧 MACD 前视、财务可得时点等仍待修。新账本并未修复所有旧路径，新 Pareto 的权息/成交近似也须保留披露。
+- **本次需求明确授权第一标签融合分析定向更新目标股票数据库**，取代该入口原先的只读约束；授权不扩展到全市场刷新、其他表或冻结回测／报告。新刷新先保留目标旧数据与来源证据，再事务 UPSERT，保留窗口外历史；失败时不以旧缓存生成结论。
+- 旧 [fetcher.py](fetcher.py) 的普通 K 线／分红缓存仍不自动更新，`fetch_kline(force_refresh=True)` 仍可能替换该股旧历史、缩短窗口，**该旧刷新截断问题没有全面修复**。不能把新 `live_data` 的保留历史保证套给旧入口，也不能恢复已被覆盖的历史。
+- 旧行情获取仍按缓存→新浪→腾讯不复权→东方财富不复权回退；腾讯数组已修正为 **date/open/close/high/low/volume** 的 OHLC 映射，不再列为当前待修错位。旧 API 汇总、旧长线／融合权益风控、旧 MACD 前视、财务可得时点等仍待修；新账本并未修复所有旧路径，Pareto 权息／成交近似也须披露。
+- Pareto 回测仍从源库只读一致性备份，运行输入、全量本金及数值产物不因单股刷新而改变；新数据版本必须新建运行目录。第二标签仅读已完成报告，不借刷新重写历史审计证据。
 - [db.py](db.py) 的读函数会走读写建表连接。旧基线 `--replay-cached` 虽不联网、不改回测摘要，底层仍可能建表/设置 WAL，**不是真正只读连接**；严格审查使用 SQLite URI `mode=ro` 和 `query_only`，不调用生产初始化，也不能恢复已覆盖的历史。
 - 不把样本内回放当样本外验证；费用、权息、未成交、退市、期末持仓和资金占用都需明确统计口径。
 
@@ -363,12 +408,27 @@ API 支持 `holding=1`、`dividend=1`，默认策略仍为旧加权 `comprehensi
 
 ## 开发与验证
 
-本轮最终隔离验证 **328 项测试通过**，阻断生产数据库与真实网络；另独立核验全部 3330 账户及 1,455,005 条流水。真实 HTTP 页面验证了首页、000001 和 N=5 全量总览，320/390/768/1024/1920 宽度无页面横向溢出，宽表在容器内滚动。这些是实现与账务验证，不是盈利证明。
+**历史验证记录（本次联网分析／两标签改版之前）**：当时隔离验证 **328 项测试通过**，阻断生产数据库与真实网络；另独立核验全部 3330 账户及 1,455,005 条流水。当时真实 HTTP 页面验证了首页、000001 历史页和 N=5 总览，320/390/768/1024/1920 宽度无页面横向溢出，宽表在容器内滚动。**这些不是本次改版后的最终测试数或新页面验收结果**，也不是盈利证明。
+
+**本次改版验证（2026-09-11，上海时间）**：完整隔离测试 **470 项通过**，阻断真实网络及生产数据库连接。独立的真实 Web 验收刷新了 `000001`：行情由 2026-09-08 延伸至 **2026-09-10**，2500 → 2502 根，首日仍为 2016-05-26；权息核验通过。联网核验时间为 2026-09-11，不等于行情日期。冻结回测仍截至 2026-09-08，未改写；新日期无同日比较截面，页面明确显示 **F1 未知、暂不下买卖结论**，不是完整的实时全市场推荐。
+
+8099 实际页面已核验两标签／三选项、已持仓及分红开关、34 项分组和末尾 PNG；单股及总览在 320/390/768/1024/1920 宽度无页面横向溢出，宽表在容器内滚动。总览资金与冻结结果一致；旧 `/scan` 返回 404，旧 `comprehensive` 返回 400。图表标题区分已核验连续化／原价诊断，截止虚线位于最后一根截止内日线之后，不按自然日插值。验收不证明策略盈利、所有供应商可靠或全部历史数据完整。
+
+当前实现对应的测试职责如下：
+
+| 测试 | 契约范围 |
+|---|---|
+| [unittests/test_live_data.py](unittests/test_live_data.py) | 目标事务／历史保留／并发与失败、原始响应哈希、上海日线截止、成交量单位、新权息分页与精确空响应 |
+| [unittests/test_fusion_analysis.py](unittests/test_fusion_analysis.py) | 每次先刷新、共享原子／门禁／风险、精确同日比较与 F1 未知、历史期限不限制新行情、持仓布尔边界 |
+| [unittests/test_fusion_web.py](unittests/test_fusion_web.py) | 结论与日期分离、34 原子分组、历史资金／年度／最近 20 次成交、分红开关不改历史、错误不回落 |
+| [unittests/test_fusion_chart.py](unittests/test_fusion_chart.py) | 三面板、仅历史成交标记、热图抽样、输入校验、内存绘图及渲染清理 |
+| [unittests/test_web.py](unittests/test_web.py) | 恰好两标签／三选项、旧路由及方法移除、持仓／分红交互、刷新委托与总览只读、文档链接 |
+| [unittests/test_fetcher.py](unittests/test_fetcher.py)、[unittests/test_pareto_web.py](unittests/test_pareto_web.py) | 腾讯不复权 OHLC 映射与旧获取契约；内部历史 helper／全量总览及资金校验 |
 
 ```bash
 .venv/bin/python -m unittest discover -s unittests -v
 ```
 
-单元测试使用临时数据库与模拟网络，完整验证需阻止真实网络和生产缓存连接。测试覆盖原子/前沿、风险目标、账户、权息解析、运行器及 Web 契约；测试通过不代表策略盈利。
+单元测试使用临时数据库与模拟网络，完整验证需阻止真实网络和生产缓存连接。真实刷新验收与单元测试分开，仅针对明确授权的个股；不将测试视为生产数据更新授权。不为通过旧字符串断言而恢复错误文案；原子／前沿、账户、权息解析及运行器的验证边界仍保留。
 
-维护约定见 [CLAUDE.md](CLAUDE.md)。Pareto 首页说明读取模型默认参数、报告读取冻结参数；旧 `comprehensive` 文案仍读取旧回测默认值。修改时同步相应 README、Web 解释与契约测试，不混用新旧规则。历史审计证据链接固定到当时提交，不修改为当前代码链接。
+维护约定见 [CLAUDE.md](CLAUDE.md)。Pareto 首页方法说明读取模型默认参数，报告及有完整历史上下文的当前分析读取冻结所选参数；不再维护已删除旧 Web 策略的页面阈值。修改时同步相应 README、Web 解释与契约测试，不混用新旧规则。历史审计证据链接固定到当时提交，不修改为当前代码链接。

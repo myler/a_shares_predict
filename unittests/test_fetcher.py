@@ -209,7 +209,7 @@ class TestKlinePriceBasis(unittest.TestCase):
             def read(self):
                 return self.payload.encode('utf-8')
 
-        raw_day = [['2024-01-02', '10', '11', '9', '10.5', '1000']]
+        raw_day = [['2024-01-02', '10', '10.5', '11', '9', '1000']]
         payload = json.dumps({'data': {'sz000001': {'day': raw_day}}})
         with patch('fetcher.load_klines', return_value=None), \
              patch('fetcher.save_klines') as save_klines, \
@@ -221,6 +221,7 @@ class TestKlinePriceBasis(unittest.TestCase):
         tencent_url = urlopen.call_args_list[1].args[0].full_url
         self.assertNotIn('qfq', tencent_url)
         self.assertEqual(result[0]['close'], '10.5')
+        self.assertEqual((result[0]['high'], result[0]['low']), ('11', '9'))
         save_klines.assert_called_once_with('000001', result)
 
     def test_force_refresh_overwrites_cached_kline(self):

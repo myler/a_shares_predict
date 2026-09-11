@@ -68,7 +68,7 @@ h3{margin:16px 0 8px;font-size:16px}
 .tab.active{color:#1565C0;font-weight:bold;border-bottom-color:#1565C0;background:transparent}
 .tab:hover{color:#1565C0;background:transparent}
 
-/* ── 海选表格 ── */
+/* ── 历史回测总览表格 ── */
 .scan-table{border-collapse:collapse;width:100%;margin-top:12px;font-size:14px}
 .scan-table th,.scan-table td{padding:8px 10px;border-bottom:1px solid #eee;text-align:left}
 .scan-table th{background:#f5f5f5}
@@ -86,8 +86,7 @@ h3{margin:16px 0 8px;font-size:16px}
 <h1>📊 A股策略分析</h1>
 <div class="tabs">
   <button class="tab active" data-tab="analyze" onclick="switchTab('analyze')">策略分析</button>
-  <button class="tab" data-tab="scan" onclick="switchTab('scan')">多维回测总览</button>
-  <button class="tab" data-tab="legacy-scan" onclick="switchTab('legacy-scan')">旧加权海选（非帕累托）</button>
+  <button class="tab" data-tab="scan" onclick="switchTab('scan')">融合策略回测总览</button>
 </div>
 
 <!-- ══════════ Tab 1: 策略分析 ══════════ -->
@@ -97,8 +96,7 @@ h3{margin:16px 0 8px;font-size:16px}
   <input id="code" type="text" placeholder="输入股票代码，如 603893" oninput="resetAnalysis()" pattern="[0-9]{6}" maxlength="6" autofocus required>
   <div style="margin:8px 0">
     <select id="strategy" onchange="onStrategyChange()" style="padding:8px 12px;font-size:16px;border:2px solid #ddd;border-radius:6px;background:#fff">
-      <option value="pareto">多维融合（帕累托＋风险预算）</option>
-      <option value="comprehensive">融合评分（旧加权策略）</option>
+      <option value="pareto" selected>融合策略</option>
       <option value="buyhold">长线持有</option>
       <option value="value">巴芒基本面研究</option>
     </select>
@@ -110,18 +108,18 @@ h3{margin:16px 0 8px;font-size:16px}
     <input type="checkbox" id="calcDividend" onchange="resetAnalysis()"> 计算分红（含每股分红收益）
   </label>
   <button id="btn" type="submit">分析</button>
-  <p class="hint" id="paretoReadOnly">仅读取完成回测；不接受当前持仓或分红开关，不联网刷新。现金分红按历史账户账本展示。</p>
+  <p class="hint" id="paretoRefresh">每次分析均联网刷新本股至来源最新已完成日线后计算融合指标；未成功刷新，不给出最新结论。历史不足时仅作条件判断，不声称完整同日 F1。历史回测期限在回测总览另行标明，不代表本次分析日期。</p>
   </div>
   <div class="strategy" id="formulaBox"></div>
 </form>
 <div id="result"></div>
 </div>
 
-<!-- ══════════ Tab 2: 完成运行的多维回测总览 ══════════ -->
+<!-- ══════════ Tab 2: 融合策略历史回测总览 ══════════ -->
 <div id="tab-scan" style="display:none">
   <div class="strategy">
-    <h3>📐 多维回测总览（全部独立账户）</h3>
-    <p class="method-note">仅读取已完成的本地 Pareto34 回测，不联网、不刷新缓存。旧缓存并非实时推荐；无完成运行时不会回落旧加权策略。</p>
+    <h3>📐 融合策略回测总览（全部独立账户）</h3>
+    <p class="method-note">历史回测只读：仅读取已完成的本地 Pareto34 回测，不联网、不刷新缓存，不重跑。请求区间和有效截止以本轮冻结报告为准，与单股最新分析分开；缺少完成报告时直接提示不可用。</p>
     <p class="hint">
       每只主板股票独立 100 万元账户，34 个原子投票不加权；每日全部 F1 保留，风险预算动态定仓，不是 F1 满仓。<br>
       <b>总资金、年度收益及留出期结果覆盖实际全部账户。</b>N 仅控制按代码顺序展示前几份账户，不是收益排名、加权选择或推荐 Top-N。
@@ -136,67 +134,10 @@ h3{margin:16px 0 8px;font-size:16px}
   <div id="scan-result"></div>
 </div>
 
-  <!-- 旧扫描独立保留，绝不由默认多维入口调用。 -->
-  <div id="tab-legacy-scan" style="display:none">
-    <div class="strategy">
-      <h3>旧加权海选（非帕累托）</h3>
-      <p class="method-note">横截面因子加权相对分 Top-N，不是 Pareto34 前沿或独立账户回测；可能联网取报价，仅点击此旧入口时运行。</p>
-      <p class="hint">相对分不是融合 S*。按各股缓存末日计算、未统一日期；历史表现与当前报价不能混用为收益结论。</p>
-    </div>
-    <div class="scan-form">
-      <label>Top-N <input id="legacyN" value="5" type="number" min="1" max="100"></label>
-      <label>最高 PE <input id="legacyPE" value="100" type="number" min="1"></label>
-      <label>最低价格 <input id="legacyPrice" value="5" type="number" min="0" step="0.1"></label>
-      <button onclick="runLegacyScan()">运行旧加权海选（可能联网）</button>
-    </div>
-    <div id="legacy-scan-result"></div>
-  </div>
-
 <script>
-const COMPREHENSIVE_CONFIG = __COMPREHENSIVE_CONFIG__;
 const PARETO_FORMULA = __PARETO_FORMULA__;
-const C = COMPREHENSIVE_CONFIG;
 const FORMULAS={
-  pareto:{title:'多维融合（帕累托＋风险预算）',html:PARETO_FORMULA},
-  comprehensive:{title:'融合评分（旧加权策略）',html:`
-    <p class="method-note">此旧策略仍是加权标量化，不是帕累托多目标决策。四维内部先加减分，18 项投票先合并成共识 A，再合成 S*；相反信号可能抵消。请选择默认多维融合查看新的独立账户回测。</p>
-    <div class="formula-section"><h4>核心评分 S*（加权标量，非帕累托）</h4>
-      <div class="formula-math" style="font-size:14px;text-align:center;padding:4px 0"><b>S*</b> = M<sub>MACD</sub>×0.40 + F<sub>因子</sub>×0.30 + P<sub>价格位置</sub>×0.15 + Q<sub>量能</sub>×0.15 − ${C.auxiliary_beta}×A<sub>18项辅助共识</sub></div>
-    </div>
-    <div class="formula-grid">
-      <div class="formula-item"><span class="formula-label">MACD核心</span><span class="formula-w">40%</span><span class="formula-math">DIF/DEA多空、零轴、5日DIF斜率、3日BAR趋势、底/顶背离</span></div>
-      <div class="formula-item"><span class="formula-label">多因子</span><span class="formula-w">30%</span><span class="formula-math">RSI、KDJ、J值、布林位置、WR超买超卖</span></div>
-      <div class="formula-item"><span class="formula-label">价格位置/趋势</span><span class="formula-w">15%</span><span class="formula-math">250日价格位置、年价格涨幅</span></div>
-      <div class="formula-item"><span class="formula-label">量能</span><span class="formula-w">15%</span><span class="formula-math">OBV 5日净量能流、量价背离、波动率代理</span></div>
-    </div>
-    <p class="hint">P 是价格序列代理，不是财务基本面；Q 不是实际主力资金流。</p>
-    <div class="formula-section"><h4>18 项辅助指标共识 A（最大 ±${C.auxiliary_beta * 100} 分反向修正）</h4>
-      <div class="formula-math" style="font-size:12px">DMI、CCI、BIAS(6/12)、EXPMA、BBI、TRIX、VR、BR、AR、CR、DMA、DPO、MTM、SKDJ、LWR、ENE、LON —— 各投 +1看多/−1看空/0中性，A=(N多−N空)/18×100</div>
-      <p class="hint">偏空共识小幅加分、偏多共识小幅减分；不改变质量门禁，评分不是概率。</p>
-    </div>
-    <div class="formula-section"><h4>🟢 回测买入</h4>
-      <div class="formula-math">S* ≥ ${C.buy_score} 且通过全部门禁。收盘形成信号，下一交易日开盘执行。</div>
-    </div>
-    <div class="formula-section"><h4>🔴 回测卖出（任一条件）</h4>
-      <div class="formula-math">止损：浮动价差收益 &lt; ${C.stop_loss_pct}%<br>
-        止盈：浮动价差收益 &gt; +${C.take_profit_pct}%<br>
-        低分退出：S* &lt; 35<br>
-        获利回吐：浮动价差收益 &gt; ${C.profit_protect_pct}% 且 S* &lt; ${C.profit_protect_score}<br>
-        顶背离；持仓超过10个交易日后每5日检查 M顶/头肩顶破颈线、看跌吞没。</div>
-      <p class="hint">收益判断含比例费用。卖出也是收盘信号、次日开盘执行，不保证成交在阈值价格。</p>
-    </div>
-    <div class="formula-section"><h4>质量门禁（任一项触发即否决买入）</h4>
-      <div class="gate-row">
-        <span class="gate-tag">OBV 5日净量能流 &lt; −60%</span>
-        <span class="gate-tag">RSI &gt; 92</span>
-        <span class="gate-tag">M&lt;35 ∧ F&lt;40</span>
-      </div>
-    </div>
-    <div class="formula-section"><h4>执行与收益边界</h4>
-      <p class="hint">双边佣金各 ${(C.commission_rate * 100).toFixed(2)}%，卖出印花税 ${(C.stamp_duty_rate * 100).toFixed(2)}%。只汇总已完成交易，不计期末未平仓。权息风控、滑点和不可成交约束尚不完整。<br>
-      当前“增持/减持”只是评分建议，不代表分仓执行，未使用实际买入成本。没有接入龙虎榜路径或资金流加分。请核对缓存日期；历史回测不等于未来收益。</p>
-    </div>`
-  },
+  pareto:{title:'融合策略',html:PARETO_FORMULA},
   buyhold:{title:'长线持有',html:`
     <div style="font-size:13px;line-height:1.8;color:#555">
       <b>买入</b>：缓存起始日收盘买入，展示至缓存末日的价格变化<br>
@@ -227,7 +168,7 @@ function resetAnalysis(){
   analysisRevision++;
   document.getElementById('result').replaceChildren();
   const btn=document.getElementById('btn');
-  btn.disabled=false;btn.textContent=getStrategy()==='pareto'?'读取完成回测':'分析';
+  btn.disabled=false;btn.textContent='分析';
 }
 function onStrategyChange(){
   resetAnalysis();
@@ -236,12 +177,12 @@ function onStrategyChange(){
   const f=FORMULAS[s];
   const box=document.getElementById('formulaBox');
   box.innerHTML='<h3>📐 策略公式 — '+f.title+'</h3>'+f.html;
-  document.getElementById('holdingLabel').style.display=(s==='pareto' || s==='value')?'none':'flex';
-  document.getElementById('paretoReadOnly').style.display=s==='pareto'?'block':'none';
+  document.getElementById('holdingLabel').style.display=s==='value'?'none':'flex';
+  document.getElementById('paretoRefresh').style.display=s==='pareto'?'block':'none';
   if(s==='buyhold'){
     holding.checked=true;holding.disabled=true;
     document.getElementById('divLabel').style.display='flex';
-  }else if(s==='value' || s==='pareto'){
+  }else if(s==='value'){
     holding.checked=false;holding.disabled=true;
     document.getElementById('calcDividend').checked=false;
     document.getElementById('divLabel').style.display='none';
@@ -277,25 +218,13 @@ async function runScan(){
     else{box.innerHTML=await resp.text();prepareResultTables(box)}
   }catch(err){box.textContent='请求失败: '+err.message}
 }
-async function runLegacyScan(){
-  const box=document.getElementById('legacy-scan-result');
-  const n=document.getElementById('legacyN').value;
-  const pe=document.getElementById('legacyPE').value;
-  const price=document.getElementById('legacyPrice').value;
-  box.innerHTML='<div class=loading>正在运行旧加权扫描（可能联网）...</div>';
-  try{
-    const legacyUrl='/scan?n='+encodeURIComponent(n)+'&max_pe='+encodeURIComponent(pe)+'&min_price='+encodeURIComponent(price);
-    const resp=await fetch(legacyUrl);
-    box.innerHTML=await resp.text();prepareResultTables(box);
-  }catch(err){box.textContent='请求失败: '+err.message}
-}
 async function analyze(e){
   e.preventDefault();
   const code=document.getElementById('code').value.trim();
   const holding=document.getElementById('holding').checked;
   const calcDividend=document.getElementById('calcDividend').checked;
   const strategy=getStrategy();
-  if(!code)return;
+  if(!/^[0-9]{6}$/.test(code))return;
   if(strategy==='buyhold' && !holding){
     alert('长线持有策略需要先勾选"已持仓"');
     return;
@@ -305,18 +234,18 @@ async function analyze(e){
   const revision=++analysisRevision;
   btn.disabled=true;btn.textContent='分析中...';
   result.innerHTML=strategy==='pareto'
-    ?'<div class=loading>⏳ 正在读取本地完成回测（非实时推荐）...</div>'
+    ?'<div class=loading>⏳ 联网刷新本股→计算融合指标...</div>'
     :'<div class=loading>⏳ 正在拉取数据并计算...</div>';
   try{
     const url='/analyze?code='+encodeURIComponent(code)+'&strategy='+encodeURIComponent(strategy)
-      +(strategy==='pareto'?'':'&holding='+(holding?'1':'0')+'&dividend='+(calcDividend?'1':'0'));
-    const resp=await fetch(url);
+      +'&holding='+(holding?'1':'0')+'&dividend='+(calcDividend?'1':'0');
+    const resp=await fetch(url,{cache:'no-store'});
     const text=await resp.text();
     if(revision!==analysisRevision)return;
     if(!resp.ok){result.innerHTML='<div class=error>'+text+'</div>'}
     else{result.innerHTML=text;prepareResultTables(result)}
   }catch(err){if(revision===analysisRevision)result.textContent='请求失败: '+err.message}
-  if(revision===analysisRevision){btn.disabled=false;btn.textContent=strategy==='pareto'?'读取完成回测':'分析'}
+  if(revision===analysisRevision){btn.disabled=false;btn.textContent='分析'}
 }
 onStrategyChange();
 </script>
