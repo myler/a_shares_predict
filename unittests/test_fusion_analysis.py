@@ -7,6 +7,7 @@ Only deliberately malformed risk/indicator outputs are mocked in edge tests.
 
 from copy import deepcopy
 from pathlib import Path
+import hashlib
 import json
 import tempfile
 import unittest
@@ -68,6 +69,7 @@ class TestFusionAnalysis(unittest.TestCase):
         self.addCleanup(self.assert_no_forbidden_calls)
         self.guard('pareto_web.RUN_DIR', new=self.folder)
         self.guard('live_data.SNAPSHOT_ROOT', new=self.root / 'refresh')
+        self.guard('fusion_snapshot.SNAPSHOT_ROOT', new=self.root / 'current')
         self.fresh = fresh_fixture()
         self.refresh = self.guard('live_data.refresh_stock', side_effect=lambda code: deepcopy(self.fresh))
         self.manifest = dict(start='2020-01-02', requested_end=TODAY, effective_end=TODAY,
@@ -203,6 +205,45 @@ class TestFusionAnalysis(unittest.TestCase):
             self.assertNotIn('quantity', result)
             self.assertIn('无法计算实际加减仓', ''.join(result['warnings']))
 
+    def test_missing_current_front_has_explicit_low_strength_decision(self):
+        self.manifest['effective_end'] = '2026-09-08'
+        self.manifest['calendar'] = self.manifest['calendar'][:-2]
+        for holding, label in ((False, '不买入'), (True, '暂缓调仓')):
+            with self.subTest(holding=holding):
+                result = analysis.analyze_stock(CODE, holding=holding)
+                self.assertTrue(result['eligible'] and result['gate'] and result['verified_actions'])
+                self.assertEqual(result['votes'].shape, (280, 34))
+                self.assertEqual(result['comparison']['status'], 'unknown')
+                self.assertEqual(result['decision']['label'], label)
+                self.assertEqual(result['decision']['strength'], 1)
+                self.assertEqual(result['decision']['kind'], 'precaution')
+                self.assertIn('2026-09-08', ' '.join(result['decision']['reasons']))
+                self.assertIn(TODAY, ' '.join(result['decision']['reasons']))
+
+    def test_current_complete_snapshot_is_independent_of_historical_deadline(self):
+        root = self.root / 'current'
+        generation = '20260910T160000_' + 'a' * 32
+        (root / generation).mkdir(parents=True)
+        stocks = [dict(code=code, date=TODAY, votes=self.current_vector().tolist(),
+                       bars=280, price_status='ok', eligible=True, gate=True,
+                       action_status='ok', rights_issue_present=False, feature_error=None)
+                  for code in sorted((CODE, PEER))]
+        snapshot = dict(schema_version=1, feature_version=STRATEGY_VERSION,
+                        complete=True, date=TODAY, checked_at=TODAY + 'T16:00:00+08:00',
+                        actions_complete=True, stocks=stocks)
+        raw = json.dumps(snapshot).encode()
+        (root / generation / 'snapshot.json').write_bytes(raw)
+        (root / f'{TODAY}.json').write_text(json.dumps(dict(
+            generation=generation, sha256=hashlib.sha256(raw).hexdigest())))
+        self.manifest['effective_end'] = '2026-09-08'
+        self.manifest['calendar'] = self.manifest['calendar'][:-2]
+        result = analysis.analyze_stock(CODE, holding=True)
+        self.assertEqual(result['comparison']['status'], 'front1')
+        self.assertEqual(result['comparison']['source'], 'current')
+        self.assertEqual(result['comparison']['compared'], 1)
+        self.assertEqual(result['decision']['label'], '持有候选')
+        self.assertEqual(result['history']['manifest']['effective_end'], '2026-09-08')
+
     def test_latest_online_response_is_only_asof_candidate_not_today(self):
         self.fresh = fresh_fixture(latest='2026-09-08')
         self.write_peer()
@@ -211,6 +252,49 @@ class TestFusionAnalysis(unittest.TestCase):
             self.assertEqual(result['action'], '截至2026-09-08的' + label)
             self.assertIn('不是核验日2026-09-10行情', ''.join(result['warnings']))
             self.assertEqual(result['comparison']['date'], '2026-09-08')
+
+    def test_candidate_strength_covers_all_five_risk_bands_and_boundaries(self):
+        for cap, stars in ((.01, 1), (.2, 1), (.20001, 2), (.4, 2), (.6, 3), (.8, 4), (1., 5)):
+            for holding, label in ((False, '买入候选'), (True, '持有候选')):
+                with self.subTest(cap=cap, holding=holding):
+                    decision = analysis._decision(holding, True, True, True, dict(status='front1'),
+                                                  .2, .02, cap, self.risk, 60., .1, ['条件通过'])
+                    self.assertEqual(decision['label'], label)
+                    self.assertEqual(decision['strength'], stars)
+                    self.assertEqual(decision['kind'], 'signal')
+
+    def test_exit_and_no_buy_strength_grows_with_gate_breach(self):
+        for rsi, flow, stars in ((92.1, 0., 1), (94., 0., 2), (96., 0., 3),
+                                 (98., 0., 4), (100., 0., 5), (60., -1., 5)):
+            for holding, label in ((False, '不买入'), (True, '退出信号')):
+                with self.subTest(rsi=rsi, flow=flow, holding=holding):
+                    decision = analysis._decision(holding, True, True, False, dict(status='unknown'),
+                                                  .2, .02, 0., self.risk, rsi, flow, ['门禁未通过'])
+                    self.assertEqual(decision['label'], label)
+                    self.assertEqual(decision['strength'], stars)
+
+    def test_missing_risk_and_zero_risk_have_different_held_decisions(self):
+        for vol, cap, label, stars, kind in ((float('nan'), 0., '暂缓调仓', 1, 'precaution'),
+                                           (.2, 0., '退出信号', 5, 'signal')):
+            with self.subTest(vol=vol):
+                decision = analysis._decision(True, True, True, True, dict(status='front1'),
+                                              vol, .02, cap, self.risk, 60., .1, ['风险约束'])
+                self.assertEqual((decision['label'], decision['strength'], decision['kind']),
+                                 (label, stars, kind))
+            unknown = analysis._decision(True, True, True, True, dict(status='unknown'),
+                             .2, .02, 0., self.risk, 60., .1, ['F1未知'])
+            self.assertEqual(unknown['kind'], 'precaution')
+            self.assertEqual(unknown['strength'], 1)
+
+    def test_action_and_warmup_failures_have_specific_precaution_reasons(self):
+        self.fresh = fresh_fixture(n=13)
+        self.fresh['actions']['rights_issue_present'] = True
+        result = analysis.analyze_stock(CODE, holding=True)
+        self.assertEqual(result['decision']['label'], '暂缓调仓')
+        self.assertEqual(result['decision']['strength'], 1)
+        reasons = ' '.join(result['decision']['reasons'])
+        for text in ('配股', '13根日线', '251根', 'RSI'):
+            self.assertIn(text, reasons)
 
     def test_before_1500_yesterday_is_valid_completed_diagnostic(self):
         self.fresh = fresh_fixture(latest='2026-09-09', checked_at=TODAY + 'T14:59:59+08:00')
@@ -601,7 +685,9 @@ class TestFusionAnalysis(unittest.TestCase):
         self.fresh['rows'][-1]['close'] = float('nan')
         with patch.object(fusion_web, 'render_chart') as chart:
             html = fusion_web.render_analysis(CODE)
-        self.assertIn('分析失败，暂不下结论', html)
+        self.assertIn('分析失败，本次指标计算不可用', html)
+        self.assertIn('不买入', html)
+        self.assertIn('★☆☆☆☆', html)
         self.assertNotIn('<img', html)
         chart.assert_not_called()
         self.load_run.assert_not_called()
@@ -611,7 +697,9 @@ class TestFusionAnalysis(unittest.TestCase):
         self.refresh.side_effect = RefreshError('secret-body', refresh_id='failed-refresh')
         with patch.object(fusion_web, 'render_chart') as chart:
             html = fusion_web.render_analysis(CODE)
-        self.assertIn('更新失败，暂不下结论', html)
+        self.assertIn('更新失败，本次行情或后续核验不可用', html)
+        self.assertIn('不买入', html)
+        self.assertIn('★☆☆☆☆', html)
         self.assertNotIn('secret-body', html)
         self.assertNotIn('<img', html)
         chart.assert_not_called()

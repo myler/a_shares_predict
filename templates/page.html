@@ -30,7 +30,11 @@ label.holding input{width:auto}
 .table-scroll .trades,.table-scroll .scan-table{min-width:720px}
 .error{background:#fff0f0;color:#c62828;padding:16px;border-radius:6px;border:1px solid #ffcdd2}
 .loading{text-align:center;padding:40px;color:#666}
-.conclusion{padding:14px 20px;margin:10px 0;border-radius:6px;font-size:20px;font-weight:bold;text-align:center;letter-spacing:4px}
+.conclusion{padding:14px 20px;margin:10px 0;border-radius:6px;font-size:20px;font-weight:bold;text-align:center;letter-spacing:0;line-height:1.6}
+.decision-stars{display:inline-block;white-space:nowrap;min-width:5em;letter-spacing:0}
+.decision-label,.decision-date{display:inline-block;white-space:nowrap}
+.decision-date{font-size:14px}
+.decision-reasons{padding-left:22px;margin:8px 0;font-size:14px;line-height:1.8}
 .buy{background:#e8f5e9;color:#2e7d32;border:2px solid #4caf50}
 .sell{background:#fce4ec;color:#c62828;border:2px solid #ef5350}
 .warn{background:#fff8e1;color:#f57f17;border:2px solid #ffc107}
@@ -79,7 +83,7 @@ h3{margin:16px 0 8px;font-size:16px}
 .hint{color:#666;font-size:13px;line-height:1.8;overflow-wrap:anywhere}
 .method-note{padding:10px 12px;background:#fff8e1;border-left:3px solid #ffb300;border-radius:4px;color:#665018;font-size:13px;line-height:1.7}
 @media(max-width:900px){form{grid-template-columns:minmax(0,1fr);gap:16px}}
-@media(max-width:600px){.formula-grid{grid-template-columns:minmax(0,1fr)}.strategy{padding:14px}.scan-table{font-size:12px}.scan-table th,.scan-table td{padding:6px 4px}.conclusion{font-size:18px;letter-spacing:1px}.tab{padding:10px 12px}}
+@media(max-width:600px){.formula-grid{grid-template-columns:minmax(0,1fr)}.strategy{padding:14px}.scan-table{font-size:12px}.scan-table th,.scan-table td{padding:6px 4px}.conclusion{font-size:18px;letter-spacing:0}.tab{padding:10px 12px}}
 </style>
 </head>
 <body>
@@ -108,7 +112,7 @@ h3{margin:16px 0 8px;font-size:16px}
     <input type="checkbox" id="calcDividend" onchange="resetAnalysis()"> 计算分红（含每股分红收益）
   </label>
   <button id="btn" type="submit">分析</button>
-  <p class="hint" id="paretoRefresh">每次分析均联网刷新本股至来源最新已完成日线后计算融合指标；未成功刷新，不给出最新结论。历史不足时仅作条件判断，不声称完整同日 F1。历史回测期限在回测总览另行标明，不代表本次分析日期。</p>
+  <p class="hint" id="paretoRefresh">每次分析均联网刷新本股至来源最新已完成日线；优先比较独立采集的固定池同日截面。结论附1至5星规则支持强度，非盈利概率；缺少行情、权息或同日截面时，未持仓不买入、已持仓暂缓调仓（1星保守处置），不冒充已确认的交易信号。历史回测期限不代表本次分析日期。</p>
   </div>
   <div class="strategy" id="formulaBox"></div>
 </form>

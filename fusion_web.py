@@ -6,14 +6,14 @@ refreshes again nor loads another report, and never substitutes cached analysis
 after RefreshError. Dividend display and the holding flag cannot change history.
 """
 
-from datetime import date, datetime
+from datetime import date, datetime, time
 import re
 
 import numpy as np
 
-from fusion_analysis import analyze_stock
+from fusion_analysis import analyze_stock, precaution_decision
 from fusion_chart import render_chart
-from live_data import RefreshError
+from live_data import RefreshError, SHANGHAI
 from pareto_backtest import MAINBOARD
 from pareto_strategy import OBJECTIVE_NAMES
 from pareto_web import _decimal, _money, _number, _percent, _same, _table, _text
@@ -51,7 +51,8 @@ _GROUPS = (('M', 'MACD 动能 · M6'), ('F', '多因子状态 · F5'),
 _FILLS = dict(build='建仓', add='增持', reduce='减持', exit='退出')
 _DATA_ERRORS = (OSError, ValueError, TypeError, KeyError, IndexError,
                 AttributeError, OverflowError, RuntimeError)
-_LEGEND = '✅条件通过/❌条件未通过/⚠️数据不足，非盈利概率；各坐标↑+1/→0/↓−1'
+_LEGEND = ('✅条件通过/❌条件未通过/⚠️数据不足，非盈利概率；各坐标↑+1/→0/↓−1。'
+           '星级1至5表示所列操作的规则支持强度，不是盈利概率；不买入5星不等于买入5星。')
 
 
 def _day(value):
@@ -71,14 +72,26 @@ def _scroll(headers, rows, css='trades'):
             + _table(headers, rows, css) + '</div>')
 
 
-def _failure(message, refresh_id=None):
+def _stars(strength):
+    return (f'<span class="decision-stars" role="img" aria-label="强度 {strength}/5">'
+            + '★' * strength + '☆' * (5 - strength) + '</span>')
+
+
+def _failure(message, refresh_id=None, *, holding=None, price_committed=False):
     # Never echo exception args/evidence_dir: they can contain absolute paths or
     # remote bodies. Only the opaque refresh ID is useful to a browser client.
     identity = ''
     if isinstance(refresh_id, str) and not re.match(r'^(?:[/\\]|[A-Za-z]:)', refresh_id):
         identity = '<p class="hint">刷新 ID：' + _text(refresh_id) + '</p>'
+    decision = precaution_decision(holding, [message]) if holding is not None else None
+    conclusion = (_text(decision['label']) + ' ' + _stars(1) if decision else _text(message))
+    detail = ('<p class="hint">' + _text(message) + '</p><p class="hint">'
+              + _text(decision['strength_reason']) + '</p><p class="hint">'
+              + _LEGEND + '</p>' if decision else '')
+    if price_committed:
+        detail += '<p class="method-note">行情已提交到数据库，但后续核验或证据处理失败；不能称为已回滚。</p>'
     return ('<div class="result fusion-report"><div class="conclusion warn">⚠️ '
-            + _text(message) + '</div>' + identity
+            + conclusion + '</div>' + detail + identity
             + '<p class="hint">不展示旧缓存结论或图表，不以历史回测代替本次更新。</p></div>')
 
 
@@ -97,7 +110,11 @@ def _validate_analysis(a, code):
     if fresh['latest_date'] != days[-1] or fresh.get('date', days[-1]) != days[-1]:
         raise ValueError('mixed analysis dates')
     clock = datetime.fromisoformat(fresh['checked_at'])
-    if clock.utcoffset() is None or _day(days[-1]) > clock.date():
+    if clock.utcoffset() is None:
+        raise ValueError('invalid refresh clock')
+    clock = clock.astimezone(SHANGHAI)
+    if (_day(days[-1]) > clock.date()
+            or _day(days[-1]) == clock.date() and clock.time() < time(15)):
         raise ValueError('invalid refresh clock')
     for key, columns in (('raw', 5), ('adjusted', 5), ('votes', 34)):
         values = np.asarray(a[key])
@@ -124,6 +141,27 @@ def _validate_analysis(a, code):
             and np.isfinite(a['annual_vol']) and np.isfinite(a['daily_es'])
             and _number(a['conditional_cap']) > 0):
         raise ValueError('unconfirmed F1 cannot be a buy')
+    decision = a['decision']
+    if (type(decision['strength']) is not int or not 1 <= decision['strength'] <= 5
+            or decision['kind'] not in ('signal', 'precaution')
+            or not isinstance(decision['reasons'], list) or not decision['reasons']
+            or not all(isinstance(reason, str) for reason in decision['reasons'])
+            or not isinstance(decision['strength_reason'], str)):
+        raise ValueError('invalid decision strength or reasons')
+    if decision['kind'] == 'precaution':
+        if (decision['strength'] != 1 or decision['label'] != (
+                '暂缓调仓' if a['holding'] else '不买入')):
+            raise ValueError('invalid precaution')
+    else:
+        expected = ('持有候选' if a['holding'] else '买入候选') if a['css'] == 'buy' else (
+            '退出信号' if a['holding'] else '不买入')
+        if not (verified and a['verified_actions'] and a['eligible']) or decision['label'] != expected:
+            raise ValueError('invalid signal decision')
+        if a['css'] != 'buy' and a['gate'] and a['comparison']['status'] != 'dominated' and not (
+            a['comparison']['status'] == 'front1'
+            and np.isfinite(a['annual_vol']) and np.isfinite(a['daily_es'])
+                and _number(a['conditional_cap']) == 0):
+            raise ValueError('missing negative signal evidence')
 
 
 def _current(a, holding):
@@ -141,8 +179,11 @@ def _current(a, holding):
         ('资格 eligible / 门禁 gate', ('通过' if a['eligible'] else '未通过')
          + ' / ' + ('通过' if a['gate'] else '未通过')),
         ('同日比较 / F1', status + '；比较日 ' + _text(comparison.get('date'))),
+        ('比较数据来源', '独立当前截面' if comparison.get('source') == 'current' else '冻结历史截面'),
+        ('当前截面开始核验 / 完成时间', _text(comparison.get('checked_at')) + ' / '
+         + _text(comparison.get('completed_at'))),
         ('截面覆盖', _text(comparison['coverage']) + '；已比较有效同日股票 '
-         + _text(comparison['compared']) + '；冻结池其他股票 ' + _text(comparison['expected'])),
+         + _text(comparison['compared']) + '；固定池其他股票 ' + _text(comparison['expected'])),
         ('条件风险上限（非执行目标）', _diagnostic(a['conditional_cap'], True)),
         ('当前持仓选项', ('已持仓' if holding else '未持仓')
          + '；仅影响当前动作，不改变历史账户'),
@@ -278,7 +319,7 @@ def _dividends(a):
              '<p class="hint">取得时间：' + _text(actions.get('retrieved_at'))
              + '；权息状态：' + _text(actions.get('status')) + '</p>']
     try:
-        asof = datetime.fromisoformat(a['fresh']['checked_at']).date()
+        asof = datetime.fromisoformat(a['fresh']['checked_at']).astimezone(SHANGHAI).date()
         # Twelve calendar months, including leap-day handling, not a fixed 365d.
         lower = asof.replace(year=asof.year - 1, day=28 if asof.month == 2 and asof.day == 29 else asof.day)
         rows, cash12 = [], 0.
@@ -351,20 +392,31 @@ def render_analysis(code, holding=False, calc_dividend=False) -> str:
     try:
         a = analyze_stock(code, holding=holding)
     except RefreshError as error:
-        return _failure('更新失败，暂不下结论', error.refresh_id)
+        return _failure('更新失败，本次行情或后续核验不可用。', error.refresh_id,
+                        holding=holding, price_committed=error.price_committed)
     except _DATA_ERRORS:
-        return _failure('分析失败，暂不下结论')
+        return _failure('分析失败，本次指标计算不可用。', holding=holding)
     try:
         _validate_analysis(a, code)
+        if a['holding'] is not holding:
+            raise ValueError('mixed holding state')
+        decision = a['decision']
+        css, symbol = ('warn', '⚠️') if decision['kind'] == 'precaution' else (
+            ('buy', '✅') if decision['label'] in ('买入候选', '持有候选') else ('sell', '❌'))
         top_history, detail_history, chart_history = _history(a.get('history') or {}, code)
         warnings = list(dict.fromkeys(list(a.get('warnings', []))
                         + list(a['fresh'].get('warnings', []))
                         + list(a['fresh']['actions']['metadata'].get('notes', []))))
         parts = ['<div class="result fusion-report">',
-                 '<div class="conclusion ' + a['css'] + '">' + _text(a['symbol']) + ' '
-                 + _text(a['action']) + ' · 数据日期 ' + _text(a['fresh']['latest_date']) + '</div>',
+                 '<div class="conclusion ' + css + '">' + symbol + ' '
+                 + '<span class="decision-label">' + _text(decision['label']) + '</span> '
+                 + _stars(decision['strength']) + ' <span class="decision-date">· 数据日期 '
+                 + _text(a['fresh']['latest_date']) + '</span></div>',
                  '<h2>' + _text(a['name']) + ' (' + _text(code) + ') — 融合策略</h2>',
                  '<p class="hint">' + _text(a['reason']) + '</p>',
+                 '<ul class="decision-reasons">' + ''.join('<li>' + _text(reason) + '</li>'
+                     for reason in decision['reasons']) + '</ul>',
+                 '<p class="hint strength-reason">' + _text(decision['strength_reason']) + '</p>',
                  '<p class="hint symbol-legend">' + _LEGEND + '</p>',
                  '<div class="top-row">' + _current(a, holding) + top_history + '</div>',
                  '<div class="analysis-warnings">'
@@ -380,7 +432,7 @@ def render_analysis(code, holding=False, calc_dividend=False) -> str:
                         + '；截止之后只展示行情及信号，无后续成交标记。' if chart_history else
                         '无可用历史成交账本，仅展示行情和信号，不推断成交或收益。') + '</p>')
     except _DATA_ERRORS:
-        return _failure('分析数据不完整，暂不下结论')
+        return _failure('分析数据不完整，不能确认交易信号。', holding=holding)
     try:
         png = render_chart(a['dates'], a['raw'], a['adjusted'], a['votes'], history=chart_history,
                    action_continuous=a['verified_actions'])

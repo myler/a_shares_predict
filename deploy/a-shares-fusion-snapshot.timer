@@ -1,0 +1,10 @@
+[Unit]
+Description=Refresh current A-share cross-section after weekday close
+
+[Timer]
+OnCalendar=Mon..Fri *-*-* 18:30:00 Asia/Shanghai
+Persistent=true
+Unit=a-shares-fusion-snapshot.service
+
+[Install]
+WantedBy=timers.target

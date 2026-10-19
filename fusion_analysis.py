@@ -1,7 +1,7 @@
 """Fresh single-stock Pareto diagnostics, separate from frozen historical accounts.
 
 Always refresh the requested stock before calculation. A single vector cannot
-establish full-universe F1: compare only exact-date, verified frozen peers. When
+establish full-universe F1: compare only exact-date, verified fixed-pool peers. When
 that cross-section is unavailable, report unknown instead of granting a trivial
 one-stock F1 or carrying forward an older front. No historical deadline or old
 account position is applied to the user's current holding checkbox.
@@ -13,6 +13,7 @@ import numpy as np
 
 import live_data
 import pareto_web
+import fusion_snapshot
 from pareto_strategy import (make_objectives, risk_statistics, risk_target,
                              RiskConfig, STRATEGY_VERSION)
 from pareto_backtest import aligned_actions, causal_adjusted_prices, MAINBOARD
@@ -121,7 +122,7 @@ def historical_context(code):
 
 
 def compare_same_day(code, day, vector, context):
-    """Determine strict dominance against a frozen, exact-date cross-section.
+    """Determine strict dominance against a completed, exact-date cross-section.
 
     Fresh requested data may differ from the historical provider, so this is a
     new comparison, never a historical F1 label. Missing peer files make positive
@@ -134,6 +135,14 @@ def compare_same_day(code, day, vector, context):
     vector = np.asarray(vector)
     if vector.shape != (34,) or vector.dtype.kind not in 'iuf' or not np.isin(vector, [-1, 0, 1]).all():
         raise ValueError('invalid current vector')
+    try:
+        current = fusion_snapshot.compare_current(code, day, vector,
+                        [stock['code'] for stock in manifest['universe']] if manifest else None)
+    except _DATA_ERRORS:
+        result.update(source='current', coverage='独立当前截面不完整或校验失败；不确认F1，不回落旧日前沿')
+        return result
+    if current is not None:
+        return current
     if not manifest:
         return result
     universe = manifest['universe']
@@ -189,6 +198,38 @@ def compare_same_day(code, day, vector, context):
         result['status'] = 'front1'
     result['coverage'] = scope + ('' if complete else '；同日截面文件不完整，不确认第一前沿')
     return result
+
+
+def precaution_decision(holding, reasons):
+    return dict(label='暂缓调仓' if holding else '不买入', strength=1,
+                kind='precaution', reasons=list(reasons),
+                strength_reason='1星：证据不足时的保守处置，不是看空信号；已持仓不据此自动卖出或确认继续持有。')
+
+
+def _decision(holding, verified, eligible, gate, comparison, vol, es, cap,
+              risk, rsi, obv_flow, reasons):
+    if not verified or not eligible:
+        return precaution_decision(holding, reasons)
+    if not gate:
+        severity = max((rsi - 92.) / 8., (-.6 - obv_flow) / .4, 0.)
+        strength = max(1, min(5, int(np.ceil(5 * severity))))
+        label = '退出信号' if holding else '不买入'
+        basis = '门禁超限强度：RSI从92至100、OBV净流从-60%至-100%，取较大超限比例，按20%一档向上取整为1至5星。'
+    elif comparison['status'] == 'dominated':
+        strength, label = 3, '退出信号' if holding else '不买入'
+        basis = '3星：已证实存在同日严格支配者；支配关系没有收益幅度，不另推断强弱。'
+    elif not np.isfinite(vol) or not np.isfinite(es) or comparison['status'] != 'front1':
+        return precaution_decision(holding, reasons)
+    elif cap <= 0:
+        strength, label = 5, '退出信号' if holding else '不买入'
+        basis = '5星：有效风险参数给出的风险上限为零，是硬约束，不是亏损概率。'
+    else:
+        strength = max(1, min(5, int(np.ceil(5 * cap / risk.max_weight))))
+        label = '持有候选' if holding else '买入候选'
+        basis = ('候选条件支持强度：风险上限占模型最大上限'
+                 f'{cap / risk.max_weight:.2%}，按20%一档向上取整为1至5星；不是预期收益或仓位指令。')
+    return dict(label=label, strength=strength, kind='signal', reasons=list(reasons),
+                strength_reason=basis)
 
 
 def analyze_stock(code, holding=False):
@@ -259,6 +300,41 @@ def analyze_stock(code, holding=False):
     else:
         action = '持有候选' if holding else '建仓候选'
         symbol, css, reason = '✅', 'buy', '同日F1、门禁及风险预算通过；不代表已经成交'
+    reasons = []
+    if not verified:
+        reasons.append('存在未建模配股，权息连续化不可用。' if actions.get('rights_issue_present') is True
+                       else '权息数据未通过覆盖、分页或事件核验；原价指标不能代替已核验信号。')
+    if len(dates) < 251:
+        reasons.append(f'仅有{len(dates)}根日线，完整34原子资格需要251根；预热占位不是有效中性信号。')
+    if raw[-1, 4] <= 0:
+        reasons.append('最新日成交量为零，未通过交易资格。')
+    rsi, obv_flow = float(objectives['rsi'][i]), float(objectives['obv_flow'][i])
+    if not np.isfinite(rsi):
+        reasons.append('RSI尚无有效值，未通过指标资格。')
+    if jumps:
+        reasons.append(f'存在{len(jumps)}次未解释的超过25%开盘跳空，最近一次{jumps[-1]}；质量隔离未解除。')
+    if verified and eligible:
+        if rsi > 92:
+            reasons.append(f'RSI={rsi:.2f}，超过门禁上限92。')
+        if obv_flow < -.6:
+            reasons.append(f'OBV五日净流={obv_flow:.2%}，低于门禁下限-60%。')
+        if comparison['status'] == 'dominated':
+            reasons.append(f'被{len(comparison["dominators"])}只同日有效股票严格支配，不在F1。')
+        elif gate and comparison['status'] == 'unknown':
+            manifest = context['manifest']
+            if comparison.get('source') == 'current':
+                reasons.append(comparison['coverage'] + '；无法确认F1。')
+            elif manifest and dates[-1] > manifest['effective_end']:
+                reasons.append(f'本股行情日{dates[-1]}晚于冻结截面截止{manifest["effective_end"]}，'
+                               '34原子已计算，但缺少精确同日股票池，F1未知；不是某个因子计算中断。')
+            else:
+                reasons.append(comparison['coverage'] + '；无法确认F1，不把单股自封前沿。')
+        if not np.isfinite(vol) or not np.isfinite(es):
+            reasons.append('波动率或历史ES缺少有效值，不能确认风险预算。')
+        elif gate and conditional_cap <= 0:
+            reasons.append('有效风险参数给出的条件风险上限为零。')
+    decision = _decision(holding, verified, eligible, gate, comparison, vol, es,
+                         conditional_cap, context['risk'], rsi, obv_flow, reasons or [reason])
     if dates[-1] < today and css in ('buy', 'sell'):
         action = f'截至{dates[-1]}的{action}'
     warnings.append('未提供持股数量、成本、净值高点和冷静期状态，无法计算实际加减仓金额或个人账户回撤退出；候选须核对这些约束。')
@@ -267,4 +343,4 @@ def analyze_stock(code, holding=False):
                 eligible=eligible, gate=gate, verified_actions=verified, rsi=float(objectives['rsi'][i]),
                 obv_flow=float(objectives['obv_flow'][i]), annual_vol=vol, daily_es=es,
                 conditional_cap=conditional_cap, comparison=comparison, action=action,
-                symbol=symbol, css=css, reason=reason, history=context, warnings=warnings)
+                symbol=symbol, css=css, reason=reason, decision=decision, history=context, warnings=warnings)

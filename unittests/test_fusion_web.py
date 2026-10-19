@@ -113,6 +113,7 @@ def fixture(n=300):
                 comparison=dict(status='unknown', compared=0, expected=3330,
                                 coverage='无同日可比截面', dominators=[], date='2026-09-09'),
                 action='暂不下买卖结论', symbol='⚠️', css='warn', reason='缺少同日可比截面，不能确认F1',
+                decision=web.precaution_decision(False, ['缺少同日可比截面，不能确认F1']),
                 history=history, warnings=['个人账户约束未提供。'])
 
 
@@ -141,6 +142,10 @@ class TestFusionWeb(unittest.TestCase):
         self.addCleanup(chart.stop)
 
     def render(self, **kwargs):
+        if self.analyze.side_effect is None:
+            self.a['holding'] = kwargs.get('holding', False)
+            if self.a['decision']['kind'] == 'precaution':
+                self.a['decision']['label'] = '暂缓调仓' if self.a['holding'] else '不买入'
         html = web.render_analysis('000001', **kwargs)
         parsed = Document(html)
         self.assertEqual(len(parsed.stack), 1)
@@ -157,7 +162,8 @@ class TestFusionWeb(unittest.TestCase):
         self.assertEqual(result.children[-1].tag, 'img')
         self.assertEqual(len(dom.find(css='top-row')[0].find('table')), 2)
         self.assertEqual(dom.find(css='conclusion')[0].text,
-                         '⚠️ 暂不下买卖结论 · 数据日期 2026-09-09')
+                         '⚠️ 不买入 ★☆☆☆☆ · 数据日期 2026-09-09')
+        self.assertEqual(dom.find(css='decision-stars')[0].attrs['aria-label'], '强度 1/5')
         self.assertIn(web._LEGEND, dom.text)
         self.assertEqual(dom.find('img')[0].attrs['src'], 'data:image/png;base64,' + PNG)
         self.analyze.assert_called_once_with('000001', holding=False)
@@ -188,12 +194,14 @@ class TestFusionWeb(unittest.TestCase):
 
         def analyzed(code, holding=False):
             return dict(self.a, holding=holding, action='持有候选' if holding else '建仓候选',
+                        decision=dict(label='持有候选' if holding else '买入候选', strength=3,
+                                      kind='signal', reasons=['同日F1通过'], strength_reason='风险分档3星'),
                         css='buy', symbol='✅', comparison=dict(self.a['comparison'], status='front1'))
 
         self.analyze.side_effect = analyzed
         _, flat = self.render(holding=False)
         _, held = self.render(holding=True)
-        self.assertIn('建仓候选', flat.find(css='conclusion')[0].text)
+        self.assertIn('买入候选 ★★★☆☆', flat.find(css='conclusion')[0].text)
         self.assertIn('持有候选', held.find(css='conclusion')[0].text)
         self.assertEqual(self.analyze.call_count, 2)
         self.assertEqual(self.analyze.call_args_list[0].kwargs, {'holding': False})
@@ -390,7 +398,9 @@ class TestFusionWeb(unittest.TestCase):
         self.analyze.side_effect = RefreshError('/private/cache.sqlite ' + payload,
             refresh_id='id-' + payload, evidence_dir='/private/output/proof', price_committed=True)
         html, dom = self.render(calc_dividend=True)
-        self.assertEqual(dom.find(css='conclusion')[0].text, '⚠️ 更新失败，暂不下结论')
+        self.assertEqual(dom.find(css='conclusion')[0].text, '⚠️ 不买入 ★☆☆☆☆')
+        self.assertIn('更新失败', dom.text)
+        self.assertIn('行情已提交到数据库', dom.text)
         self.assertIn(escape('id-' + payload, quote=True), html)
         self.assertNotIn('/private', html)
         self.assertNotIn('<script>', html)
@@ -405,6 +415,53 @@ class TestFusionWeb(unittest.TestCase):
             with self.subTest(identity=identity):
                 html, _ = self.render()
                 self.assertNotIn('private', html)
+
+    def test_failed_refresh_held_is_low_strength_precaution_not_sell(self):
+        self.analyze.side_effect = RefreshError('unavailable')
+        _, dom = self.render(holding=True)
+        self.assertEqual(dom.find(css='conclusion')[0].text, '⚠️ 暂缓调仓 ★☆☆☆☆')
+        self.assertIn('不是看空信号', dom.text)
+        self.assertIn('非盈利概率', dom.text)
+        self.assertNotIn('退出信号', dom.text)
+
+    def test_zero_risk_exit_uses_negative_color_not_legacy_warning(self):
+        self.a.update(holding=True, conditional_cap=0.)
+        self.a['comparison']['status'] = 'front1'
+        self.a['decision'] = dict(label='退出信号', strength=5, kind='signal',
+                                   reasons=['有效风险上限为零'], strength_reason='5星硬约束')
+        _, dom = self.render(holding=True)
+        self.assertEqual(dom.find(css='conclusion')[0].attrs['class'], 'conclusion sell')
+        self.assertEqual(dom.find(css='conclusion')[0].text,
+                         '❌ 退出信号 ★★★★★ · 数据日期 2026-09-09')
+        self.a['comparison']['status'] = 'unknown'
+        _, dom = self.render(holding=True)
+        self.assertIn('暂缓调仓 ★☆☆☆☆', dom.text)
+        self.assertIn('分析数据不完整', dom.text)
+
+    def test_invalid_or_exaggerated_decision_strength_fails_closed(self):
+        for strength in (0, 6, True, 2.5, '5', '<script>5</script>', 5):
+            self.a['decision']['strength'] = strength
+            with self.subTest(strength=strength):
+                html, dom = self.render()
+                self.assertIn('分析数据不完整', dom.text)
+                self.assertNotIn('<script>', html)
+                self.assertIn('不买入 ★☆☆☆☆', dom.text)
+        self.chart.assert_not_called()
+
+    def test_render_dates_and_dividend_window_use_shanghai_not_clock_offset(self):
+        self.a['fresh']['checked_at'] = '2026-09-09T23:30:00-08:00'
+        _, dom = self.render(calc_dividend=True)
+        self.assertTrue(dom.find(css='indicators'))
+        self.assertIn('(2025-09-10, 2026-09-10]', dom.text)
+        self.assertIn('0.5000 元/各次权息前股', dom.text)
+        self.a['fresh']['actions']['events'] = []
+        self.a['dates'] = (self.a['dates'].astype('datetime64[D]') + np.timedelta64(1, 'D')).astype('U10')
+        self.a['fresh'].update(latest_date='2026-09-10', date='2026-09-10')
+        _, dom = self.render()
+        self.assertTrue(dom.find(css='indicators'))
+        self.a['fresh']['checked_at'] = '2026-09-10T06:59:59+00:00'
+        _, dom = self.render()
+        self.assertIn('分析数据不完整', dom.text)
 
     def test_invalid_code_rejected_before_analysis(self):
         for code in (None, 1, b'000001', '', ' 000001', '000001 ', '000001\n', '０００００１',
@@ -472,7 +529,8 @@ class TestFusionWeb(unittest.TestCase):
     def test_generic_analysis_error_does_not_leak_exception_or_retry(self):
         self.analyze.side_effect = ValueError('<script>bad</script> /private/file')
         html, _ = self.render()
-        self.assertIn('分析失败，暂不下结论', html)
+        self.assertIn('分析失败，本次指标计算不可用', html)
+        self.assertIn('不买入', html)
         self.assertNotIn('/private', html)
         self.assertNotIn('<script>', html)
         self.analyze.assert_called_once()

@@ -1,0 +1,11 @@
+[Unit]
+Description=Collect independent current A-share Pareto cross-section
+
+[Service]
+Type=oneshot
+WorkingDirectory=%h/a_shares_predict
+ExecStart=%h/a_shares_predict/.venv/bin/python -u fusion_snapshot.py --workers 2
+Environment=PYTHONDONTWRITEBYTECODE=1
+UMask=0077
+TimeoutStartSec=4h
+Nice=10

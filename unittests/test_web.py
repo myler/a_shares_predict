@@ -116,8 +116,8 @@ class TestPageContract(OfflineWebCase):
     def test_live_refresh_and_history_boundaries_are_explicit(self):
         single = web.PAGE.split('<div id="tab-analyze">', 1)[1].split('<!-- ══════════ Tab 2:', 1)[0]
         for text in ('每次分析均联网刷新本股', '来源最新已完成日线',
-                     '未成功刷新，不给出最新结论', '历史不足时仅作条件判断',
-                     '不声称完整同日 F1', '历史回测期限'):
+                     '1至5星规则支持强度', '非盈利概率', '缺少行情、权息或同日截面',
+                     '已持仓暂缓调仓', '不冒充已确认的交易信号', '历史回测期限'):
             self.assertIn(text, single)
         self.assertNotIn('只读', single)
         overview = web.PAGE.split('<div id="tab-scan"', 1)[1].split('<script>', 1)[0]
