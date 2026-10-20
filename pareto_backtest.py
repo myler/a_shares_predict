@@ -33,9 +33,10 @@ import numpy as np
 import pandas as pd
 
 from capital_account import Account, AccountConfig
-from pareto_strategy import (OBJECTIVE_NAMES, STRATEGY_VERSION, RiskConfig,
-                             daily_front_layers, make_objectives,
-                             optimal_rebalance_weight, risk_statistics)
+from pareto_strategy import (HOLD_POLICY, OBJECTIVE_NAMES, STRATEGY_VERSION,
+                             TREND_STRATEGY_VERSION, RiskConfig,
+                             daily_front_layers, holding_trend, make_objectives,
+                             optimal_rebalance_weight, risk_statistics, risk_target)
 
 ROOT = Path(__file__).resolve().parent
 MAINBOARD = ('600', '601', '603', '605', '000', '001', '002', '003')
@@ -43,6 +44,7 @@ CANDIDATE_VOL_TARGETS = (.10, .15, .20)
 TRAIN_END = '2021-12-31'
 VALIDATION_END = '2023-12-31'
 FEATURE_START = '2015-01-01'
+BENCHMARK_VERSION = 'buy_hold_account_benchmark_v1'
 
 
 def write_json(path, value):
@@ -213,9 +215,16 @@ def execution_blocks(raw, i, action_cash, action_mult):
     return tradable, bool(gap >= .048), bool(gap <= -.048)
 
 
-def replay_stock(folder, code, col, risk_config, end=None, record_ledger=False):
+def replay_stock(folder, code, col, risk_config, end=None, record_ledger=False,
+                 strategy_version=None):
     folder = Path(folder)
     manifest = read_json(folder / 'manifest.json')
+    version = strategy_version or manifest['version']
+    if version not in (STRATEGY_VERSION, TREND_STRATEGY_VERSION, BENCHMARK_VERSION):
+        raise ValueError('unsupported replay strategy version')
+    if (strategy_version is None and version == TREND_STRATEGY_VERSION
+            and manifest.get('holding_policy') != HOLD_POLICY):
+        raise ValueError('holding policy differs; use a new run directory')
     start = manifest['start']
     end = end or manifest['effective_end']
     calendar = np.array(manifest['calendar'], dtype='U10')
@@ -223,7 +232,18 @@ def replay_stock(folder, code, col, risk_config, end=None, record_ledger=False):
     data = dict(np.load(folder / 'features' / (code + '.npz')))
     dates, raw = data['dates'], data['raw']
     meta = read_json(folder / 'features' / (code + '.json'))
-    account = Account(code, record_ledger=record_ledger)
+    trend_policy = version == TREND_STRATEGY_VERSION
+    if trend_policy:
+        actions = {index: (data['event_cash'][index], data['event_mult'][index])
+                   for index in range(1, len(dates))
+                   if data['event_cash'][index] or data['event_mult'][index] != 1}
+        try:
+            trend = holding_trend(causal_adjusted_prices(raw, actions)[:, 3])
+        except (ValueError, TypeError, FloatingPointError) as error:
+            meta['feature_error'] = meta['feature_error'] or str(error)
+            trend = dict(average=np.full(len(dates), np.nan),
+                         entry=np.zeros(len(dates), bool), exit=np.zeros(len(dates), bool))
+    account = Account(code, AccountConfig(**manifest['account_defaults']), record_ledger=record_ledger)
     nav_curve = np.full(len(calendar), account.cash)
     exposure_curve = np.zeros(len(calendar))
     pending = None
@@ -257,7 +277,8 @@ def replay_stock(folder, code, col, risk_config, end=None, record_ledger=False):
             # Do not execute stale BUY orders after a suspension. Exits persist.
             if ci == signal_ci + 1 or target == 0:
                 account.rebalance(day, o, target, tradable=tradable,
-                                  block_buy=block_buy or account.risk_blocked(ci),
+                                  block_buy=(block_buy or account.risk_blocked(ci)
+                                             or reason == 'holding_risk_cap'),
                                   block_sell=block_sell, reason=reason, signal_day=signal_day)
         pending = None
         risk_exit = account.observe_close(day, ci, close)
@@ -277,6 +298,29 @@ def replay_stock(folder, code, col, risk_config, end=None, record_ledger=False):
             target = optimal_rebalance_weight(current, desired, vol if np.isfinite(vol) else 0.,
                                               buy_cost, sell_cost, risk_config, risk_cap=desired)
             pending = (target, day, ci, 'risk_exit' if risk_exit else 'pareto_risk_target')
+            if trend_policy:
+                valid = (quality_allowed and bool(data['eligible'][i])
+                         and not risk_exit and not account.risk_blocked(ci)
+                         and np.isfinite(trend['average'][i]))
+                cap = risk_target(1, bool(valid), vol, es, risk_config)
+                if account.shares:
+                    if cap == 0 or trend['exit'][i]:
+                        reason = ('risk_exit' if risk_exit else 'trend_exit'
+                                  if trend['exit'][i] else 'invalid_risk_or_quality')
+                        pending = (0., day, ci, reason)
+                    elif current > cap:
+                        pending = (cap * (1 - HOLD_POLICY['risk_buffer']),
+                                   day, ci, 'holding_risk_cap')
+                    else:
+                        pending = None
+                elif allowed and trend['entry'][i] and cap > 0:
+                    pending = (cap * (1 - HOLD_POLICY['risk_buffer']), day, ci, 'pareto_trend_entry')
+                else:
+                    pending = None
+            elif version == BENCHMARK_VERSION:
+                pending = ((1., day, ci, 'benchmark_entry')
+                           if account.build_count == 0 and quality_allowed and data['eligible'][i]
+                           else None)
         # Only at actual common deadline: terminal close order cannot use a
         # stale stock's last date as though known to be its final trade day.
         if day == end and account.shares:
@@ -297,7 +341,7 @@ def replay_stock(folder, code, col, risk_config, end=None, record_ledger=False):
             nav_curve[ci] = nav_curve[ci-1]
             exposure_curve[ci] = exposure_curve[ci-1]
     summary = account.summary(last_price)
-    summary.update(name=meta['name'], last_price=last_price, end=end,
+    summary.update(name=meta['name'], strategy_version=version, last_price=last_price, end=end,
                    first_date=meta['first_date'], last_date=meta['last_date'],
                    feature_error=meta['feature_error'], late_start=meta['late_start'],
                    stale=meta['stale'], rights_issue_present=meta['rights_issue_present'],
@@ -393,8 +437,11 @@ def validate_resume(folder, manifest, source, start, requested_end, limit):
             raise ValueError('refuse resume: frozen source.sqlite SHA-256 differs from manifest')
 
 
-def create_run(folder, source, start, requested_end, limit=0):
+def create_run(folder, source, start, requested_end, limit=0,
+               strategy_version=TREND_STRATEGY_VERSION):
     validate_new_run(start, requested_end, limit)
+    if strategy_version not in (STRATEGY_VERSION, TREND_STRATEGY_VERSION):
+        raise ValueError('unsupported strategy version')
     source = Path(source).resolve()
     folder = Path(folder); folder.mkdir(parents=True, exist_ok=True)
     snapshot = folder / 'source.sqlite'
@@ -416,7 +463,7 @@ def create_run(folder, source, start, requested_end, limit=0):
                                              (start, effective_end))]
     if not calendar or not listing:
         raise ValueError('empty calendar or mainboard universe')
-    manifest = dict(version=STRATEGY_VERSION, start=start, requested_end=requested_end,
+    manifest = dict(version=strategy_version, start=start, requested_end=requested_end,
                     effective_end=effective_end, calendar=calendar,
                     created_at=datetime.now(timezone.utc).isoformat(),
                     universe=[dict(code=r[0], name=r[1], first_date=r[2], last_date=r[3]) for r in listing],
@@ -437,17 +484,25 @@ def create_run(folder, source, start, requested_end, limit=0):
                                  'daily OHLC cannot certify fills or official limit status',
                                  'unexplained >25% opening gaps quarantine later signals',
                                  'zero interest on idle cash; no principal guarantee'])
+    if strategy_version == TREND_STRATEGY_VERSION:
+        manifest['holding_policy'] = dict(HOLD_POLICY)
+        manifest['limitations'].append('v2 designed after viewing prior results; not a blind holdout')
     write_json(folder / 'manifest.json', manifest)
     return manifest
 
 
-def run(folder, source, start, end, workers=8, limit=0, fetch_actions=True, action_snapshot=None):
+def run(folder, source, start, end, workers=8, limit=0, fetch_actions=True, action_snapshot=None,
+    strategy_version=None):
     folder = Path(folder)
     resuming = (folder/'manifest.json').exists()
     manifest = (read_json(folder/'manifest.json') if resuming
-                else create_run(folder, source, start, end, limit))
-    if manifest['version'] != STRATEGY_VERSION:
+                else create_run(folder, source, start, end, limit,
+                strategy_version or TREND_STRATEGY_VERSION))
+    if (manifest['version'] not in (STRATEGY_VERSION, TREND_STRATEGY_VERSION)
+        or strategy_version is not None and manifest['version'] != strategy_version):
         raise ValueError('refuse resuming a different strategy version')
+    if manifest['version'] == TREND_STRATEGY_VERSION and manifest.get('holding_policy') != HOLD_POLICY:
+        raise ValueError('refuse resuming a different holding policy')
     if resuming:
         validate_resume(folder, manifest, source, start, end, limit)
     # summary.json is the completion marker: preserve it on validation failure.
@@ -531,7 +586,7 @@ def run(folder, source, start, end, workers=8, limit=0, fetch_actions=True, acti
     holdout_start_equity = (float(curve[validation_index]) if validation_index >= 0
                             else totals['initial_capital'])
     holdout_pnl = totals['final_equity']-holdout_start_equity
-    result = dict(version=STRATEGY_VERSION, start=manifest['start'],
+    result = dict(version=manifest['version'], start=manifest['start'],
                   requested_end=manifest['requested_end'], effective_end=manifest['effective_end'],
                   selected_risk=asdict(RiskConfig(annual_vol_target=selected['vol_target'])),
                   totals=totals, annual_results=years, holdout_2024_onward_pnl=holdout_pnl,
@@ -546,9 +601,71 @@ def run(folder, source, start, end, workers=8, limit=0, fetch_actions=True, acti
     return result
 
 
+def compare_frozen(source, output, codes):
+    """Offline paired sample replay; reuse full-pool fronts, never rebuild history."""
+    source, output = Path(source).resolve(), Path(output).resolve()
+    manifest = read_json(source / 'manifest.json')
+    summary = read_json(source / 'summary.json')
+    if (manifest['version'] != summary['version']
+            or manifest['version'] not in (STRATEGY_VERSION, TREND_STRATEGY_VERSION)):
+        raise ValueError('incompatible completed source')
+    if output.exists() or output.is_relative_to(source) or source.is_relative_to(output):
+        raise ValueError('comparison requires a new independent output directory')
+    universe = [stock['code'] for stock in manifest['universe']]
+    if not codes or len(set(codes)) != len(codes) or any(code not in universe for code in codes):
+        raise ValueError('comparison codes must be unique members of the frozen universe')
+    risk = RiskConfig(**summary['selected_risk'])
+    calendar = np.array(manifest['calendar'])
+    evidence = {}
+    for name in ('manifest.json', 'summary.json', 'fronts.npy'):
+        with (source / name).open('rb') as stream:
+            evidence[name] = hashlib.file_digest(stream, 'sha256').hexdigest()
+    for code in codes:
+        for suffix in ('npz', 'json'):
+            name = f'features/{code}.{suffix}'
+            with (source / name).open('rb') as stream:
+                evidence[name] = hashlib.file_digest(stream, 'sha256').hexdigest()
+    results = []
+    output.mkdir(parents=True)
+    for code in codes:
+        for version in (STRATEGY_VERSION, TREND_STRATEGY_VERSION, BENCHMARK_VERSION):
+            account, curve, ledger = replay_stock(source, code, universe.index(code), risk,
+                                                  record_ledger=True, strategy_version=version)
+            if (not np.isclose(account['marked_nav'], account['final_cash'] + account['residual_value'])
+                    or not np.isclose(account['pnl'], account['marked_nav'] - account['initial_capital'])):
+                raise ValueError('comparison account identity failed')
+            annual = []
+            previous = account['initial_capital']
+            for year in sorted(set(day[:4] for day in calendar)):
+                index = np.flatnonzero(np.char.startswith(calendar, year))[-1]
+                value = float(curve[index])
+                annual.append(dict(year=year, pnl=value - previous,
+                                   return_pct=(value / previous - 1) * 100))
+                previous = value
+            account['annual_results'] = annual
+            account['return_pct'] = account['pnl'] / account['initial_capital'] * 100
+            results.append(account)
+            write_json(output / version / f'{code}.json', dict(account=account, ledger=ledger))
+    result = dict(complete=True, scope='paired_sample_not_full_population_not_blind_holdout',
+                  source=str(source), start=manifest['start'], requested_end=manifest['requested_end'],
+                  effective_end=manifest['effective_end'], universe_size=len(universe), codes=codes,
+                  selected_risk=asdict(risk), holding_policy=dict(HOLD_POLICY),
+                  input_sha256=evidence, results=results,
+                  limitations=manifest['limitations'] + [
+                      'same frozen full-pool fronts, prices/actions, account fees and deadline',
+                      'risk parameters reused without reoptimization; sample is not a full-market result',
+                      'benchmark buys once after first eligible close; no reinvestment or risk exits',
+                      'legacy Web buyhold has a different horizon/accounting; not the benchmark here'])
+    write_json(output / 'comparison.json', result)
+    return result
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--output', required=True)
+    parser.add_argument('--strategy', choices=(STRATEGY_VERSION, TREND_STRATEGY_VERSION))
+    parser.add_argument('--compare-frozen', help='offline paired sample from a completed frozen run')
+    parser.add_argument('--codes', help='comma-separated codes for --compare-frozen only')
     parser.add_argument('--source', default=str(ROOT/'stock_cache.db'))
     parser.add_argument('--start', default='2016-09-10')
     parser.add_argument('--end', default='2026-09-10')
@@ -557,6 +674,18 @@ def main():
     parser.add_argument('--cached-actions', action='store_true')
     parser.add_argument('--action-snapshot', help='reuse a frozen Eastmoney batch directory (same coverage dates)')
     args = parser.parse_args()
+    if args.compare_frozen:
+        if not args.codes or args.strategy:
+            parser.error('--compare-frozen requires --codes and compares both strategy versions')
+        result = compare_frozen(args.compare_frozen, args.output, args.codes.split(','))
+        print(json.dumps([dict(code=row['code'], version=row['strategy_version'],
+                               return_pct=row['return_pct'], fees=row['fees'],
+                               builds=row['build_count'], exits=row['exit_count'],
+                               drawdown=row['max_drawdown_observed'])
+                          for row in result['results']], ensure_ascii=False, indent=2))
+        return
+    if args.codes:
+        parser.error('--codes is only valid with --compare-frozen')
     try:
         validate_new_run(args.start, args.end, args.limit)
     except ValueError as error:
@@ -564,7 +693,8 @@ def main():
     if not 1 <= args.workers <= 16:
         parser.error('invalid workers (expected 1..16)')
     run(args.output, args.source, args.start, args.end, args.workers, args.limit,
-        fetch_actions=not args.cached_actions, action_snapshot=args.action_snapshot)
+        fetch_actions=not args.cached_actions, action_snapshot=args.action_snapshot,
+        strategy_version=args.strategy)
 
 
 if __name__ == '__main__':

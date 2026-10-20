@@ -377,7 +377,7 @@ class TestParetoWeb(unittest.TestCase):
     def test_shared_model_documentation(self):
         html = pareto_web.render_methodology()
         for text in ('34 个独立维度', '1,000,000.00 元', 'wcap = min(1, σTarget / σ, ESbudget / ES95)',
-                     '0 ≤ w ≤ wcap', '目标为 0 强制 exit', '15.00%', '20 个市场日 cooldown',
+                     'v2趋势持仓', 'MA120', '不自动补仓', '15.00%', '20 个市场日 cooldown',
                      '最后 5 个市场日', 'T+1', '5.00 元', '5bp', 'cash dividend on ex-date',
                      '下一市场交易日开盘', '配股未建模', '未计红利税', '保守隔离', 'eligible=false',
                      '全期禁止买入', '不重置本金、不前填交易信号'):
@@ -387,6 +387,9 @@ class TestParetoWeb(unittest.TestCase):
         self.assertIn('σTarget=10.00%', custom)
         self.assertIn('每笔最低 8.00 元', custom)
         self.assertIn('12 个市场日 cooldown', custom)
+        legacy = pareto_web.render_methodology(version=STRATEGY_VERSION)
+        self.assertIn('0 ≤ w ≤ wcap', legacy)
+        self.assertIn('非 F1、资格或门禁未通过时目标为 0', legacy)
         self.assert_no_weighted_fallback(html)
 
     def test_real_replay_summary_account_and_ledger_fields_render_read_only(self):

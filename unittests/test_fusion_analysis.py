@@ -205,18 +205,18 @@ class TestFusionAnalysis(unittest.TestCase):
             self.assertNotIn('quantity', result)
             self.assertIn('无法计算实际加减仓', ''.join(result['warnings']))
 
-    def test_missing_current_front_has_explicit_low_strength_decision(self):
+    def test_missing_current_front_blocks_entry_not_existing_trend_holding(self):
         self.manifest['effective_end'] = '2026-09-08'
         self.manifest['calendar'] = self.manifest['calendar'][:-2]
-        for holding, label in ((False, '不买入'), (True, '暂缓调仓')):
+        for holding, label in ((False, '不买入'), (True, '持有候选')):
             with self.subTest(holding=holding):
                 result = analysis.analyze_stock(CODE, holding=holding)
                 self.assertTrue(result['eligible'] and result['gate'] and result['verified_actions'])
                 self.assertEqual(result['votes'].shape, (280, 34))
                 self.assertEqual(result['comparison']['status'], 'unknown')
                 self.assertEqual(result['decision']['label'], label)
-                self.assertEqual(result['decision']['strength'], 1)
-                self.assertEqual(result['decision']['kind'], 'precaution')
+                self.assertEqual(result['decision']['strength'], 3 if holding else 1)
+                self.assertEqual(result['decision']['kind'], 'signal' if holding else 'precaution')
                 self.assertIn('2026-09-08', ' '.join(result['decision']['reasons']))
                 self.assertIn(TODAY, ' '.join(result['decision']['reasons']))
 
@@ -414,17 +414,20 @@ class TestFusionAnalysis(unittest.TestCase):
         self.assertEqual(result['css'], 'warn')
         self.assertEqual(result['conditional_cap'], 0.)
 
-    def test_rsi_gate_failure_gives_only_unheld_no_buy_or_held_exit_signal(self):
+    def test_rsi_entry_gate_failure_does_not_exit_existing_trend_holding(self):
         for i, row in enumerate(self.fresh['rows']):
             close = 20. + .01 * i
             row.update(open=close, close=close, high=close + .2, low=close - .2)
-        for holding, label in ((False, '不买入'), (True, '退出信号')):
+        for holding, label in ((False, '不买入'), (True, '持有候选')):
             result = analysis.analyze_stock(CODE, holding=holding)
             self.assertTrue(result['eligible'])
             self.assertEqual(result['rsi'], 100.)
             self.assertFalse(result['gate'])
             self.assertEqual(result['action'], label)
-            self.assertEqual(result['conditional_cap'], 0.)
+            if holding:
+                self.assertGreater(result['conditional_cap'], 0.)
+            else:
+                self.assertEqual(result['conditional_cap'], 0.)
 
     def test_obv_gate_is_separate_from_rsi_gate(self):
         # A large down-day volume then low-volume up days: RSI passes, flow fails.
@@ -558,12 +561,23 @@ class TestFusionAnalysis(unittest.TestCase):
         self.write_peer(vector=incomparable)
         self.assertEqual(self.compare(vector=vector)['status'], 'front1')
 
-    def test_dominated_current_stock_is_not_buy_for_either_holding_flag(self):
+    def test_dominated_current_stock_blocks_entry_but_preserves_trend_holding(self):
         self.write_peer(vector=np.ones(34, dtype=np.int8))
-        for holding, action in ((False, '不买入'), (True, '退出信号')):
+        for holding, action in ((False, '不买入'), (True, '持有候选')):
             result = analysis.analyze_stock(CODE, holding=holding)
             self.assertEqual(result['action'], action)
             self.assertEqual(result['comparison']['status'], 'dominated')
+
+    def test_confirmed_trend_break_exits_even_without_current_front(self):
+        for offset, row in enumerate(self.fresh['rows'][-10:]):
+            close = 21. - .03 * offset
+            row.update(open=close, close=close, high=close + .2, low=close - .2)
+        self.manifest['calendar'] = []
+        result = analysis.analyze_stock(CODE, holding=True)
+        self.assertTrue(result['trend']['exit'])
+        self.assertEqual(result['decision']['label'], '退出信号')
+        self.assertEqual(result['decision']['strength'], 3)
+        self.assertEqual(result['css'], 'sell')
 
     def test_self_is_excluded_even_if_own_frozen_file_is_absent(self):
         self.assertFalse((self.folder / f'features/{CODE}.npz').exists())

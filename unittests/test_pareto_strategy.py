@@ -296,6 +296,24 @@ class TestDailyFrontLayers(unittest.TestCase):
                 strategy.daily_front_layers([[0]], cap)
 
 
+class TestHoldingTrend(unittest.TestCase):
+    def test_confirmation_warmup_and_causal_prefixes(self):
+        prices = np.r_[np.full(125, 10.), 9.9, 9.8, 9.7, 10.1]
+        result = strategy.holding_trend(prices)
+        self.assertFalse(result['entry'][:119].any())
+        self.assertTrue(result['entry'][119:125].all())
+        np.testing.assert_array_equal(result['exit'][-4:], [False, False, True, False])
+        for length in (0, 1, 118, 119, 120, 125, 126, 127, 128, 129):
+            prefix = strategy.holding_trend(prices[:length])
+            for key in result:
+                np.testing.assert_array_equal(prefix[key], result[key][:length])
+
+    def test_invalid_prices_rejected(self):
+        for prices in ([0.], [-1.], [np.nan], [np.inf], [[10.]], ['10']):
+            with self.subTest(prices=prices), self.assertRaises(ValueError):
+                strategy.holding_trend(prices)
+
+
 class TestRiskConfig(unittest.TestCase):
     def test_defaults_and_immutability(self):
         config = strategy.RiskConfig()

@@ -1,0 +1,32 @@
+{
+  "scope": "tests_and_fixed_sample_validation_not_performance_certificate",
+  "strategy_version": "pareto_trend_hold_v2",
+  "feature_version": "pareto_daily_atoms_risk_v1",
+  "tests": {
+    "runner": "unittest discovery with Python audit hook and temporary DB redirection",
+    "passed": 506,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "real_network_blocked": true,
+    "non_temporary_sqlite_blocked": true
+  },
+  "fixed_sample": {
+    "stocks": 13,
+    "accounts_across_three_policies": 39,
+    "filled_events_independently_checked": 6445,
+    "source_hashes_unchanged": 29,
+    "v1_archived_accounts_matched": 13,
+    "cash_shares_fees_dividends_reconciled": true,
+    "risk_parameters_reoptimized": false,
+    "full_population_replayed": false,
+    "blind_holdout": false
+  },
+  "homepage": {
+    "widths_without_horizontal_overflow": [320, 390, 768, 1440, 1920],
+    "actual_stock_refresh_requested": false,
+    "historical_report_remains_v1": true
+  },
+  "production_database_updated": false,
+  "frozen_reports_overwritten": false
+}

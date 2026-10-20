@@ -1,0 +1,5990 @@
+{
+  "complete": true,
+  "scope": "paired_sample_not_full_population_not_blind_holdout",
+  "source": "/home/myl/a_shares_predict/output/pareto_mainboard_20260910",
+  "start": "2016-09-10",
+  "requested_end": "2026-09-10",
+  "effective_end": "2026-09-08",
+  "universe_size": 3330,
+  "codes": [
+    "000001",
+    "000725",
+    "001379",
+    "002284",
+    "002371",
+    "002588",
+    "002916",
+    "600246",
+    "600655",
+    "601111",
+    "603135",
+    "603657",
+    "605599"
+  ],
+  "selected_risk": {
+    "annual_vol_target": 0.1,
+    "es_budget": 0.02,
+    "risk_window": 63,
+    "es_confidence": 0.95,
+    "tracking_penalty": 5.0,
+    "max_weight": 1.0
+  },
+  "holding_policy": {
+    "trend_window": 120,
+    "exit_confirmation": 3,
+    "risk_buffer": 0.1
+  },
+  "input_sha256": {
+    "manifest.json": "df4374793507e08d2c0cc8bbc710321703224d3600b890b209814d2f48054c65",
+    "summary.json": "4e110a481c04654b394ec8ecc1e978b8f9a3f07fd2a1c164d2df27f63f4a7725",
+    "fronts.npy": "02374521540abadd5e868420ff29eeed91b74ca0e25aefaab41f0353bcbed0fb",
+    "features/000001.npz": "a26abba14fa11364a86c8465a278d1b3dab9d31127758e0a5e6925d963ef3fdc",
+    "features/000001.json": "a1b47636d57eeaab04c07f9564def1c89a20c3413e5c656ec29a11aff9b21bf0",
+    "features/000725.npz": "bc388d75fe5b795dc63ba7d790d06cd1287a721a54383b741686b7310bc4f0b7",
+    "features/000725.json": "bf28c6d453e68bea31032093b34b680f1396753e1173666e6815a14fcc527d14",
+    "features/001379.npz": "5986d28b4170ba23514fff6696e1a01c924699a771ef44b6cf6c273d9c13bdc0",
+    "features/001379.json": "3e048666cbc4fc33642e439e17c4447d5e6d8db1e272c91234d4fdf0ec981bf9",
+    "features/002284.npz": "182d3446d1d01d2d32ec49e36768f8fe7f2839bb473a3da4eebcccc062e9a9f1",
+    "features/002284.json": "1650f87a245a4c89e541e932185d96e3f39b7c4a8d5ce13c3851848cce0fd86f",
+    "features/002371.npz": "3bc3aeeee131760bd7784c68776e836acc06824961abd60a3884be9ac70cc032",
+    "features/002371.json": "93cb81238e24adea2e92a7f6d10b8a31f13943e0db765c26cb064f494c1a5a26",
+    "features/002588.npz": "c30555ad04dbf4e9671ab40b92bf380a95ff133732072068932caacc2e0a1641",
+    "features/002588.json": "521f9d2dc85cc47085be75522a035ea9f0e9c8f8012eaaed2dde5c2fba760421",
+    "features/002916.npz": "2ae1e86eeef9fe08731a9dd1389473a89c96a69fd4b3825cfef5532b1e25d290",
+    "features/002916.json": "b83761b74d5df651ad796fb8bbae88f6e47d8743295c6032977e924fbc1bf3d8",
+    "features/600246.npz": "babbc887a3d0aa1a3ef6eac58e8e3d7d7ec680bf300ff437e794ffbf86298906",
+    "features/600246.json": "d8a8092aa2c0e4b1ffece918381e955c4ffeadb17e126972c6c0eda681c997aa",
+    "features/600655.npz": "07703a21f1906f23831d2945cde5626b44fbf00ed9f53f9d64d5036f95acc0f4",
+    "features/600655.json": "5ec8174a03220f988335c0d32dd9ca9355ce3c24a55ab505beb7725b9cf13b56",
+    "features/601111.npz": "14cb1fb39796408c0ab63e585adb37b90561581540a1874c42923d6944921db2",
+    "features/601111.json": "aa94b088eb31f97d256de421d2e425a29dba41667d723b7d06bdbf62d06c6918",
+    "features/603135.npz": "c9e600153e08c793d5d2d15cbf6ad4307f2e9b70816b91fd09f44aa7043d8fab",
+    "features/603135.json": "7193f4766a9d229da7c677ba311e6101c1aeb3a32a21600f79208eb0450e2285",
+    "features/603657.npz": "4b30d7c0b39bd805ee81bed13386fce88e1a27cb52aba4a60ce1e50b2b6c43c5",
+    "features/603657.json": "a6b1b02823b111b874e786d44adb6f2f142f96b162768b5bd76be7096ed83bf4",
+    "features/605599.npz": "cad91b4f1c9cb66eddcb95ef35997c737d1843249b8d16c260d2becc7267d89e",
+    "features/605599.json": "1ca4b2ac5883852215eea5f14c5ff3e9af5b06a0545bc6c44edbfc59391dab8d"
+  },
+  "results": [
+    {
+      "code": "000001",
+      "initial_capital": 1000000.0,
+      "cash": 854413.7593405198,
+      "shares": 0.0,
+      "marked_nav": 854413.7593405198,
+      "pnl": -145586.24065948022,
+      "fees": 130295.05015949004,
+      "cash_dividends": 4665.200000000001,
+      "build_count": 252,
+      "add_count": 91,
+      "reduce_count": 51,
+      "exit_count": 252,
+      "unfilled_count": 0,
+      "max_drawdown_observed": 0.20269929377007398,
+      "fractional_share_approximation": false,
+      "name": "平安银行",
+      "strategy_version": "pareto_daily_atoms_risk_v1",
+      "last_price": 11.78,
+      "end": "2026-09-08",
+      "first_date": "2016-05-26",
+      "last_date": "2026-09-08",
+      "feature_error": null,
+      "late_start": false,
+      "stale": false,
+      "rights_issue_present": false,
+      "action_status": "ok",
+      "action_count": 29,
+      "unexplained_gap_count": 0,
+      "final_cash": 854413.7593405198,
+      "residual_value": 0.0,
+      "liquidation_complete": true,
+      "years": {
+        "2016": {
+          "date": "2016-12-30",
+          "nav": 1000000.0,
+          "cash": 1000000.0,
+          "shares": 0.0
+        },
+        "2017": {
+          "date": "2017-12-29",
+          "nav": 1033572.018240951,
+          "cash": 1033572.018240951,
+          "shares": 0.0
+        },
+        "2018": {
+          "date": "2018-12-28",
+          "nav": 976955.5935176429,
+          "cash": 976955.5935176429,
+          "shares": 0.0
+        },
+        "2019": {
+          "date": "2019-12-31",
+          "nav": 950130.2982928235,
+          "cash": 950130.2982928235,
+          "shares": 0.0
+        },
+        "2020": {
+          "date": "2020-12-31",
+          "nav": 975797.6286562943,
+          "cash": 975797.6286562943,
+          "shares": 0.0
+        },
+        "2021": {
+          "date": "2021-12-31",
+          "nav": 1009906.9075051548,
+          "cash": 1009906.9075051548,
+          "shares": 0.0
+        },
+        "2022": {
+          "date": "2022-12-30",
+          "nav": 958926.3740475207,
+          "cash": 958926.3740475207,
+          "shares": 0.0
+        },
+        "2023": {
+          "date": "2023-12-29",
+          "nav": 900213.076975277,
+          "cash": 365922.07697527704,
+          "shares": 56900.0
+        },
+        "2024": {
+          "date": "2024-12-31",
+          "nav": 857980.3570961335,
+          "cash": 857980.3570961335,
+          "shares": 0.0
+        },
+        "2025": {
+          "date": "2025-12-31",
+          "nav": 850663.3176424144,
+          "cash": 850663.3176424144,
+          "shares": 0.0
+        },
+        "2026": {
+          "date": "2026-09-08",
+          "nav": 854413.7593405198,
+          "cash": 854413.7593405198,
+          "shares": 0.0
+        }
+      },
+      "average_exposure": 0.06695337000646151,
+      "train_nav": 1009906.9075051548,
+      "validation_nav": 900213.076975277,
+      "annual_results": [
+        {
+          "year": "2016",
+          "pnl": 0.0,
+          "return_pct": 0.0
+        },
+        {
+          "year": "2017",
+          "pnl": 33572.018240951,
+          "return_pct": 3.3572018240950907
+        },
+        {
+          "year": "2018",
+          "pnl": -56616.42472330807,
+          "return_pct": -5.477743565432847
+        },
+        {
+          "year": "2019",
+          "pnl": -26825.29522481945,
+          "return_pct": -2.7458049682925534
+        },
+        {
+          "year": "2020",
+          "pnl": 25667.330363470828,
+          "return_pct": 2.7014537279349327
+        },
+        {
+          "year": "2021",
+          "pnl": 34109.27884886053,
+          "return_pct": 3.495527950383548
+        },
+        {
+          "year": "2022",
+          "pnl": -50980.533457634156,
+          "return_pct": -5.0480428521451515
+        },
+        {
+          "year": "2023",
+          "pnl": -58713.297072243644,
+          "return_pct": -6.122815959730188
+        },
+        {
+          "year": "2024",
+          "pnl": -42232.71987914352,
+          "return_pct": -4.691413728519233
+        },
+        {
+          "year": "2025",
+          "pnl": -7317.0394537191605,
+          "return_pct": -0.8528213254769601
+        },
+        {
+          "year": "2026",
+          "pnl": 3750.4416981054237,
+          "return_pct": 0.4408843804972973
+        }
+      ],
+      "return_pct": -14.558624065948022
+    },
+    {
+      "code": "000001",
+      "initial_capital": 1000000.0,
+      "cash": 1302071.4089697753,
+      "shares": 0.0,
+      "marked_nav": 1302071.4089697753,
+      "pnl": 302071.4089697753,
+      "fees": 9479.369030225002,
+      "cash_dividends": 41821.700000000004,
+      "build_count": 14,
+      "add_count": 0,
+      "reduce_count": 17,
+      "exit_count": 14,
+      "unfilled_count": 0,
+      "max_drawdown_observed": 0.12314340179986841,
+      "fractional_share_approximation": false,
+      "name": "平安银行",
+      "strategy_version": "pareto_trend_hold_v2",
+      "last_price": 11.78,
+      "end": "2026-09-08",
+      "first_date": "2016-05-26",
+      "last_date": "2026-09-08",
+      "feature_error": null,
+      "late_start": false,
+      "stale": false,
+      "rights_issue_present": false,
+      "action_status": "ok",
+      "action_count": 29,
+      "unexplained_gap_count": 0,
+      "final_cash": 1302071.4089697753,
+      "residual_value": 0.0,
+      "liquidation_complete": true,
+      "years": {
+        "2016": {
+          "date": "2016-12-30",
+          "nav": 1000000.0,
+          "cash": 1000000.0,
+          "shares": 0.0
+        },
+        "2017": {
+          "date": "2017-12-29",
+          "nav": 1202965.85193324,
+          "cash": 902385.85193324,
+          "shares": 22600.0
+        },
+        "2018": {
+          "date": "2018-12-28",
+          "nav": 1149481.6629423597,
+          "cash": 1149481.6629423597,
+          "shares": 0.0
+        },
+        "2019": {
+          "date": "2019-12-31",
+          "nav": 1316633.5427228997,
+          "cash": 953088.5427228997,
+          "shares": 22100.0
+        },
+        "2020": {
+          "date": "2020-12-31",
+          "nav": 1332310.4157108394,
+          "cash": 959048.4157108396,
+          "shares": 19300.0
+        },
+        "2021": {
+          "date": "2021-12-31",
+          "nav": 1378617.7532955196,
+          "cash": 1378617.7532955196,
+          "shares": 0.0
+        },
+        "2022": {
+          "date": "2022-12-30",
+          "nav": 1378617.7532955196,
+          "cash": 1378617.7532955196,
+          "shares": 0.0
+        },
+        "2023": {
+          "date": "2023-12-29",
+          "nav": 1331857.4170773998,
+          "cash": 1331857.4170773998,
+          "shares": 0.0
+        },
+        "2024": {
+          "date": "2024-12-31",
+          "nav": 1329954.8726641452,
+          "cash": 983634.8726641451,
+          "shares": 29600.0
+        },
+        "2025": {
+          "date": "2025-12-31",
+          "nav": 1305898.0599477852,
+          "cash": 1305898.0599477852,
+          "shares": 0.0
+        },
+        "2026": {
+          "date": "2026-09-08",
+          "nav": 1302071.4089697753,
+          "cash": 1302071.4089697753,
+          "shares": 0.0
+        }
+      },
+      "average_exposure": 0.13102832499904016,
+      "train_nav": 1378617.7532955196,
+      "validation_nav": 1331857.4170773998,
+      "annual_results": [
+        {
+          "year": "2016",
+          "pnl": 0.0,
+          "return_pct": 0.0
+        },
+        {
+          "year": "2017",
+          "pnl": 202965.85193323996,
+          "return_pct": 20.296585193324002
+        },
+        {
+          "year": "2018",
+          "pnl": -53484.18899088027,
+          "return_pct": -4.446027200599911
+        },
+        {
+          "year": "2019",
+          "pnl": 167151.87978054,
+          "return_pct": 14.54150032743251
+        },
+        {
+          "year": "2020",
+          "pnl": 15676.872987939743,
+          "return_pct": 1.1906785357692407
+        },
+        {
+          "year": "2021",
+          "pnl": 46307.33758468018,
+          "return_pct": 3.475716847861876
+        },
+        {
+          "year": "2022",
+          "pnl": 0.0,
+          "return_pct": 0.0
+        },
+        {
+          "year": "2023",
+          "pnl": -46760.33621811983,
+          "return_pct": -3.391827510297285
+        },
+        {
+          "year": "2024",
+          "pnl": -1902.5444132545963,
+          "return_pct": -0.14284895581612167
+        },
+        {
+          "year": "2025",
+          "pnl": -24056.81271635997,
+          "return_pct": -1.808844285683897
+        },
+        {
+          "year": "2026",
+          "pnl": -3826.650978009915,
+          "return_pct": -0.29302830713776595
+        }
+      ],
+      "return_pct": 30.20714089697753
+    },
+    {
+      "code": "000001",
+      "initial_capital": 1000000.0,
+      "cash": 1657371.45986512,
+      "shares": 0.0,
+      "marked_nav": 1657371.45986512,
+      "pnl": 657371.45986512,
+      "fees": 1373.71813488,
+      "cash_dividends": 357411.60000000003,
+      "build_count": 1,
+      "add_count": 0,
+      "reduce_count": 0,
+      "exit_count": 1,
+      "unfilled_count": 0,
+      "max_drawdown_observed": 0.5984058959019015,
+      "fractional_share_approximation": false,
+      "name": "平安银行",
+      "strategy_version": "buy_hold_account_benchmark_v1",
+      "last_price": 11.78,
+      "end": "2026-09-08",
+      "first_date": "2016-05-26",
+      "last_date": "2026-09-08",
+      "feature_error": null,
+      "late_start": false,
+      "stale": false,
+      "rights_issue_present": false,
+      "action_status": "ok",
+      "action_count": 29,
+      "unexplained_gap_count": 0,
+      "final_cash": 1657371.45986512,
+      "residual_value": 0.0,
+      "liquidation_complete": true,
+      "years": {
+        "2016": {
+          "date": "2016-12-30",
+          "nav": 1000000.0,
+          "cash": 1000000.0,
+          "shares": 0.0
+        },
+        "2017": {
+          "date": "2017-12-29",
+          "nav": 1469614.1125312,
+          "cash": 17254.112531200073,
+          "shares": 109200.0
+        },
+        "2018": {
+          "date": "2018-12-28",
+          "nav": 1056401.3125312002,
+          "cash": 32105.312531200074,
+          "shares": 109200.0
+        },
+        "2019": {
+          "date": "2019-12-31",
+          "nav": 1844279.3125312,
+          "cash": 47939.31253120007,
+          "shares": 109200.0
+        },
+        "2020": {
+          "date": "2020-12-31",
+          "nav": 2183672.9125312,
+          "cash": 71744.91253120007,
+          "shares": 109200.0
+        },
+        "2021": {
+          "date": "2021-12-31",
+          "nav": 1891016.9125312,
+          "cash": 91400.91253120007,
+          "shares": 109200.0
+        },
+        "2022": {
+          "date": "2022-12-30",
+          "nav": 1553370.5125312,
+          "cash": 116298.51253120007,
+          "shares": 109200.0
+        },
+        "2023": {
+          "date": "2023-12-29",
+          "nav": 1172808.5125312002,
+          "cash": 147420.51253120007,
+          "shares": 109200.0
+        },
+        "2024": {
+          "date": "2024-12-31",
+          "nav": 1530438.5125312,
+          "cash": 252798.51253120007,
+          "shares": 109200.0
+        },
+        "2025": {
+          "date": "2025-12-31",
+          "nav": 1564072.1125312,
+          "cash": 318100.1125312001,
+          "shares": 109200.0
+        },
+        "2026": {
+          "date": "2026-09-08",
+          "nav": 1657371.45986512,
+          "cash": 1657371.45986512,
+          "shares": 0.0
+        }
+      },
+      "average_exposure": 0.8497924363442969,
+      "train_nav": 1891016.9125312,
+      "validation_nav": 1172808.5125312002,
+      "annual_results": [
+        {
+          "year": "2016",
+          "pnl": 0.0,
+          "return_pct": 0.0
+        },
+        {
+          "year": "2017",
+          "pnl": 469614.11253120005,
+          "return_pct": 46.96141125312001
+        },
+        {
+          "year": "2018",
+          "pnl": -413212.7999999998,
+          "return_pct": -28.117095261714642
+        },
+        {
+          "year": "2019",
+          "pnl": 787877.9999999998,
+          "return_pct": 74.58131589331305
+        },
+        {
+          "year": "2020",
+          "pnl": 339393.59999999986,
+          "return_pct": 18.402505395681935
+        },
+        {
+          "year": "2021",
+          "pnl": -292655.99999999977,
+          "return_pct": -13.402007155951212
+        },
+        {
+          "year": "2022",
+          "pnl": -337646.40000000014,
+          "return_pct": -17.855281873076812
+        },
+        {
+          "year": "2023",
+          "pnl": -380561.99999999977,
+          "return_pct": -24.49911318194641
+        },
+        {
+          "year": "2024",
+          "pnl": 357629.99999999977,
+          "return_pct": 30.493468983112095
+        },
+        {
+          "year": "2025",
+          "pnl": 33633.60000000009,
+          "return_pct": 2.197644643976804
+        },
+        {
+          "year": "2026",
+          "pnl": 93299.34733391996,
+          "return_pct": 5.965156375234515
+        }
+      ],
+      "return_pct": 65.737145986512
+    },
+    {
+      "code": "000725",
+      "initial_capital": 1000000.0,
+      "cash": 888477.9535377908,
+      "shares": 0.0,
+      "marked_nav": 888477.9535377908,
+      "pnl": -111522.0464622092,
+      "fees": 80950.67096221495,
+      "cash_dividends": 4545.0,
+      "build_count": 184,
+      "add_count": 59,
+      "reduce_count": 31,
+      "exit_count": 184,
+      "unfilled_count": 2,
+      "max_drawdown_observed": 0.18777857670649153,
+      "fractional_share_approximation": false,
+      "name": "京东方Ａ",
+      "strategy_version": "pareto_daily_atoms_risk_v1",
+      "last_price": 5.56,
+      "end": "2026-09-08",
+      "first_date": "2016-05-26",
+      "last_date": "2026-09-08",
+      "feature_error": null,
+      "late_start": false,
+      "stale": false,
+      "rights_issue_present": false,
+      "action_status": "ok",
+      "action_count": 19,
+      "unexplained_gap_count": 0,
+      "final_cash": 888477.9535377908,
+      "residual_value": 0.0,
+      "liquidation_complete": true,
+      "years": {
+        "2016": {
+          "date": "2016-12-30",
+          "nav": 1000000.0,
+          "cash": 1000000.0,
+          "shares": 0.0
+        },
+        "2017": {
+          "date": "2017-12-29",
+          "nav": 1012296.7011104106,
+          "cash": 1012296.7011104106,
+          "shares": 0.0
+        },
+        "2018": {
+          "date": "2018-12-28",
+          "nav": 937718.2725670815,
+          "cash": 937718.2725670815,
+          "shares": 0.0
+        },
+        "2019": {
+          "date": "2019-12-31",
+          "nav": 959317.2110881914,
+          "cash": 959317.2110881914,
+          "shares": 0.0
+        },
+        "2020": {
+          "date": "2020-12-31",
+          "nav": 956841.8258668018,
+          "cash": 956841.8258668018,
+          "shares": 0.0
+        },
+        "2021": {
+          "date": "2021-12-31",
+          "nav": 900957.8645360931,
+          "cash": 900957.8645360931,
+          "shares": 0.0
+        },
+        "2022": {
+          "date": "2022-12-30",
+          "nav": 846905.4339999491,
+          "cash": 846905.4339999491,
+          "shares": 0.0
+        },
+        "2023": {
+          "date": "2023-12-29",
+          "nav": 838614.8648121147,
+          "cash": 838614.8648121147,
+          "shares": 0.0
+        },
+        "2024": {
+          "date": "2024-12-31",
+          "nav": 901559.1561178648,
+          "cash": 901559.1561178648,
+          "shares": 0.0
+        },
+        "2025": {
+          "date": "2025-12-31",
+          "nav": 874188.7734243358,
+          "cash": 445610.7734243357,
+          "shares": 101800.0
+        },
+        "2026": {
+          "date": "2026-09-08",
+          "nav": 888477.9535377908,
+          "cash": 888477.9535377908,
+          "shares": 0.0
+        }
+      },
+      "average_exposure": 0.03821388611375706,
+      "train_nav": 900957.8645360931,
+      "validation_nav": 838614.8648121147,
+      "annual_results": [
+        {
+          "year": "2016",
+          "pnl": 0.0,
+          "return_pct": 0.0
+        },
+        {
+          "year": "2017",
+          "pnl": 12296.70111041062,
+          "return_pct": 1.2296701110410702
+        },
+        {
+          "year": "2018",
+          "pnl": -74578.42854332912,
+          "return_pct": -7.367249983282809
+        },
+        {
+          "year": "2019",
+          "pnl": 21598.93852110987,
+          "return_pct": 2.3033505001433863
+        },
+        {
+          "year": "2020",
+          "pnl": -2475.385221389588,
+          "return_pct": -0.25803615246114964
+        },
+        {
+          "year": "2021",
+          "pnl": -55883.9613307087,
+          "return_pct": -5.84045971026439
+        },
+        {
+          "year": "2022",
+          "pnl": -54052.43053614395,
+          "return_pct": -5.999440447081927
+        },
+        {
+          "year": "2023",
+          "pnl": -8290.569187834393,
+          "return_pct": -0.97892501984288
+        },
+        {
+          "year": "2024",
+          "pnl": 62944.29130575003,
+          "return_pct": 7.505744763998701
+        },
+        {
+          "year": "2025",
+          "pnl": -27370.382693529013,
+          "return_pct": -3.0358942624892804
+        },
+        {
+          "year": "2026",
+          "pnl": 14289.180113455048,
+          "return_pct": 1.6345645869463743
+        }
+      ],
+      "return_pct": -11.15220464622092
+    },
+    {
+      "code": "000725",
+      "initial_capital": 1000000.0,
+      "cash": 1010724.7622612696,
+      "shares": 0.0,
+      "marked_nav": 1010724.7622612696,
+      "pnl": 10724.762261269614,
+      "fees": 7437.540738729999,
+      "cash_dividends": 10028.0,
+      "build_count": 15,
+      "add_count": 0,
+      "reduce_count": 17,
+      "exit_count": 15,
+      "unfilled_count": 0,
+      "max_drawdown_observed": 0.16802329181601058,
+      "fractional_share_approximation": false,
+      "name": "京东方Ａ",
+      "strategy_version": "pareto_trend_hold_v2",
+      "last_price": 5.56,
+      "end": "2026-09-08",
+      "first_date": "2016-05-26",
+      "last_date": "2026-09-08",
+      "feature_error": null,
+      "late_start": false,
+      "stale": false,
+      "rights_issue_present": false,
+      "action_status": "ok",
+      "action_count": 19,
+      "unexplained_gap_count": 0,
+      "final_cash": 1010724.7622612696,
+      "residual_value": 0.0,
+      "liquidation_complete": true,
+      "years": {
+        "2016": {
+          "date": "2016-12-30",
+          "nav": 1000000.0,
+          "cash": 1000000.0,
+          "shares": 0.0
+        },
+        "2017": {
+          "date": "2017-12-29",
+          "nav": 1104897.6998181199,
+          "cash": 927144.69981812,
+          "shares": 30700.0
+        },
+        "2018": {
+          "date": "2018-12-28",
+          "nav": 1096913.2701096,
+          "cash": 1096913.2701096,
+          "shares": 0.0
+        },
+        "2019": {
+          "date": "2019-12-31",
+          "nav": 1100733.97123672,
+          "cash": 802001.97123672,
+          "shares": 65800.0
+        },
+        "2020": {
+          "date": "2020-12-31",
+          "nav": 1156364.1210997398,
+          "cash": 920564.1210997398,
+          "shares": 39300.0
+        },
+        "2021": {
+          "date": "2021-12-31",
+          "nav": 1149946.4580755197,
+          "cash": 1149946.4580755197,
+          "shares": 0.0
+        },
+        "2022": {
+          "date": "2022-12-30",
+          "nav": 1149946.4580755197,
+          "cash": 1149946.4580755197,
+          "shares": 0.0
+        },
+        "2023": {
+          "date": "2023-12-29",
+          "nav": 1109108.3205709248,
+          "cash": 1109108.3205709248,
+          "shares": 0.0
+        },
+        "2024": {
+          "date": "2024-12-31",
+          "nav": 1087408.1811020996,
+          "cash": 830593.1811020996,
+          "shares": 58500.0
+        },
+        "2025": {
+          "date": "2025-12-31",
+          "nav": 1061075.3358555797,
+          "cash": 572294.3358555797,
+          "shares": 116100.0
+        },
+        "2026": {
+          "date": "2026-09-08",
+          "nav": 1010724.7622612696,
+          "cash": 1010724.7622612696,
+          "shares": 0.0
+        }
+      },
+      "average_exposure": 0.09140145199591775,
+      "train_nav": 1149946.4580755197,
+      "validation_nav": 1109108.3205709248,
+      "annual_results": [
+        {
+          "year": "2016",
+          "pnl": 0.0,
+          "return_pct": 0.0
+        },
+        {
+          "year": "2017",
+          "pnl": 104897.69981811987,
+          "return_pct": 10.489769981811992
+        },
+        {
+          "year": "2018",
+          "pnl": -7984.4297085199505,
+          "return_pct": -0.7226397258166317
+        },
+        {
+          "year": "2019",
+          "pnl": 3820.701127120061,
+          "return_pct": 0.3483138759674542
+        },
+        {
+          "year": "2020",
+          "pnl": 55630.14986301982,
+          "return_pct": 5.053914144261129
+        },
+        {
+          "year": "2021",
+          "pnl": -6417.66302422015,
+          "return_pct": -0.5549863496384422
+        },
+        {
+          "year": "2022",
+          "pnl": 0.0,
+          "return_pct": 0.0
+        },
+        {
+          "year": "2023",
+          "pnl": -40838.137504594866,
+          "return_pct": -3.551307734182607
+        },
+        {
+          "year": "2024",
+          "pnl": -21700.13946882519,
+          "return_pct": -1.9565392366414525
+        },
+        {
+          "year": "2025",
+          "pnl": -26332.845246519893,
+          "return_pct": -2.4216155169838105
+        },
+        {
+          "year": "2026",
+          "pnl": -50350.57359431009,
+          "return_pct": -4.745240219320602
+        }
+      ],
+      "return_pct": 1.0724762261269614
+    },
+    {
+      "code": "000725",
+      "initial_capital": 1000000.0,
+      "cash": 1597489.564327675,
+      "shares": 0.0,
+      "marked_nav": 1597489.564327675,
+      "pnl": 597489.5643276749,
+      "fees": 1487.110172325,
+      "cash_dividends": 157530.09999999998,
+      "build_count": 1,
+      "add_count": 0,
+      "reduce_count": 0,
+      "exit_count": 1,
+      "unfilled_count": 1,
+      "max_drawdown_observed": 0.6059377535187105,
+      "fractional_share_approximation": false,
+      "name": "京东方Ａ",
+      "strategy_version": "buy_hold_account_benchmark_v1",
+      "last_price": 5.56,
+      "end": "2026-09-08",
+      "first_date": "2016-05-26",
+      "last_date": "2026-09-08",
+      "feature_error": null,
+      "late_start": false,
+      "stale": false,
+      "rights_issue_present": false,
+      "action_status": "ok",
+      "action_count": 19,
+      "unexplained_gap_count": 0,
+      "final_cash": 1597489.564327675,
+      "residual_value": 0.0,
+      "liquidation_complete": true,
+      "years": {
+        "2016": {
+          "date": "2016-12-30",
+          "nav": 1000000.0,
+          "cash": 1000000.0,
+          "shares": 0.0
+        },
+        "2017": {
+          "date": "2017-12-29",
+          "nav": 1439374.5847052801,
+          "cash": 7507.584705280024,
+          "shares": 247300.0
+        },
+        "2018": {
+          "date": "2018-12-28",
+          "nav": 670271.58470528,
+          "cash": 19872.584705280024,
+          "shares": 247300.0
+        },
+        "2019": {
+          "date": "2019-12-31",
+          "nav": 1150033.5847052801,
+          "cash": 27291.584705280024,
+          "shares": 247300.0
+        },
+        "2020": {
+          "date": "2020-12-31",
+          "nav": 1516037.5847052801,
+          "cash": 32237.584705280024,
+          "shares": 247300.0
+        },
+        "2021": {
+          "date": "2021-12-31",
+          "nav": 1305832.5847052801,
+          "cash": 56967.58470528002,
+          "shares": 247300.0
+        },
+        "2022": {
+          "date": "2022-12-30",
+          "nav": 944774.58470528,
+          "cash": 108900.58470528002,
+          "shares": 247300.0
+        },
+        "2023": {
+          "date": "2023-12-29",
+          "nav": 1088455.88470528,
+          "cash": 123985.88470528003,
+          "shares": 247300.0
+        },
+        "2024": {
+          "date": "2024-12-31",
+          "nav": 1217051.88470528,
+          "cash": 131404.88470528,
+          "shares": 247300.0
+        },
+        "2025": {
+          "date": "2025-12-31",
+          "nav": 1184902.88470528,
+          "cash": 143769.88470528,
+          "shares": 247300.0
+        },
+        "2026": {
+          "date": "2026-09-08",
+          "nav": 1597489.564327675,
+          "cash": 1597489.564327675,
+          "shares": 0.0
+        }
+      },
+      "average_exposure": 0.8656214327399182,
+      "train_nav": 1305832.5847052801,
+      "validation_nav": 1088455.88470528,
+      "annual_results": [
+        {
+          "year": "2016",
+          "pnl": 0.0,
+          "return_pct": 0.0
+        },
+        {
+          "year": "2017",
+          "pnl": 439374.58470528014,
+          "return_pct": 43.937458470528014
+        },
+        {
+          "year": "2018",
+          "pnl": -769103.0000000001,
+          "return_pct": -53.433137431524
+        },
+        {
+          "year": "2019",
+          "pnl": 479762.0000000001,
+          "return_pct": 71.57725479455503
+        },
+        {
+          "year": "2020",
+          "pnl": 366004.0,
+          "return_pct": 31.825505347636973
+        },
+        {
+          "year": "2021",
+          "pnl": -210205.0,
+          "return_pct": -13.865421419671742
+        },
+        {
+          "year": "2022",
+          "pnl": -361058.0000000001,
+          "return_pct": -27.649639335772058
+        },
+        {
+          "year": "2023",
+          "pnl": 143681.29999999993,
+          "return_pct": 15.20799800566406
+        },
+        {
+          "year": "2024",
+          "pnl": 128596.0,
+          "return_pct": 11.814534866042802
+        },
+        {
+          "year": "2025",
+          "pnl": -32149.0,
+          "return_pct": -2.6415472013984975
+        },
+        {
+          "year": "2026",
+          "pnl": 412586.67962239496,
+          "return_pct": 34.820294975061806
+        }
+      ],
+      "return_pct": 59.7489564327675
+    },
+    {
+      "code": "001379",
+      "initial_capital": 1000000.0,
+      "cash": 992215.6261848205,
+      "shares": 0.0,
+      "marked_nav": 992215.6261848205,
+      "pnl": -7784.373815179453,
+      "fees": 8009.20381518,
+      "cash_dividends": 0.0,
+      "build_count": 28,
+      "add_count": 5,
+      "reduce_count": 4,
+      "exit_count": 28,
+      "unfilled_count": 0,
+      "max_drawdown_observed": 0.04149384529024067,
+      "fractional_share_approximation": false,
+      "name": "腾达科技",
+      "strategy_version": "pareto_daily_atoms_risk_v1",
+      "last_price": 16.3,
+      "end": "2026-09-08",
+      "first_date": "2024-01-19",
+      "last_date": "2026-09-08",
+      "feature_error": null,
+      "late_start": true,
+      "stale": false,
+      "rights_issue_present": false,
+      "action_status": "ok",
+      "action_count": 5,
+      "unexplained_gap_count": 0,
+      "final_cash": 992215.6261848205,
+      "residual_value": 0.0,
+      "liquidation_complete": true,
+      "years": {
+        "2024": {
+          "date": "2024-12-31",
+          "nav": 1000000.0,
+          "cash": 1000000.0,
+          "shares": 0.0
+        },
+        "2025": {
+          "date": "2025-12-31",
+          "nav": 993328.6462161955,
+          "cash": 993328.6462161955,
+          "shares": 0.0
+        },
+        "2026": {
+          "date": "2026-09-08",
+          "nav": 992215.6261848205,
+          "cash": 992215.6261848205,
+          "shares": 0.0
+        }
+      },
+      "average_exposure": 0.00428118210981994,
+      "train_nav": 1000000.0,
+      "validation_nav": 1000000.0,
+      "annual_results": [
+        {
+          "year": "2016",
+          "pnl": 0.0,
+          "return_pct": 0.0
+        },
+        {
+          "year": "2017",
+          "pnl": 0.0,
+          "return_pct": 0.0
+        },
+        {
+          "year": "2018",
+          "pnl": 0.0,
+          "return_pct": 0.0
+        },
+        {
+          "year": "2019",
+          "pnl": 0.0,
+          "return_pct": 0.0
+        },
+        {
+          "year": "2020",
+          "pnl": 0.0,
+          "return_pct": 0.0
+        },
+        {
+          "year": "2021",
+          "pnl": 0.0,
+          "return_pct": 0.0
+        },
+        {
+          "year": "2022",
+          "pnl": 0.0,
+          "return_pct": 0.0
+        },
+        {
+          "year": "2023",
+          "pnl": 0.0,
+          "return_pct": 0.0
+        },
+        {
+          "year": "2024",
+          "pnl": 0.0,
+          "return_pct": 0.0
+        },
+        {
+          "year": "2025",
+          "pnl": -6671.353783804458,
+          "return_pct": -0.6671353783804457
+        },
+        {
+          "year": "2026",
+          "pnl": -1113.0200313749956,
+          "return_pct": -0.11204952516116196
+        }
+      ],
+      "return_pct": -0.7784373815179453
+    },
+    {
+      "code": "001379",
+      "initial_capital": 1000000.0,
+      "cash": 981979.8418651249,
+      "shares": 0.0,
+      "marked_nav": 981979.8418651249,
+      "pnl": -18020.15813487512,
+      "fees": 1442.925634875,
+      "cash_dividends": 940.0,
+      "build_count": 5,
+      "add_count": 0,
+      "reduce_count": 1,
+      "exit_count": 5,
+      "unfilled_count": 0,
+      "max_drawdown_observed": 0.04470359957474369,
+      "fractional_share_approximation": false,
+      "name": "腾达科技",
+      "strategy_version": "pareto_trend_hold_v2",
+      "last_price": 16.3,
+      "end": "2026-09-08",
+      "first_date": "2024-01-19",
+      "last_date": "2026-09-08",
+      "feature_error": null,
+      "late_start": true,
+      "stale": false,
+      "rights_issue_present": false,
+      "action_status": "ok",
+      "action_count": 5,
+      "unexplained_gap_count": 0,
+      "final_cash": 981979.8418651249,
+      "residual_value": 0.0,
+      "liquidation_complete": true,
+      "years": {
+        "2024": {
+          "date": "2024-12-31",
+          "nav": 1000000.0,
+          "cash": 1000000.0,
+          "shares": 0.0
+        },
+        "2025": {
+          "date": "2025-12-31",
+          "nav": 989820.1801627149,
+          "cash": 815476.1801627149,
+          "shares": 7400.0
+        },
+        "2026": {
+          "date": "2026-09-08",
+          "nav": 981979.8418651249,
+          "cash": 981979.8418651249,
+          "shares": 0.0
+        }
+      },
+      "average_exposure": 0.012678126505296154,
+      "train_nav": 1000000.0,
+      "validation_nav": 1000000.0,
+      "annual_results": [
+        {
+          "year": "2016",
+          "pnl": 0.0,
+          "return_pct": 0.0
+        },
+        {
+          "year": "2017",
+          "pnl": 0.0,
+          "return_pct": 0.0
+        },
+        {
+          "year": "2018",
+          "pnl": 0.0,
+          "return_pct": 0.0
+        },
+        {
+          "year": "2019",
+          "pnl": 0.0,
+          "return_pct": 0.0
+        },
+        {
+          "year": "2020",
+          "pnl": 0.0,
+          "return_pct": 0.0
+        },
+        {
+          "year": "2021",
+          "pnl": 0.0,
+          "return_pct": 0.0
+        },
+        {
+          "year": "2022",
+          "pnl": 0.0,
+          "return_pct": 0.0
+        },
+        {
+          "year": "2023",
+          "pnl": 0.0,
+          "return_pct": 0.0
+        },
+        {
+          "year": "2024",
+          "pnl": 0.0,
+          "return_pct": 0.0
+        },
+        {
+          "year": "2025",
+          "pnl": -10179.81983728509,
+          "return_pct": -1.017981983728511
+        },
+        {
+          "year": "2026",
+          "pnl": -7840.338297590031,
+          "return_pct": -0.792097236924505
+        }
+      ],
+      "return_pct": -1.802015813487512
+    },
+    {
+      "code": "001379",
+      "initial_capital": 1000000.0,
+      "cash": 740765.02007404,
+      "shares": 0.0,
+      "marked_nav": 740765.02007404,
+      "pnl": -259234.97992595995,
+      "fees": 899.37592596,
+      "cash_dividends": 13410.0,
+      "build_count": 1,
+      "add_count": 0,
+      "reduce_count": 0,
+      "exit_count": 1,
+      "unfilled_count": 0,
+      "max_drawdown_observed": 0.4454581761956946,
+      "fractional_share_approximation": false,
+      "name": "腾达科技",
+      "strategy_version": "buy_hold_account_benchmark_v1",
+      "last_price": 16.3,
+      "end": "2026-09-08",
+      "first_date": "2024-01-19",
+      "last_date": "2026-09-08",
+      "feature_error": null,
+      "late_start": true,
+      "stale": false,
+      "rights_issue_present": false,
+      "action_status": "ok",
+      "action_count": 5,
+      "unexplained_gap_count": 0,
+      "final_cash": 740765.02007404,
+      "residual_value": 0.0,
+      "liquidation_complete": true,
+      "years": {
+        "2024": {
+          "date": "2024-12-31",
+          "nav": 1000000.0,
+          "cash": 1000000.0,
+          "shares": 0.0
+        },
+        "2025": {
+          "date": "2025-12-31",
+          "nav": 1062217.6186980251,
+          "cash": 9085.618698025006,
+          "shares": 44700.0
+        },
+        "2026": {
+          "date": "2026-09-08",
+          "nav": 740765.02007404,
+          "cash": 740765.02007404,
+          "shares": 0.0
+        }
+      },
+      "average_exposure": 0.15631338091821861,
+      "train_nav": 1000000.0,
+      "validation_nav": 1000000.0,
+      "annual_results": [
+        {
+          "year": "2016",
+          "pnl": 0.0,
+          "return_pct": 0.0
+        },
+        {
+          "year": "2017",
+          "pnl": 0.0,
+          "return_pct": 0.0
+        },
+        {
+          "year": "2018",
+          "pnl": 0.0,
+          "return_pct": 0.0
+        },
+        {
+          "year": "2019",
+          "pnl": 0.0,
+          "return_pct": 0.0
+        },
+        {
+          "year": "2020",
+          "pnl": 0.0,
+          "return_pct": 0.0
+        },
+        {
+          "year": "2021",
+          "pnl": 0.0,
+          "return_pct": 0.0
+        },
+        {
+          "year": "2022",
+          "pnl": 0.0,
+          "return_pct": 0.0
+        },
+        {
+          "year": "2023",
+          "pnl": 0.0,
+          "return_pct": 0.0
+        },
+        {
+          "year": "2024",
+          "pnl": 0.0,
+          "return_pct": 0.0
+        },
+        {
+          "year": "2025",
+          "pnl": 62217.61869802512,
+          "return_pct": 6.221761869802522
+        },
+        {
+          "year": "2026",
+          "pnl": -321452.5986239851,
+          "return_pct": -30.26240508211434
+        }
+      ],
+      "return_pct": -25.923497992595994
+    },
+    {
+      "code": "002284",
+      "initial_capital": 1000000.0,
+      "cash": 843750.7495929783,
+      "shares": 0.0,
+      "marked_nav": 843750.7495929783,
+      "pnl": -156249.25040702173,
+      "fees": 57819.62290702506,
+      "cash_dividends": 2945.0,
+      "build_count": 182,
+      "add_count": 67,
+      "reduce_count": 26,
+      "exit_count": 182,
+      "unfilled_count": 0,
+      "max_drawdown_observed": 0.20292079287900622,
+      "fractional_share_approximation": false,
+      "name": "亚太股份",
+      "strategy_version": "pareto_daily_atoms_risk_v1",
+      "last_price": 10.33,
+      "end": "2026-09-08",
+      "first_date": "2016-05-26",
+      "last_date": "2026-09-08",
+      "feature_error": null,
+      "late_start": false,
+      "stale": false,
+      "rights_issue_present": false,
+      "action_status": "ok",
+      "action_count": 8,
+      "unexplained_gap_count": 0,
+      "final_cash": 843750.7495929783,
+      "residual_value": 0.0,
+      "liquidation_complete": true,
+      "years": {
+        "2016": {
+          "date": "2016-12-30",
+          "nav": 1000000.0,
+          "cash": 1000000.0,
+          "shares": 0.0
+        },
+        "2017": {
+          "date": "2017-12-29",
+          "nav": 986632.1017956904,
+          "cash": 686700.1017956904,
+          "shares": 33400.0
+        },
+        "2018": {
+          "date": "2018-12-28",
+          "nav": 919934.6470625105,
+          "cash": 692984.6470625105,
+          "shares": 53400.0
+        },
+        "2019": {
+          "date": "2019-12-31",
+          "nav": 849270.649083871,
+          "cash": 652674.649083871,
+          "shares": 38700.0
+        },
+        "2020": {
+          "date": "2020-12-31",
+          "nav": 908534.0569756117,
+          "cash": 735134.0569756117,
+          "shares": 25500.0
+        },
+        "2021": {
+          "date": "2021-12-31",
+          "nav": 921765.001090042,
+          "cash": 921765.001090042,
+          "shares": 0.0
+        },
+        "2022": {
+          "date": "2022-12-30",
+          "nav": 925719.9452914073,
+          "cash": 925719.9452914073,
+          "shares": 0.0
+        },
+        "2023": {
+          "date": "2023-12-29",
+          "nav": 966178.1055405923,
+          "cash": 966178.1055405923,
+          "shares": 0.0
+        },
+        "2024": {
+          "date": "2024-12-31",
+          "nav": 900784.4027115976,
+          "cash": 900784.4027115976,
+          "shares": 0.0
+        },
+        "2025": {
+          "date": "2025-12-31",
+          "nav": 879611.985670483,
+          "cash": 879611.985670483,
+          "shares": 0.0
+        },
+        "2026": {
+          "date": "2026-09-08",
+          "nav": 843750.7495929783,
+          "cash": 843750.7495929783,
+          "shares": 0.0
+        }
+      },
+      "average_exposure": 0.028062515336321293,
+      "train_nav": 921765.001090042,
+      "validation_nav": 966178.1055405923,
+      "annual_results": [
+        {
+          "year": "2016",
+          "pnl": 0.0,
+          "return_pct": 0.0
+        },
+        {
+          "year": "2017",
+          "pnl": -13367.898204309633,
+          "return_pct": -1.3367898204309614
+        },
+        {
+          "year": "2018",
+          "pnl": -66697.45473317988,
+          "return_pct": -6.760113988972094
+        },
+        {
+          "year": "2019",
+          "pnl": -70663.99797863944,
+          "return_pct": -7.681415000976455
+        },
+        {
+          "year": "2020",
+          "pnl": 59263.40789174067,
+          "return_pct": 6.9781533078612235
+        },
+        {
+          "year": "2021",
+          "pnl": 13230.944114430225,
+          "return_pct": 1.4562958881777277
+        },
+        {
+          "year": "2022",
+          "pnl": 3954.944201365346,
+          "return_pct": 0.4290620924735089
+        },
+        {
+          "year": "2023",
+          "pnl": 40458.16024918505,
+          "return_pct": 4.370453554011866
+        },
+        {
+          "year": "2024",
+          "pnl": -65393.70282899472,
+          "return_pct": -6.768286556483893
+        },
+        {
+          "year": "2025",
+          "pnl": -21172.417041114648,
+          "return_pct": -2.3504422342771614
+        },
+        {
+          "year": "2026",
+          "pnl": -35861.2360775047,
+          "return_pct": -4.076938088806226
+        }
+      ],
+      "return_pct": -15.624925040702173
+    },
+    {
+      "code": "002284",
+      "initial_capital": 1000000.0,
+      "cash": 1078915.4721330255,
+      "shares": 0.0,
+      "marked_nav": 1078915.4721330255,
+      "pnl": 78915.47213302553,
+      "fees": 5868.3133669750005,
+      "cash_dividends": 630.0,
+      "build_count": 18,
+      "add_count": 0,
+      "reduce_count": 26,
+      "exit_count": 18,
+      "unfilled_count": 0,
+      "max_drawdown_observed": 0.10020364981573354,
+      "fractional_share_approximation": false,
+      "name": "亚太股份",
+      "strategy_version": "pareto_trend_hold_v2",
+      "last_price": 10.33,
+      "end": "2026-09-08",
+      "first_date": "2016-05-26",
+      "last_date": "2026-09-08",
+      "feature_error": null,
+      "late_start": false,
+      "stale": false,
+      "rights_issue_present": false,
+      "action_status": "ok",
+      "action_count": 8,
+      "unexplained_gap_count": 0,
+      "final_cash": 1078915.4721330255,
+      "residual_value": 0.0,
+      "liquidation_complete": true,
+      "years": {
+        "2016": {
+          "date": "2016-12-30",
+          "nav": 1000000.0,
+          "cash": 1000000.0,
+          "shares": 0.0
+        },
+        "2017": {
+          "date": "2017-12-29",
+          "nav": 978721.58625328,
+          "cash": 978721.58625328,
+          "shares": 0.0
+        },
+        "2018": {
+          "date": "2018-12-28",
+          "nav": 978721.58625328,
+          "cash": 978721.58625328,
+          "shares": 0.0
+        },
+        "2019": {
+          "date": "2019-12-31",
+          "nav": 996070.5230754,
+          "cash": 787790.5230754,
+          "shares": 41000.0
+        },
+        "2020": {
+          "date": "2020-12-31",
+          "nav": 1020664.3291224801,
+          "cash": 857464.3291224801,
+          "shares": 24000.0
+        },
+        "2021": {
+          "date": "2021-12-31",
+          "nav": 1020848.1931601601,
+          "cash": 838673.1931601601,
+          "shares": 17500.0
+        },
+        "2022": {
+          "date": "2022-12-30",
+          "nav": 989269.7043832102,
+          "cash": 989269.7043832102,
+          "shares": 0.0
+        },
+        "2023": {
+          "date": "2023-12-29",
+          "nav": 1012304.3148265053,
+          "cash": 1012304.3148265053,
+          "shares": 0.0
+        },
+        "2024": {
+          "date": "2024-12-31",
+          "nav": 988980.4008487953,
+          "cash": 988980.4008487953,
+          "shares": 0.0
+        },
+        "2025": {
+          "date": "2025-12-31",
+          "nav": 1085300.3036935506,
+          "cash": 844927.3036935505,
+          "shares": 16100.0
+        },
+        "2026": {
+          "date": "2026-09-08",
+          "nav": 1078915.4721330255,
+          "cash": 1078915.4721330255,
+          "shares": 0.0
+        }
+      },
+      "average_exposure": 0.06104758721206328,
+      "train_nav": 1020848.1931601601,
+      "validation_nav": 1012304.3148265053,
+      "annual_results": [
+        {
+          "year": "2016",
+          "pnl": 0.0,
+          "return_pct": 0.0
+        },
+        {
+          "year": "2017",
+          "pnl": -21278.413746719947,
+          "return_pct": -2.1278413746719904
+        },
+        {
+          "year": "2018",
+          "pnl": 0.0,
+          "return_pct": 0.0
+        },
+        {
+          "year": "2019",
+          "pnl": 17348.936822119984,
+          "return_pct": 1.7726120549292013
+        },
+        {
+          "year": "2020",
+          "pnl": 24593.806047080085,
+          "return_pct": 2.4690828086294525
+        },
+        {
+          "year": "2021",
+          "pnl": 183.864037679974,
+          "return_pct": 0.01801415337381318
+        },
+        {
+          "year": "2022",
+          "pnl": -31578.488776949933,
+          "return_pct": -3.0933579535655453
+        },
+        {
+          "year": "2023",
+          "pnl": 23034.610443295096,
+          "return_pct": 2.328445957784253
+        },
+        {
+          "year": "2024",
+          "pnl": -23323.913977709948,
+          "return_pct": -2.3040417427942494
+        },
+        {
+          "year": "2025",
+          "pnl": 96319.90284475533,
+          "return_pct": 9.739313616537636
+        },
+        {
+          "year": "2026",
+          "pnl": -6384.831560525112,
+          "return_pct": -0.5883009097846892
+        }
+      ],
+      "return_pct": 7.891547213302552
+    },
+    {
+      "code": "002284",
+      "initial_capital": 1000000.0,
+      "cash": 986723.1154460801,
+      "shares": 0.0,
+      "marked_nav": 986723.1154460801,
+      "pnl": -13276.884553919896,
+      "fees": 1077.52855392,
+      "cash_dividends": 51480.0,
+      "build_count": 1,
+      "add_count": 0,
+      "reduce_count": 0,
+      "exit_count": 1,
+      "unfilled_count": 1,
+      "max_drawdown_observed": 0.6648061883972255,
+      "fractional_share_approximation": false,
+      "name": "亚太股份",
+      "strategy_version": "buy_hold_account_benchmark_v1",
+      "last_price": 10.33,
+      "end": "2026-09-08",
+      "first_date": "2016-05-26",
+      "last_date": "2026-09-08",
+      "feature_error": null,
+      "late_start": false,
+      "stale": false,
+      "rights_issue_present": false,
+      "action_status": "ok",
+      "action_count": 8,
+      "unexplained_gap_count": 0,
+      "final_cash": 986723.1154460801,
+      "residual_value": 0.0,
+      "liquidation_complete": true,
+      "years": {
+        "2016": {
+          "date": "2016-12-30",
+          "nav": 1000000.0,
+          "cash": 1000000.0,
+          "shares": 0.0
+        },
+        "2017": {
+          "date": "2017-12-29",
+          "nav": 850356.89636608,
+          "cash": 9828.896366080036,
+          "shares": 93600.0
+        },
+        "2018": {
+          "date": "2018-12-28",
+          "nav": 416988.89636608004,
+          "cash": 19188.896366080036,
+          "shares": 93600.0
+        },
+        "2019": {
+          "date": "2019-12-31",
+          "nav": 494676.89636608004,
+          "cash": 19188.896366080036,
+          "shares": 93600.0
+        },
+        "2020": {
+          "date": "2020-12-31",
+          "nav": 655668.89636608,
+          "cash": 19188.896366080036,
+          "shares": 93600.0
+        },
+        "2021": {
+          "date": "2021-12-31",
+          "nav": 993564.89636608,
+          "cash": 19188.896366080036,
+          "shares": 93600.0
+        },
+        "2022": {
+          "date": "2022-12-30",
+          "nav": 691236.89636608,
+          "cash": 28548.896366080036,
+          "shares": 93600.0
+        },
+        "2023": {
+          "date": "2023-12-29",
+          "nav": 849420.89636608,
+          "cash": 28548.896366080036,
+          "shares": 93600.0
+        },
+        "2024": {
+          "date": "2024-12-31",
+          "nav": 762372.89636608,
+          "cash": 37908.89636608004,
+          "shares": 93600.0
+        },
+        "2025": {
+          "date": "2025-12-31",
+          "nav": 1440036.89636608,
+          "cash": 42588.89636608004,
+          "shares": 93600.0
+        },
+        "2026": {
+          "date": "2026-09-08",
+          "nav": 986723.1154460801,
+          "cash": 986723.1154460801,
+          "shares": 0.0
+        }
+      },
+      "average_exposure": 0.8938324529533196,
+      "train_nav": 993564.89636608,
+      "validation_nav": 849420.89636608,
+      "annual_results": [
+        {
+          "year": "2016",
+          "pnl": 0.0,
+          "return_pct": 0.0
+        },
+        {
+          "year": "2017",
+          "pnl": -149643.10363391996,
+          "return_pct": -14.964310363391997
+        },
+        {
+          "year": "2018",
+          "pnl": -433368.0,
+          "return_pct": -50.963072311397404
+        },
+        {
+          "year": "2019",
+          "pnl": 77688.0,
+          "return_pct": 18.630711915119356
+        },
+        {
+          "year": "2020",
+          "pnl": 160992.0,
+          "return_pct": 32.54487953301537
+        },
+        {
+          "year": "2021",
+          "pnl": 337896.0,
+          "return_pct": 51.534547676841804
+        },
+        {
+          "year": "2022",
+          "pnl": -302328.0,
+          "return_pct": -30.428611266939022
+        },
+        {
+          "year": "2023",
+          "pnl": 158184.0,
+          "return_pct": 22.884195104687464
+        },
+        {
+          "year": "2024",
+          "pnl": -87048.0,
+          "return_pct": -10.247923069988197
+        },
+        {
+          "year": "2025",
+          "pnl": 677664.0,
+          "return_pct": 88.88878437706104
+        },
+        {
+          "year": "2026",
+          "pnl": -453313.78091999993,
+          "return_pct": -31.479317096939184
+        }
+      ],
+      "return_pct": -1.3276884553919894
+    },
+    {
+      "code": "002371",
+      "initial_capital": 1000000.0,
+      "cash": 1015885.231562371,
+      "shares": 0.0,
+      "marked_nav": 1015885.231562371,
+      "pnl": 15885.231562371016,
+      "fees": 83328.9269376349,
+      "cash_dividends": 0.0,
+      "build_count": 284,
+      "add_count": 59,
+      "reduce_count": 40,
+      "exit_count": 284,
+      "unfilled_count": 2,
+      "max_drawdown_observed": 0.10230859336559259,
+      "fractional_share_approximation": false,
+      "name": "北方华创",
+      "strategy_version": "pareto_daily_atoms_risk_v1",
+      "last_price": 647.87,
+      "end": "2026-09-08",
+      "first_date": "2016-05-26",
+      "last_date": "2026-09-08",
+      "feature_error": null,
+      "late_start": false,
+      "stale": false,
+      "rights_issue_present": false,
+      "action_status": "ok",
+      "action_count": 11,
+      "unexplained_gap_count": 0,
+      "final_cash": 1015885.231562371,
+      "residual_value": 0.0,
+      "liquidation_complete": true,
+      "years": {
+        "2016": {
+          "date": "2016-12-30",
+          "nav": 1000000.0,
+          "cash": 1000000.0,
+          "shares": 0.0
+        },
+        "2017": {
+          "date": "2017-12-29",
+          "nav": 1014626.4416481707,
+          "cash": 840578.4416481707,
+          "shares": 4200.0
+        },
+        "2018": {
+          "date": "2018-12-28",
+          "nav": 991489.2288725519,
+          "cash": 991489.2288725519,
+          "shares": 0.0
+        },
+        "2019": {
+          "date": "2019-12-31",
+          "nav": 1054080.8491120923,
+          "cash": 1054080.8491120923,
+          "shares": 0.0
+        },
+        "2020": {
+          "date": "2020-12-31",
+          "nav": 1070946.4459306127,
+          "cash": 1070946.4459306127,
+          "shares": 0.0
+        },
+        "2021": {
+          "date": "2021-12-31",
+          "nav": 1090227.9955148227,
+          "cash": 1090227.9955148227,
+          "shares": 0.0
+        },
+        "2022": {
+          "date": "2022-12-30",
+          "nav": 1017032.4781380424,
+          "cash": 1017032.4781380424,
+          "shares": 0.0
+        },
+        "2023": {
+          "date": "2023-12-29",
+          "nav": 1021294.2093818685,
+          "cash": 1021294.2093818685,
+          "shares": 0.0
+        },
+        "2024": {
+          "date": "2024-12-31",
+          "nav": 986187.7993056445,
+          "cash": 986187.7993056445,
+          "shares": 0.0
+        },
+        "2025": {
+          "date": "2025-12-31",
+          "nav": 1010205.8573718554,
+          "cash": 1010205.8573718554,
+          "shares": 0.0
+        },
+        "2026": {
+          "date": "2026-09-08",
+          "nav": 1015885.231562371,
+          "cash": 1015885.231562371,
+          "shares": 0.0
+        }
+      },
+      "average_exposure": 0.04190390912644498,
+      "train_nav": 1090227.9955148227,
+      "validation_nav": 1021294.2093818685,
+      "annual_results": [
+        {
+          "year": "2016",
+          "pnl": 0.0,
+          "return_pct": 0.0
+        },
+        {
+          "year": "2017",
+          "pnl": 14626.441648170701,
+          "return_pct": 1.462644164817073
+        },
+        {
+          "year": "2018",
+          "pnl": -23137.21277561877,
+          "return_pct": -2.2803676137233775
+        },
+        {
+          "year": "2019",
+          "pnl": 62591.62023954035,
+          "return_pct": 6.312889582342196
+        },
+        {
+          "year": "2020",
+          "pnl": 16865.596818520455,
+          "return_pct": 1.6000287675017821
+        },
+        {
+          "year": "2021",
+          "pnl": 19281.54958420992,
+          "return_pct": 1.800421455010759
+        },
+        {
+          "year": "2022",
+          "pnl": -73195.51737678028,
+          "return_pct": -6.713780757594301
+        },
+        {
+          "year": "2023",
+          "pnl": 4261.7312438261,
+          "return_pct": 0.4190359045001646
+        },
+        {
+          "year": "2024",
+          "pnl": -35106.41007622401,
+          "return_pct": -3.437443368789095
+        },
+        {
+          "year": "2025",
+          "pnl": 24018.058066210942,
+          "return_pct": 2.435444657003627
+        },
+        {
+          "year": "2026",
+          "pnl": 5679.374190515606,
+          "return_pct": 0.5621996892089864
+        }
+      ],
+      "return_pct": 1.5885231562371018
+    },
+    {
+      "code": "002371",
+      "initial_capital": 1000000.0,
+      "cash": 1491264.5351685307,
+      "shares": 0.0,
+      "marked_nav": 1491264.5351685307,
+      "pnl": 491264.53516853065,
+      "fees": 6534.064331469997,
+      "cash_dividends": 1586.6999999999998,
+      "build_count": 17,
+      "add_count": 0,
+      "reduce_count": 32,
+      "exit_count": 17,
+      "unfilled_count": 0,
+      "max_drawdown_observed": 0.11835553161447003,
+      "fractional_share_approximation": false,
+      "name": "北方华创",
+      "strategy_version": "pareto_trend_hold_v2",
+      "last_price": 647.87,
+      "end": "2026-09-08",
+      "first_date": "2016-05-26",
+      "last_date": "2026-09-08",
+      "feature_error": null,
+      "late_start": false,
+      "stale": false,
+      "rights_issue_present": false,
+      "action_status": "ok",
+      "action_count": 11,
+      "unexplained_gap_count": 0,
+      "final_cash": 1491264.5351685307,
+      "residual_value": 0.0,
+      "liquidation_complete": true,
+      "years": {
+        "2016": {
+          "date": "2016-12-30",
+          "nav": 1000000.0,
+          "cash": 1000000.0,
+          "shares": 0.0
+        },
+        "2017": {
+          "date": "2017-12-29",
+          "nav": 1093958.1620311798,
+          "cash": 919910.1620311799,
+          "shares": 4200.0
+        },
+        "2018": {
+          "date": "2018-12-28",
+          "nav": 1081283.0714284598,
+          "cash": 1081283.0714284598,
+          "shares": 0.0
+        },
+        "2019": {
+          "date": "2019-12-31",
+          "nav": 1193786.3881402202,
+          "cash": 1008986.3881402201,
+          "shares": 2100.0
+        },
+        "2020": {
+          "date": "2020-12-31",
+          "nav": 1312027.8928193003,
+          "cash": 1312027.8928193003,
+          "shares": 0.0
+        },
+        "2021": {
+          "date": "2021-12-31",
+          "nav": 1271945.1636723003,
+          "cash": 1271945.1636723003,
+          "shares": 0.0
+        },
+        "2022": {
+          "date": "2022-12-30",
+          "nav": 1219955.0070621953,
+          "cash": 1219955.0070621953,
+          "shares": 0.0
+        },
+        "2023": {
+          "date": "2023-12-29",
+          "nav": 1250310.7470229852,
+          "cash": 1250310.7470229852,
+          "shares": 0.0
+        },
+        "2024": {
+          "date": "2024-12-31",
+          "nav": 1254447.4022108302,
+          "cash": 1058947.4022108302,
+          "shares": 500.0
+        },
+        "2025": {
+          "date": "2025-12-31",
+          "nav": 1386832.5182415405,
+          "cash": 1111384.5182415405,
+          "shares": 600.0
+        },
+        "2026": {
+          "date": "2026-09-08",
+          "nav": 1491264.5351685307,
+          "cash": 1491264.5351685307,
+          "shares": 0.0
+        }
+      },
+      "average_exposure": 0.09557943334066003,
+      "train_nav": 1271945.1636723003,
+      "validation_nav": 1250310.7470229852,
+      "annual_results": [
+        {
+          "year": "2016",
+          "pnl": 0.0,
+          "return_pct": 0.0
+        },
+        {
+          "year": "2017",
+          "pnl": 93958.16203117976,
+          "return_pct": 9.39581620311798
+        },
+        {
+          "year": "2018",
+          "pnl": -12675.090602719923,
+          "return_pct": -1.158644913731044
+        },
+        {
+          "year": "2019",
+          "pnl": 112503.31671176036,
+          "return_pct": 10.404612786838019
+        },
+        {
+          "year": "2020",
+          "pnl": 118241.5046790801,
+          "return_pct": 9.90474559383161
+        },
+        {
+          "year": "2021",
+          "pnl": -40082.729147000005,
+          "return_pct": -3.055021113984835
+        },
+        {
+          "year": "2022",
+          "pnl": -51990.156610104954,
+          "return_pct": -4.087452674453463
+        },
+        {
+          "year": "2023",
+          "pnl": 30355.739960789913,
+          "return_pct": 2.488267172564851
+        },
+        {
+          "year": "2024",
+          "pnl": 4136.655187844997,
+          "return_pct": 0.3308501664641694
+        },
+        {
+          "year": "2025",
+          "pnl": 132385.11603071028,
+          "return_pct": 10.55326160326815
+        },
+        {
+          "year": "2026",
+          "pnl": 104432.01692699012,
+          "return_pct": 7.530254414527771
+        }
+      ],
+      "return_pct": 49.12645351685306
+    },
+    {
+      "code": "002371",
+      "initial_capital": 1000000.0,
+      "cash": 34227720.11593338,
+      "shares": 0.0,
+      "marked_nav": 34227720.11593338,
+      "pnl": 33227720.11593338,
+      "fees": 27946.978066620002,
+      "cash_dividends": 145260.41,
+      "build_count": 1,
+      "add_count": 0,
+      "reduce_count": 0,
+      "exit_count": 1,
+      "unfilled_count": 1,
+      "max_drawdown_observed": 0.5342505181023082,
+      "fractional_share_approximation": false,
+      "name": "北方华创",
+      "strategy_version": "buy_hold_account_benchmark_v1",
+      "last_price": 647.87,
+      "end": "2026-09-08",
+      "first_date": "2016-05-26",
+      "last_date": "2026-09-08",
+      "feature_error": null,
+      "late_start": false,
+      "stale": false,
+      "rights_issue_present": false,
+      "action_status": "ok",
+      "action_count": 11,
+      "unexplained_gap_count": 0,
+      "final_cash": 34227720.11593338,
+      "residual_value": 0.0,
+      "liquidation_complete": true,
+      "years": {
+        "2016": {
+          "date": "2016-12-30",
+          "nav": 1000000.0,
+          "cash": 1000000.0,
+          "shares": 0.0
+        },
+        "2017": {
+          "date": "2017-12-29",
+          "nav": 1589844.6281868801,
+          "cash": 2692.6281868801684,
+          "shares": 38300.0
+        },
+        "2018": {
+          "date": "2018-12-28",
+          "nav": 1449973.02818688,
+          "cash": 3765.0281868801685,
+          "shares": 38300.0
+        },
+        "2019": {
+          "date": "2019-12-31",
+          "nav": 3376156.62818688,
+          "cash": 5756.628186880169,
+          "shares": 38300.0
+        },
+        "2020": {
+          "date": "2020-12-31",
+          "nav": 6930511.52818688,
+          "cash": 8169.5281868801685,
+          "shares": 38300.0
+        },
+        "2021": {
+          "date": "2021-12-31",
+          "nav": 13303210.22818688,
+          "cash": 12344.22818688017,
+          "shares": 38300.0
+        },
+        "2022": {
+          "date": "2022-12-30",
+          "nav": 8649185.72818688,
+          "cash": 20195.72818688017,
+          "shares": 38300.0
+        },
+        "2023": {
+          "date": "2023-12-29",
+          "nav": 9447932.22818688,
+          "cash": 37239.228186880166,
+          "shares": 38300.0
+        },
+        "2024": {
+          "date": "2024-12-31",
+          "nav": 15042413.22818688,
+          "cash": 67113.22818688017,
+          "shares": 38300.0
+        },
+        "2025": {
+          "date": "2025-12-31",
+          "nav": 23844442.628186878,
+          "cash": 107711.22818688017,
+          "shares": 51705.0
+        },
+        "2026": {
+          "date": "2026-09-08",
+          "nav": 34227720.11593338,
+          "cash": 34227720.11593338,
+          "shares": 0.0
+        }
+      },
+      "average_exposure": 0.9230224625141524,
+      "train_nav": 13303210.22818688,
+      "validation_nav": 9447932.22818688,
+      "annual_results": [
+        {
+          "year": "2016",
+          "pnl": 0.0,
+          "return_pct": 0.0
+        },
+        {
+          "year": "2017",
+          "pnl": 589844.6281868801,
+          "return_pct": 58.98446281868801
+        },
+        {
+          "year": "2018",
+          "pnl": -139871.6000000001,
+          "return_pct": -8.797815680864051
+        },
+        {
+          "year": "2019",
+          "pnl": 1926183.6,
+          "return_pct": 132.84271931655155
+        },
+        {
+          "year": "2020",
+          "pnl": 3554354.9,
+          "return_pct": 105.27813995136887
+        },
+        {
+          "year": "2021",
+          "pnl": 6372698.699999999,
+          "return_pct": 91.95134694000267
+        },
+        {
+          "year": "2022",
+          "pnl": -4654024.5,
+          "return_pct": -34.984221253145655
+        },
+        {
+          "year": "2023",
+          "pnl": 798746.5,
+          "return_pct": 9.234932918563189
+        },
+        {
+          "year": "2024",
+          "pnl": 5594481.0,
+          "return_pct": 59.21381382594462
+        },
+        {
+          "year": "2025",
+          "pnl": 8802029.399999999,
+          "return_pct": 58.51474272430251
+        },
+        {
+          "year": "2026",
+          "pnl": 10383277.487746503,
+          "return_pct": 43.54590144821533
+        }
+      ],
+      "return_pct": 3322.772011593338
+    },
+    {
+      "code": "002588",
+      "initial_capital": 1000000.0,
+      "cash": 907865.1717556656,
+      "shares": 0.0,
+      "marked_nav": 907865.1717556656,
+      "pnl": -92134.82824433444,
+      "fees": 73877.42224433995,
+      "cash_dividends": 14980.0,
+      "build_count": 175,
+      "add_count": 53,
+      "reduce_count": 31,
+      "exit_count": 175,
+      "unfilled_count": 1,
+      "max_drawdown_observed": 0.2133898293071862,
+      "fractional_share_approximation": false,
+      "name": "史丹利",
+      "strategy_version": "pareto_daily_atoms_risk_v1",
+      "last_price": 8.53,
+      "end": "2026-09-08",
+      "first_date": "2016-05-26",
+      "last_date": "2026-09-08",
+      "feature_error": null,
+      "late_start": false,
+      "stale": false,
+      "rights_issue_present": false,
+      "action_status": "ok",
+      "action_count": 13,
+      "unexplained_gap_count": 0,
+      "final_cash": 907865.1717556656,
+      "residual_value": 0.0,
+      "liquidation_complete": true,
+      "years": {
+        "2016": {
+          "date": "2016-12-30",
+          "nav": 1000000.0,
+          "cash": 1000000.0,
+          "shares": 0.0
+        },
+        "2017": {
+          "date": "2017-12-29",
+          "nav": 985313.1387703705,
+          "cash": 985313.1387703705,
+          "shares": 0.0
+        },
+        "2018": {
+          "date": "2018-12-28",
+          "nav": 949042.8138801211,
+          "cash": 949042.8138801211,
+          "shares": 0.0
+        },
+        "2019": {
+          "date": "2019-12-31",
+          "nav": 906993.8480948814,
+          "cash": 410032.8480948814,
+          "shares": 127100.0
+        },
+        "2020": {
+          "date": "2020-12-31",
+          "nav": 877366.4292888616,
+          "cash": 877366.4292888616,
+          "shares": 0.0
+        },
+        "2021": {
+          "date": "2021-12-31",
+          "nav": 864116.6349787218,
+          "cash": 864116.6349787218,
+          "shares": 0.0
+        },
+        "2022": {
+          "date": "2022-12-30",
+          "nav": 862765.8668390375,
+          "cash": 862765.8668390375,
+          "shares": 0.0
+        },
+        "2023": {
+          "date": "2023-12-29",
+          "nav": 822138.568825744,
+          "cash": 822138.568825744,
+          "shares": 0.0
+        },
+        "2024": {
+          "date": "2024-12-31",
+          "nav": 883043.1811879046,
+          "cash": 655001.1811879046,
+          "shares": 30900.0
+        },
+        "2025": {
+          "date": "2025-12-31",
+          "nav": 906572.2833745449,
+          "cash": 906572.2833745449,
+          "shares": 0.0
+        },
+        "2026": {
+          "date": "2026-09-08",
+          "nav": 907865.1717556656,
+          "cash": 907865.1717556656,
+          "shares": 0.0
+        }
+      },
+      "average_exposure": 0.035003538465006735,
+      "train_nav": 864116.6349787218,
+      "validation_nav": 822138.568825744,
+      "annual_results": [
+        {
+          "year": "2016",
+          "pnl": 0.0,
+          "return_pct": 0.0
+        },
+        {
+          "year": "2017",
+          "pnl": -14686.861229629489,
+          "return_pct": -1.4686861229629478
+        },
+        {
+          "year": "2018",
+          "pnl": -36270.32489024941,
+          "return_pct": -3.6810962386549795
+        },
+        {
+          "year": "2019",
+          "pnl": -42048.96578523971,
+          "return_pct": -4.4306711109611925
+        },
+        {
+          "year": "2020",
+          "pnl": -29627.41880601982,
+          "return_pct": -3.2665512415824494
+        },
+        {
+          "year": "2021",
+          "pnl": -13249.794310139725,
+          "return_pct": -1.5101779447931674
+        },
+        {
+          "year": "2022",
+          "pnl": -1350.76813968434,
+          "return_pct": -0.15631780306111231
+        },
+        {
+          "year": "2023",
+          "pnl": -40627.29801329353,
+          "return_pct": -4.708959820367253
+        },
+        {
+          "year": "2024",
+          "pnl": 60904.61236216058,
+          "return_pct": 7.408071421481943
+        },
+        {
+          "year": "2025",
+          "pnl": 23529.102186640375,
+          "return_pct": 2.6645471804660925
+        },
+        {
+          "year": "2026",
+          "pnl": 1292.8883811206324,
+          "return_pct": 0.14261282909600048
+        }
+      ],
+      "return_pct": -9.213482824433443
+    },
+    {
+      "code": "002588",
+      "initial_capital": 1000000.0,
+      "cash": 812406.1346699005,
+      "shares": 0.0,
+      "marked_nav": 812406.1346699005,
+      "pnl": -187593.86533009948,
+      "fees": 9904.664830099997,
+      "cash_dividends": 15198.5,
+      "build_count": 27,
+      "add_count": 0,
+      "reduce_count": 26,
+      "exit_count": 27,
+      "unfilled_count": 1,
+      "max_drawdown_observed": 0.31341667827747177,
+      "fractional_share_approximation": false,
+      "name": "史丹利",
+      "strategy_version": "pareto_trend_hold_v2",
+      "last_price": 8.53,
+      "end": "2026-09-08",
+      "first_date": "2016-05-26",
+      "last_date": "2026-09-08",
+      "feature_error": null,
+      "late_start": false,
+      "stale": false,
+      "rights_issue_present": false,
+      "action_status": "ok",
+      "action_count": 13,
+      "unexplained_gap_count": 0,
+      "final_cash": 812406.1346699005,
+      "residual_value": 0.0,
+      "liquidation_complete": true,
+      "years": {
+        "2016": {
+          "date": "2016-12-30",
+          "nav": 1000000.0,
+          "cash": 1000000.0,
+          "shares": 0.0
+        },
+        "2017": {
+          "date": "2017-12-29",
+          "nav": 981217.27133486,
+          "cash": 981217.27133486,
+          "shares": 0.0
+        },
+        "2018": {
+          "date": "2018-12-28",
+          "nav": 964344.4841927201,
+          "cash": 964344.4841927201,
+          "shares": 0.0
+        },
+        "2019": {
+          "date": "2019-12-31",
+          "nav": 980244.1103264801,
+          "cash": 980244.1103264801,
+          "shares": 0.0
+        },
+        "2020": {
+          "date": "2020-12-31",
+          "nav": 888428.97522138,
+          "cash": 888428.97522138,
+          "shares": 0.0
+        },
+        "2021": {
+          "date": "2021-12-31",
+          "nav": 847538.4736629599,
+          "cash": 649998.4736629599,
+          "shares": 33200.0
+        },
+        "2022": {
+          "date": "2022-12-30",
+          "nav": 828265.931446645,
+          "cash": 828265.931446645,
+          "shares": 0.0
+        },
+        "2023": {
+          "date": "2023-12-29",
+          "nav": 769923.69601554,
+          "cash": 523655.6960155401,
+          "shares": 38600.0
+        },
+        "2024": {
+          "date": "2024-12-31",
+          "nav": 750319.3824583953,
+          "cash": 579103.3824583953,
+          "shares": 23200.0
+        },
+        "2025": {
+          "date": "2025-12-31",
+          "nav": 792304.8555847255,
+          "cash": 792304.8555847255,
+          "shares": 0.0
+        },
+        "2026": {
+          "date": "2026-09-08",
+          "nav": 812406.1346699005,
+          "cash": 812406.1346699005,
+          "shares": 0.0
+        }
+      },
+      "average_exposure": 0.10939663974014982,
+      "train_nav": 847538.4736629599,
+      "validation_nav": 769923.69601554,
+      "annual_results": [
+        {
+          "year": "2016",
+          "pnl": 0.0,
+          "return_pct": 0.0
+        },
+        {
+          "year": "2017",
+          "pnl": -18782.72866513999,
+          "return_pct": -1.878272866513997
+        },
+        {
+          "year": "2018",
+          "pnl": -16872.78714213986,
+          "return_pct": -1.719577063618738
+        },
+        {
+          "year": "2019",
+          "pnl": 15899.626133759972,
+          "return_pct": 1.648749631939883
+        },
+        {
+          "year": "2020",
+          "pnl": -91815.13510510011,
+          "return_pct": -9.36655820094855
+        },
+        {
+          "year": "2021",
+          "pnl": -40890.50155842013,
+          "return_pct": -4.602562804554067
+        },
+        {
+          "year": "2022",
+          "pnl": -19272.542216314934,
+          "return_pct": -2.2739430498088575
+        },
+        {
+          "year": "2023",
+          "pnl": -58342.2354311049,
+          "return_pct": -7.043901386744789
+        },
+        {
+          "year": "2024",
+          "pnl": -19604.31355714472,
+          "return_pct": -2.5462670727761316
+        },
+        {
+          "year": "2025",
+          "pnl": 41985.47312633018,
+          "return_pct": 5.59568020071215
+        },
+        {
+          "year": "2026",
+          "pnl": 20101.279085175018,
+          "return_pct": 2.537063725343458
+        }
+      ],
+      "return_pct": -18.75938653300995
+    },
+    {
+      "code": "002588",
+      "initial_capital": 1000000.0,
+      "cash": 1208851.1472181748,
+      "shares": 0.0,
+      "marked_nav": 1208851.1472181748,
+      "pnl": 208851.14721817477,
+      "fees": 1195.853781825,
+      "cash_dividends": 127951.5,
+      "build_count": 1,
+      "add_count": 0,
+      "reduce_count": 0,
+      "exit_count": 1,
+      "unfilled_count": 1,
+      "max_drawdown_observed": 0.5626712963446178,
+      "fractional_share_approximation": false,
+      "name": "史丹利",
+      "strategy_version": "buy_hold_account_benchmark_v1",
+      "last_price": 8.53,
+      "end": "2026-09-08",
+      "first_date": "2016-05-26",
+      "last_date": "2026-09-08",
+      "feature_error": null,
+      "late_start": false,
+      "stale": false,
+      "rights_issue_present": false,
+      "action_status": "ok",
+      "action_count": 13,
+      "unexplained_gap_count": 0,
+      "final_cash": 1208851.1472181748,
+      "residual_value": 0.0,
+      "liquidation_complete": true,
+      "years": {
+        "2016": {
+          "date": "2016-12-30",
+          "nav": 1000000.0,
+          "cash": 1000000.0,
+          "shares": 0.0
+        },
+        "2017": {
+          "date": "2017-12-29",
+          "nav": 869280.7167510401,
+          "cash": 249.7167510400759,
+          "shares": 129900.0
+        },
+        "2018": {
+          "date": "2018-12-28",
+          "nav": 512055.7167510401,
+          "cash": 6744.716751040076,
+          "shares": 129900.0
+        },
+        "2019": {
+          "date": "2019-12-31",
+          "nav": 517251.7167510401,
+          "cash": 9342.716751040076,
+          "shares": 129900.0
+        },
+        "2020": {
+          "date": "2020-12-31",
+          "nav": 757566.7167510401,
+          "cash": 11940.716751040076,
+          "shares": 129900.0
+        },
+        "2021": {
+          "date": "2021-12-31",
+          "nav": 793938.7167510401,
+          "cash": 21033.716751040076,
+          "shares": 129900.0
+        },
+        "2022": {
+          "date": "2022-12-30",
+          "nav": 817320.7167510401,
+          "cash": 30126.716751040076,
+          "shares": 129900.0
+        },
+        "2023": {
+          "date": "2023-12-29",
+          "nav": 865383.7167510401,
+          "cash": 36621.716751040076,
+          "shares": 129900.0
+        },
+        "2024": {
+          "date": "2024-12-31",
+          "nav": 1012170.7167510401,
+          "cash": 53508.716751040076,
+          "shares": 129900.0
+        },
+        "2025": {
+          "date": "2025-12-31",
+          "nav": 1389530.21675104,
+          "cash": 93128.21675104008,
+          "shares": 129900.0
+        },
+        "2026": {
+          "date": "2026-09-08",
+          "nav": 1208851.1472181748,
+          "cash": 1208851.1472181748,
+          "shares": 0.0
+        }
+      },
+      "average_exposure": 0.8957877770867155,
+      "train_nav": 793938.7167510401,
+      "validation_nav": 865383.7167510401,
+      "annual_results": [
+        {
+          "year": "2016",
+          "pnl": 0.0,
+          "return_pct": 0.0
+        },
+        {
+          "year": "2017",
+          "pnl": -130719.28324895992,
+          "return_pct": -13.071928324895987
+        },
+        {
+          "year": "2018",
+          "pnl": -357225.0,
+          "return_pct": -41.094320064424984
+        },
+        {
+          "year": "2019",
+          "pnl": 5196.0,
+          "return_pct": 1.0147333249139967
+        },
+        {
+          "year": "2020",
+          "pnl": 240315.0,
+          "return_pct": 46.45997146408056
+        },
+        {
+          "year": "2021",
+          "pnl": 36372.0,
+          "return_pct": 4.801161296524192
+        },
+        {
+          "year": "2022",
+          "pnl": 23382.0,
+          "return_pct": 2.945063580685914
+        },
+        {
+          "year": "2023",
+          "pnl": 48063.0,
+          "return_pct": 5.880555700466883
+        },
+        {
+          "year": "2024",
+          "pnl": 146787.0,
+          "return_pct": 16.96207094710436
+        },
+        {
+          "year": "2025",
+          "pnl": 377359.4999999999,
+          "return_pct": 37.28219891712374
+        },
+        {
+          "year": "2026",
+          "pnl": -180679.0695328652,
+          "return_pct": -13.002888843635507
+        }
+      ],
+      "return_pct": 20.885114721817477
+    },
+    {
+      "code": "002916",
+      "initial_capital": 1000000.0,
+      "cash": 1007397.42658865,
+      "shares": 0.0,
+      "marked_nav": 1007397.42658865,
+      "pnl": 7397.426588649978,
+      "fees": 53940.21331135299,
+      "cash_dividends": 7655.0,
+      "build_count": 175,
+      "add_count": 31,
+      "reduce_count": 12,
+      "exit_count": 175,
+      "unfilled_count": 5,
+      "max_drawdown_observed": 0.12078439644696244,
+      "fractional_share_approximation": false,
+      "name": "深南电路",
+      "strategy_version": "pareto_daily_atoms_risk_v1",
+      "last_price": 382.5,
+      "end": "2026-09-08",
+      "first_date": "2017-12-13",
+      "last_date": "2026-09-08",
+      "feature_error": null,
+      "late_start": true,
+      "stale": false,
+      "rights_issue_present": false,
+      "action_status": "ok",
+      "action_count": 9,
+      "unexplained_gap_count": 0,
+      "final_cash": 1007397.42658865,
+      "residual_value": 0.0,
+      "liquidation_complete": true,
+      "years": {
+        "2017": {
+          "date": "2017-12-29",
+          "nav": 1000000.0,
+          "cash": 1000000.0,
+          "shares": 0.0
+        },
+        "2018": {
+          "date": "2018-12-28",
+          "nav": 997477.8269184,
+          "cash": 813086.8269184,
+          "shares": 2300.0
+        },
+        "2019": {
+          "date": "2019-12-31",
+          "nav": 1001919.1191954627,
+          "cash": 1001919.1191954627,
+          "shares": 0.0
+        },
+        "2020": {
+          "date": "2020-12-31",
+          "nav": 968618.032390183,
+          "cash": 968618.032390183,
+          "shares": 0.0
+        },
+        "2021": {
+          "date": "2021-12-31",
+          "nav": 913001.0538133528,
+          "cash": 913001.0538133528,
+          "shares": 0.0
+        },
+        "2022": {
+          "date": "2022-12-30",
+          "nav": 931797.9342031084,
+          "cash": 931797.9342031084,
+          "shares": 0.0
+        },
+        "2023": {
+          "date": "2023-12-29",
+          "nav": 933004.5100314687,
+          "cash": 933004.5100314687,
+          "shares": 0.0
+        },
+        "2024": {
+          "date": "2024-12-31",
+          "nav": 981735.2929179196,
+          "cash": 819235.2929179196,
+          "shares": 1300.0
+        },
+        "2025": {
+          "date": "2025-12-31",
+          "nav": 988525.569732215,
+          "cash": 988525.569732215,
+          "shares": 0.0
+        },
+        "2026": {
+          "date": "2026-09-08",
+          "nav": 1007397.42658865,
+          "cash": 1007397.42658865,
+          "shares": 0.0
+        }
+      },
+      "average_exposure": 0.028550231767008067,
+      "train_nav": 913001.0538133528,
+      "validation_nav": 933004.5100314687,
+      "annual_results": [
+        {
+          "year": "2016",
+          "pnl": 0.0,
+          "return_pct": 0.0
+        },
+        {
+          "year": "2017",
+          "pnl": 0.0,
+          "return_pct": 0.0
+        },
+        {
+          "year": "2018",
+          "pnl": -2522.173081599991,
+          "return_pct": -0.25221730815999654
+        },
+        {
+          "year": "2019",
+          "pnl": 4441.292277062661,
+          "return_pct": 0.4452522308975526
+        },
+        {
+          "year": "2020",
+          "pnl": -33301.086805279716,
+          "return_pct": -3.323730046395401
+        },
+        {
+          "year": "2021",
+          "pnl": -55616.97857683012,
+          "return_pct": -5.741889652785881
+        },
+        {
+          "year": "2022",
+          "pnl": 18796.88038975559,
+          "return_pct": 2.0588016094007955
+        },
+        {
+          "year": "2023",
+          "pnl": 1206.5758283602772,
+          "return_pct": 0.12948900014380094
+        },
+        {
+          "year": "2024",
+          "pnl": 48730.78288645088,
+          "return_pct": 5.2229954263358636
+        },
+        {
+          "year": "2025",
+          "pnl": 6790.276814295445,
+          "return_pct": 0.6916606607992426
+        },
+        {
+          "year": "2026",
+          "pnl": 18871.856856434955,
+          "return_pct": 1.9090914220405208
+        }
+      ],
+      "return_pct": 0.7397426588649978
+    },
+    {
+      "code": "002916",
+      "initial_capital": 1000000.0,
+      "cash": 1319891.3913183762,
+      "shares": 0.0,
+      "marked_nav": 1319891.3913183762,
+      "pnl": 319891.3913183762,
+      "fees": 4920.780881623999,
+      "cash_dividends": 4320.0,
+      "build_count": 15,
+      "add_count": 0,
+      "reduce_count": 18,
+      "exit_count": 15,
+      "unfilled_count": 0,
+      "max_drawdown_observed": 0.11909829166913775,
+      "fractional_share_approximation": false,
+      "name": "深南电路",
+      "strategy_version": "pareto_trend_hold_v2",
+      "last_price": 382.5,
+      "end": "2026-09-08",
+      "first_date": "2017-12-13",
+      "last_date": "2026-09-08",
+      "feature_error": null,
+      "late_start": true,
+      "stale": false,
+      "rights_issue_present": false,
+      "action_status": "ok",
+      "action_count": 9,
+      "unexplained_gap_count": 0,
+      "final_cash": 1319891.3913183762,
+      "residual_value": 0.0,
+      "liquidation_complete": true,
+      "years": {
+        "2017": {
+          "date": "2017-12-29",
+          "nav": 1000000.0,
+          "cash": 1000000.0,
+          "shares": 0.0
+        },
+        "2018": {
+          "date": "2018-12-28",
+          "nav": 997806.806016,
+          "cash": 837466.806016,
+          "shares": 2000.0
+        },
+        "2019": {
+          "date": "2019-12-31",
+          "nav": 1100363.29854886,
+          "cash": 915633.29854886,
+          "shares": 1300.0
+        },
+        "2020": {
+          "date": "2020-12-31",
+          "nav": 1191472.396386256,
+          "cash": 1191472.396386256,
+          "shares": 0.0
+        },
+        "2021": {
+          "date": "2021-12-31",
+          "nav": 1135277.160356936,
+          "cash": 891637.1603569359,
+          "shares": 2000.0
+        },
+        "2022": {
+          "date": "2022-12-30",
+          "nav": 1099258.737636936,
+          "cash": 1099258.737636936,
+          "shares": 0.0
+        },
+        "2023": {
+          "date": "2023-12-29",
+          "nav": 1099413.7918347612,
+          "cash": 1099413.7918347612,
+          "shares": 0.0
+        },
+        "2024": {
+          "date": "2024-12-31",
+          "nav": 1119167.4610582262,
+          "cash": 956667.4610582262,
+          "shares": 1300.0
+        },
+        "2025": {
+          "date": "2025-12-31",
+          "nav": 1283161.4652032864,
+          "cash": 1120558.4652032864,
+          "shares": 700.0
+        },
+        "2026": {
+          "date": "2026-09-08",
+          "nav": 1319891.3913183762,
+          "cash": 1319891.3913183762,
+          "shares": 0.0
+        }
+      },
+      "average_exposure": 0.0695910763779915,
+      "train_nav": 1135277.160356936,
+      "validation_nav": 1099413.7918347612,
+      "annual_results": [
+        {
+          "year": "2016",
+          "pnl": 0.0,
+          "return_pct": 0.0
+        },
+        {
+          "year": "2017",
+          "pnl": 0.0,
+          "return_pct": 0.0
+        },
+        {
+          "year": "2018",
+          "pnl": -2193.1939840000123,
+          "return_pct": -0.21931939839999748
+        },
+        {
+          "year": "2019",
+          "pnl": 102556.49253286002,
+          "return_pct": 10.278191320656859
+        },
+        {
+          "year": "2020",
+          "pnl": 91109.09783739597,
+          "return_pct": 8.279910640199372
+        },
+        {
+          "year": "2021",
+          "pnl": -56195.23602931993,
+          "return_pct": -4.716453037414925
+        },
+        {
+          "year": "2022",
+          "pnl": -36018.42272000015,
+          "return_pct": -3.1726545708605447
+        },
+        {
+          "year": "2023",
+          "pnl": 155.0541978252586,
+          "return_pct": 0.014105341401116078
+        },
+        {
+          "year": "2024",
+          "pnl": 19753.669223465025,
+          "return_pct": 1.7967456266397175
+        },
+        {
+          "year": "2025",
+          "pnl": 163994.0041450602,
+          "return_pct": 14.653214094519518
+        },
+        {
+          "year": "2026",
+          "pnl": 36729.926115089795,
+          "return_pct": 2.862455514066653
+        }
+      ],
+      "return_pct": 31.989139131837618
+    },
+    {
+      "code": "002916",
+      "initial_capital": 1000000.0,
+      "cash": 9536761.727481809,
+      "shares": 0.0,
+      "marked_nav": 9536761.727481809,
+      "pnl": 8536761.727481809,
+      "fees": 7888.175718192,
+      "cash_dividends": 200189.88,
+      "build_count": 1,
+      "add_count": 0,
+      "reduce_count": 0,
+      "exit_count": 1,
+      "unfilled_count": 0,
+      "max_drawdown_observed": 0.7263999704065458,
+      "fractional_share_approximation": true,
+      "name": "深南电路",
+      "strategy_version": "buy_hold_account_benchmark_v1",
+      "last_price": 382.5,
+      "end": "2026-09-08",
+      "first_date": "2017-12-13",
+      "last_date": "2026-09-08",
+      "feature_error": null,
+      "late_start": true,
+      "stale": false,
+      "rights_issue_present": false,
+      "action_status": "ok",
+      "action_count": 9,
+      "unexplained_gap_count": 0,
+      "final_cash": 9536761.727481809,
+      "residual_value": 0.0,
+      "liquidation_complete": true,
+      "years": {
+        "2017": {
+          "date": "2017-12-29",
+          "nav": 1000000.0,
+          "cash": 1000000.0,
+          "shares": 0.0
+        },
+        "2018": {
+          "date": "2018-12-28",
+          "nav": 986511.8569984,
+          "cash": 420.85699839994777,
+          "shares": 12300.0
+        },
+        "2019": {
+          "date": "2019-12-31",
+          "nav": 2107041.8569984,
+          "cash": 9645.856998399948,
+          "shares": 14760.0
+        },
+        "2020": {
+          "date": "2020-12-31",
+          "nav": 2259571.6969983997,
+          "cash": 26619.856998399948,
+          "shares": 20664.0
+        },
+        "2021": {
+          "date": "2021-12-31",
+          "nav": 2563539.1369984,
+          "cash": 46250.65699839995,
+          "shares": 20664.0
+        },
+        "2022": {
+          "date": "2022-12-30",
+          "nav": 1556789.0569984,
+          "cash": 65881.45699839995,
+          "shares": 20664.0
+        },
+        "2023": {
+          "date": "2023-12-29",
+          "nav": 1553482.8169983998,
+          "cash": 86545.45699839995,
+          "shares": 20664.0
+        },
+        "2024": {
+          "date": "2024-12-31",
+          "nav": 2688143.0569984,
+          "cash": 105143.05699839996,
+          "shares": 20664.0
+        },
+        "2025": {
+          "date": "2025-12-31",
+          "nav": 6376191.7849984,
+          "cash": 136139.05699839996,
+          "shares": 26863.2
+        },
+        "2026": {
+          "date": "2026-09-08",
+          "nav": 9536761.727481809,
+          "cash": 9536761.727481809,
+          "shares": 0.0
+        }
+      },
+      "average_exposure": 0.7477983707030539,
+      "train_nav": 2563539.1369984,
+      "validation_nav": 1553482.8169983998,
+      "annual_results": [
+        {
+          "year": "2016",
+          "pnl": 0.0,
+          "return_pct": 0.0
+        },
+        {
+          "year": "2017",
+          "pnl": 0.0,
+          "return_pct": 0.0
+        },
+        {
+          "year": "2018",
+          "pnl": -13488.143001600052,
+          "return_pct": -1.3488143001600061
+        },
+        {
+          "year": "2019",
+          "pnl": 1120530.0,
+          "return_pct": 113.58505141634777
+        },
+        {
+          "year": "2020",
+          "pnl": 152529.83999999985,
+          "return_pct": 7.239051255359841
+        },
+        {
+          "year": "2021",
+          "pnl": 303967.4400000004,
+          "return_pct": 13.452436158754733
+        },
+        {
+          "year": "2022",
+          "pnl": -1006750.0800000001,
+          "return_pct": -39.27188258880201
+        },
+        {
+          "year": "2023",
+          "pnl": -3306.2400000002235,
+          "return_pct": -0.21237559354219115
+        },
+        {
+          "year": "2024",
+          "pnl": 1134660.2400000002,
+          "return_pct": 73.03976764882162
+        },
+        {
+          "year": "2025",
+          "pnl": 3688048.728,
+          "return_pct": 137.19689204778044
+        },
+        {
+          "year": "2026",
+          "pnl": 3160569.9424834084,
+          "return_pct": 49.568301096580036
+        }
+      ],
+      "return_pct": 853.6761727481809
+    },
+    {
+      "code": "600246",
+      "initial_capital": 1000000.0,
+      "cash": 1092420.7947084068,
+      "shares": 0.0,
+      "marked_nav": 1092420.7947084068,
+      "pnl": 92420.79470840679,
+      "fees": 96000.9067916001,
+      "cash_dividends": 1871.1000000000001,
+      "build_count": 274,
+      "add_count": 175,
+      "reduce_count": 95,
+      "exit_count": 274,
+      "unfilled_count": 3,
+      "max_drawdown_observed": 0.10616422214344946,
+      "fractional_share_approximation": false,
+      "name": "万通发展",
+      "strategy_version": "pareto_daily_atoms_risk_v1",
+      "last_price": 12.68,
+      "end": "2026-09-08",
+      "first_date": "2016-04-15",
+      "last_date": "2026-09-08",
+      "feature_error": null,
+      "late_start": false,
+      "stale": false,
+      "rights_issue_present": false,
+      "action_status": "ok",
+      "action_count": 3,
+      "unexplained_gap_count": 0,
+      "final_cash": 1092420.7947084068,
+      "residual_value": 0.0,
+      "liquidation_complete": true,
+      "years": {
+        "2016": {
+          "date": "2016-12-30",
+          "nav": 1000000.0,
+          "cash": 1000000.0,
+          "shares": 0.0
+        },
+        "2017": {
+          "date": "2017-12-29",
+          "nav": 969697.5425287106,
+          "cash": 969697.5425287106,
+          "shares": 0.0
+        },
+        "2018": {
+          "date": "2018-12-28",
+          "nav": 948193.4848000411,
+          "cash": 561421.4848000411,
+          "shares": 115800.0
+        },
+        "2019": {
+          "date": "2019-12-31",
+          "nav": 997430.1272690123,
+          "cash": 997430.1272690123,
+          "shares": 0.0
+        },
+        "2020": {
+          "date": "2020-12-31",
+          "nav": 1063354.1316453929,
+          "cash": 1063354.1316453929,
+          "shares": 0.0
+        },
+        "2021": {
+          "date": "2021-12-31",
+          "nav": 1097571.9611487037,
+          "cash": 874777.9611487037,
+          "shares": 20900.0
+        },
+        "2022": {
+          "date": "2022-12-30",
+          "nav": 1107637.8433905593,
+          "cash": 925856.8433905593,
+          "shares": 28900.0
+        },
+        "2023": {
+          "date": "2023-12-29",
+          "nav": 1096354.6627961851,
+          "cash": 924369.6627961851,
+          "shares": 26500.0
+        },
+        "2024": {
+          "date": "2024-12-31",
+          "nav": 1064079.6638929965,
+          "cash": 924019.6638929965,
+          "shares": 18800.0
+        },
+        "2025": {
+          "date": "2025-12-31",
+          "nav": 1076742.907490327,
+          "cash": 1076742.907490327,
+          "shares": 0.0
+        },
+        "2026": {
+          "date": "2026-09-08",
+          "nav": 1092420.7947084068,
+          "cash": 1092420.7947084068,
+          "shares": 0.0
+        }
+      },
+      "average_exposure": 0.0529614497499428,
+      "train_nav": 1097571.9611487037,
+      "validation_nav": 1096354.6627961851,
+      "annual_results": [
+        {
+          "year": "2016",
+          "pnl": 0.0,
+          "return_pct": 0.0
+        },
+        {
+          "year": "2017",
+          "pnl": -30302.45747128944,
+          "return_pct": -3.0302457471289457
+        },
+        {
+          "year": "2018",
+          "pnl": -21504.05772866949,
+          "return_pct": -2.217604643257387
+        },
+        {
+          "year": "2019",
+          "pnl": 49236.6424689712,
+          "return_pct": 5.192678842267551
+        },
+        {
+          "year": "2020",
+          "pnl": 65924.00437638059,
+          "return_pct": 6.609385717762728
+        },
+        {
+          "year": "2021",
+          "pnl": 34217.829503310844,
+          "return_pct": 3.2179147553001552
+        },
+        {
+          "year": "2022",
+          "pnl": 10065.882241855608,
+          "return_pct": 0.9171045360270247
+        },
+        {
+          "year": "2023",
+          "pnl": -11283.180594374193,
+          "return_pct": -1.018670557502399
+        },
+        {
+          "year": "2024",
+          "pnl": -32274.99890318862,
+          "return_pct": -2.9438465487867993
+        },
+        {
+          "year": "2025",
+          "pnl": 12663.243597330526,
+          "return_pct": 1.1900653707638043
+        },
+        {
+          "year": "2026",
+          "pnl": 15677.887218079763,
+          "return_pct": 1.4560474101122045
+        }
+      ],
+      "return_pct": 9.242079470840679
+    },
+    {
+      "code": "600246",
+      "initial_capital": 1000000.0,
+      "cash": 1186564.5875572206,
+      "shares": 0.0,
+      "marked_nav": 1186564.5875572206,
+      "pnl": 186564.5875572206,
+      "fees": 5898.101942780002,
+      "cash_dividends": 2953.5,
+      "build_count": 17,
+      "add_count": 0,
+      "reduce_count": 37,
+      "exit_count": 17,
+      "unfilled_count": 0,
+      "max_drawdown_observed": 0.12804649971420606,
+      "fractional_share_approximation": false,
+      "name": "万通发展",
+      "strategy_version": "pareto_trend_hold_v2",
+      "last_price": 12.68,
+      "end": "2026-09-08",
+      "first_date": "2016-04-15",
+      "last_date": "2026-09-08",
+      "feature_error": null,
+      "late_start": false,
+      "stale": false,
+      "rights_issue_present": false,
+      "action_status": "ok",
+      "action_count": 3,
+      "unexplained_gap_count": 0,
+      "final_cash": 1186564.5875572206,
+      "residual_value": 0.0,
+      "liquidation_complete": true,
+      "years": {
+        "2016": {
+          "date": "2016-12-30",
+          "nav": 1000000.0,
+          "cash": 1000000.0,
+          "shares": 0.0
+        },
+        "2017": {
+          "date": "2017-12-29",
+          "nav": 1000000.0,
+          "cash": 1000000.0,
+          "shares": 0.0
+        },
+        "2018": {
+          "date": "2018-12-28",
+          "nav": 968457.5066804402,
+          "cash": 968457.5066804402,
+          "shares": 0.0
+        },
+        "2019": {
+          "date": "2019-12-31",
+          "nav": 1029298.9262059603,
+          "cash": 740524.9262059603,
+          "shares": 54900.0
+        },
+        "2020": {
+          "date": "2020-12-31",
+          "nav": 1111787.6478731805,
+          "cash": 1111787.6478731805,
+          "shares": 0.0
+        },
+        "2021": {
+          "date": "2021-12-31",
+          "nav": 1218211.0545928804,
+          "cash": 1042321.0545928805,
+          "shares": 16500.0
+        },
+        "2022": {
+          "date": "2022-12-30",
+          "nav": 1131555.2295671005,
+          "cash": 1131555.2295671005,
+          "shares": 0.0
+        },
+        "2023": {
+          "date": "2023-12-29",
+          "nav": 1171392.1602111259,
+          "cash": 1017579.1602111259,
+          "shares": 23700.0
+        },
+        "2024": {
+          "date": "2024-12-31",
+          "nav": 1116676.7199572558,
+          "cash": 1116676.7199572558,
+          "shares": 0.0
+        },
+        "2025": {
+          "date": "2025-12-31",
+          "nav": 1242516.5549331456,
+          "cash": 1134276.5549331456,
+          "shares": 8800.0
+        },
+        "2026": {
+          "date": "2026-09-08",
+          "nav": 1186564.5875572206,
+          "cash": 1186564.5875572206,
+          "shares": 0.0
+        }
+      },
+      "average_exposure": 0.06354286619071492,
+      "train_nav": 1218211.0545928804,
+      "validation_nav": 1171392.1602111259,
+      "annual_results": [
+        {
+          "year": "2016",
+          "pnl": 0.0,
+          "return_pct": 0.0
+        },
+        {
+          "year": "2017",
+          "pnl": 0.0,
+          "return_pct": 0.0
+        },
+        {
+          "year": "2018",
+          "pnl": -31542.493319559842,
+          "return_pct": -3.154249331955983
+        },
+        {
+          "year": "2019",
+          "pnl": 60841.41952552018,
+          "return_pct": 6.282301402574175
+        },
+        {
+          "year": "2020",
+          "pnl": 82488.72166722012,
+          "return_pct": 8.014068563277043
+        },
+        {
+          "year": "2021",
+          "pnl": 106423.40671969997,
+          "return_pct": 9.5722782064799
+        },
+        {
+          "year": "2022",
+          "pnl": -86655.8250257799,
+          "return_pct": -7.113367154161954
+        },
+        {
+          "year": "2023",
+          "pnl": 39836.93064402533,
+          "return_pct": 3.5205467310036376
+        },
+        {
+          "year": "2024",
+          "pnl": -54715.440253870096,
+          "return_pct": -4.670975452320636
+        },
+        {
+          "year": "2025",
+          "pnl": 125839.83497588988,
+          "return_pct": 11.269137497619441
+        },
+        {
+          "year": "2026",
+          "pnl": -55951.96737592504,
+          "return_pct": -4.50311644973902
+        }
+      ],
+      "return_pct": 18.65645875572206
+    },
+    {
+      "code": "600246",
+      "initial_capital": 1000000.0,
+      "cash": 2357933.56249012,
+      "shares": 0.0,
+      "marked_nav": 2357933.56249012,
+      "pnl": 1357933.56249012,
+      "fees": 2210.34350988,
+      "cash_dividends": 25839.0,
+      "build_count": 1,
+      "add_count": 0,
+      "reduce_count": 0,
+      "exit_count": 1,
+      "unfilled_count": 1,
+      "max_drawdown_observed": 0.6449627492832367,
+      "fractional_share_approximation": false,
+      "name": "万通发展",
+      "strategy_version": "buy_hold_account_benchmark_v1",
+      "last_price": 12.68,
+      "end": "2026-09-08",
+      "first_date": "2016-04-15",
+      "last_date": "2026-09-08",
+      "feature_error": null,
+      "late_start": false,
+      "stale": false,
+      "rights_issue_present": false,
+      "action_status": "ok",
+      "action_count": 3,
+      "unexplained_gap_count": 0,
+      "final_cash": 2357933.56249012,
+      "residual_value": 0.0,
+      "liquidation_complete": true,
+      "years": {
+        "2016": {
+          "date": "2016-12-30",
+          "nav": 1000000.0,
+          "cash": 1000000.0,
+          "shares": 0.0
+        },
+        "2017": {
+          "date": "2017-12-29",
+          "nav": 763758.5715827201,
+          "cash": 72.57158272014931,
+          "shares": 191400.0
+        },
+        "2018": {
+          "date": "2018-12-28",
+          "nav": 644516.3715827202,
+          "cash": 5240.3715827201495,
+          "shares": 191400.0
+        },
+        "2019": {
+          "date": "2019-12-31",
+          "nav": 1021191.5715827201,
+          "cash": 14427.57158272015,
+          "shares": 191400.0
+        },
+        "2020": {
+          "date": "2020-12-31",
+          "nav": 1359969.5715827201,
+          "cash": 25911.57158272015,
+          "shares": 191400.0
+        },
+        "2021": {
+          "date": "2021-12-31",
+          "nav": 2066235.5715827201,
+          "cash": 25911.57158272015,
+          "shares": 191400.0
+        },
+        "2022": {
+          "date": "2022-12-30",
+          "nav": 1229817.5715827201,
+          "cash": 25911.57158272015,
+          "shares": 191400.0
+        },
+        "2023": {
+          "date": "2023-12-29",
+          "nav": 1268097.5715827201,
+          "cash": 25911.57158272015,
+          "shares": 191400.0
+        },
+        "2024": {
+          "date": "2024-12-31",
+          "nav": 1451841.5715827201,
+          "cash": 25911.57158272015,
+          "shares": 191400.0
+        },
+        "2025": {
+          "date": "2025-12-31",
+          "nav": 2380131.57158272,
+          "cash": 25911.57158272015,
+          "shares": 191400.0
+        },
+        "2026": {
+          "date": "2026-09-08",
+          "nav": 2357933.56249012,
+          "cash": 2357933.56249012,
+          "shares": 0.0
+        }
+      },
+      "average_exposure": 0.9134260613408077,
+      "train_nav": 2066235.5715827201,
+      "validation_nav": 1268097.5715827201,
+      "annual_results": [
+        {
+          "year": "2016",
+          "pnl": 0.0,
+          "return_pct": 0.0
+        },
+        {
+          "year": "2017",
+          "pnl": -236241.42841727985,
+          "return_pct": -23.62414284172798
+        },
+        {
+          "year": "2018",
+          "pnl": -119242.19999999995,
+          "return_pct": -15.612551457576041
+        },
+        {
+          "year": "2019",
+          "pnl": 376675.19999999995,
+          "return_pct": 58.44307710524244
+        },
+        {
+          "year": "2020",
+          "pnl": 338778.0,
+          "return_pct": 33.17477439369541
+        },
+        {
+          "year": "2021",
+          "pnl": 706266.0,
+          "return_pct": 51.932485458336686
+        },
+        {
+          "year": "2022",
+          "pnl": -836418.0,
+          "return_pct": -40.48028266976888
+        },
+        {
+          "year": "2023",
+          "pnl": 38280.0,
+          "return_pct": 3.1126567780890735
+        },
+        {
+          "year": "2024",
+          "pnl": 183744.0,
+          "return_pct": 14.489736761396689
+        },
+        {
+          "year": "2025",
+          "pnl": 928290.0,
+          "return_pct": 63.938794574398905
+        },
+        {
+          "year": "2026",
+          "pnl": -22198.009092600085,
+          "return_pct": -0.9326378994182649
+        }
+      ],
+      "return_pct": 135.79335624901202
+    },
+    {
+      "code": "600655",
+      "initial_capital": 1000000.0,
+      "cash": 849058.9293739303,
+      "shares": 0.0,
+      "marked_nav": 849058.9293739303,
+      "pnl": -150941.07062606968,
+      "fees": 85961.38262607498,
+      "cash_dividends": 27300.0,
+      "build_count": 182,
+      "add_count": 89,
+      "reduce_count": 41,
+      "exit_count": 182,
+      "unfilled_count": 2,
+      "max_drawdown_observed": 0.18009862341003627,
+      "fractional_share_approximation": false,
+      "name": "豫园股份",
+      "strategy_version": "pareto_daily_atoms_risk_v1",
+      "last_price": 4.66,
+      "end": "2026-09-08",
+      "first_date": "2015-06-30",
+      "last_date": "2026-09-08",
+      "feature_error": null,
+      "late_start": false,
+      "stale": false,
+      "rights_issue_present": false,
+      "action_status": "ok",
+      "action_count": 11,
+      "unexplained_gap_count": 0,
+      "final_cash": 849058.9293739303,
+      "residual_value": 0.0,
+      "liquidation_complete": true,
+      "years": {
+        "2016": {
+          "date": "2016-12-19",
+          "nav": 959240.9536863301,
+          "cash": 959240.9536863301,
+          "shares": 0.0
+        },
+        "2017": {
+          "date": "2017-12-29",
+          "nav": 938876.7136632107,
+          "cash": 628490.7136632107,
+          "shares": 28900.0
+        },
+        "2018": {
+          "date": "2018-12-28",
+          "nav": 902372.6230535812,
+          "cash": 902372.6230535812,
+          "shares": 0.0
+        },
+        "2019": {
+          "date": "2019-12-31",
+          "nav": 926997.5371937316,
+          "cash": 926997.5371937316,
+          "shares": 0.0
+        },
+        "2020": {
+          "date": "2020-12-31",
+          "nav": 931082.2662778518,
+          "cash": 523920.2662778518,
+          "shares": 45800.0
+        },
+        "2021": {
+          "date": "2021-12-31",
+          "nav": 960391.7219470821,
+          "cash": 562811.7219470821,
+          "shares": 38600.0
+        },
+        "2022": {
+          "date": "2022-12-30",
+          "nav": 876015.1970028279,
+          "cash": 876015.1970028279,
+          "shares": 0.0
+        },
+        "2023": {
+          "date": "2023-12-29",
+          "nav": 842580.9620389692,
+          "cash": 842580.9620389692,
+          "shares": 0.0
+        },
+        "2024": {
+          "date": "2024-12-31",
+          "nav": 870979.8914617244,
+          "cash": 870979.8914617244,
+          "shares": 0.0
+        },
+        "2025": {
+          "date": "2025-12-31",
+          "nav": 841449.7774718052,
+          "cash": 402321.7774718053,
+          "shares": 85600.0
+        },
+        "2026": {
+          "date": "2026-09-08",
+          "nav": 849058.9293739303,
+          "cash": 849058.9293739303,
+          "shares": 0.0
+        }
+      },
+      "average_exposure": 0.04967405225695849,
+      "train_nav": 960391.7219470821,
+      "validation_nav": 842580.9620389692,
+      "annual_results": [
+        {
+          "year": "2016",
+          "pnl": -40759.04631366988,
+          "return_pct": -4.075904631366988
+        },
+        {
+          "year": "2017",
+          "pnl": -20364.240023119375,
+          "return_pct": -2.122953564989094
+        },
+        {
+          "year": "2018",
+          "pnl": -36504.09060962952,
+          "return_pct": -3.888060069910748
+        },
+        {
+          "year": "2019",
+          "pnl": 24624.914140150417,
+          "return_pct": 2.728907494646826
+        },
+        {
+          "year": "2020",
+          "pnl": 4084.729084120132,
+          "return_pct": 0.44064076982186506
+        },
+        {
+          "year": "2021",
+          "pnl": 29309.455669230316,
+          "return_pct": 3.1478910866168164
+        },
+        {
+          "year": "2022",
+          "pnl": -84376.5249442542,
+          "return_pct": -8.785636424811184
+        },
+        {
+          "year": "2023",
+          "pnl": -33434.23496385873,
+          "return_pct": -3.816627277500395
+        },
+        {
+          "year": "2024",
+          "pnl": 28398.92942275526,
+          "return_pct": 3.3704689166050406
+        },
+        {
+          "year": "2025",
+          "pnl": -29530.11398991919,
+          "return_pct": -3.390447274317687
+        },
+        {
+          "year": "2026",
+          "pnl": 7609.151902125101,
+          "return_pct": 0.9042906785224014
+        }
+      ],
+      "return_pct": -15.094107062606968
+    },
+    {
+      "code": "600655",
+      "initial_capital": 1000000.0,
+      "cash": 886237.9264158455,
+      "shares": 0.0,
+      "marked_nav": 886237.9264158455,
+      "pnl": -113762.07358415448,
+      "fees": 8260.930584154998,
+      "cash_dividends": 12386.0,
+      "build_count": 18,
+      "add_count": 0,
+      "reduce_count": 4,
+      "exit_count": 18,
+      "unfilled_count": 1,
+      "max_drawdown_observed": 0.17455643008939312,
+      "fractional_share_approximation": false,
+      "name": "豫园股份",
+      "strategy_version": "pareto_trend_hold_v2",
+      "last_price": 4.66,
+      "end": "2026-09-08",
+      "first_date": "2015-06-30",
+      "last_date": "2026-09-08",
+      "feature_error": null,
+      "late_start": false,
+      "stale": false,
+      "rights_issue_present": false,
+      "action_status": "ok",
+      "action_count": 11,
+      "unexplained_gap_count": 0,
+      "final_cash": 886237.9264158455,
+      "residual_value": 0.0,
+      "liquidation_complete": true,
+      "years": {
+        "2016": {
+          "date": "2016-12-19",
+          "nav": 991537.6914818401,
+          "cash": 991537.6914818401,
+          "shares": 0.0
+        },
+        "2017": {
+          "date": "2017-12-29",
+          "nav": 991537.6914818401,
+          "cash": 991537.6914818401,
+          "shares": 0.0
+        },
+        "2018": {
+          "date": "2018-12-28",
+          "nav": 940364.4571333602,
+          "cash": 940364.4571333602,
+          "shares": 0.0
+        },
+        "2019": {
+          "date": "2019-12-31",
+          "nav": 950884.5879970202,
+          "cash": 950884.5879970202,
+          "shares": 0.0
+        },
+        "2020": {
+          "date": "2020-12-31",
+          "nav": 1013750.3550193802,
+          "cash": 1013750.3550193802,
+          "shares": 0.0
+        },
+        "2021": {
+          "date": "2021-12-31",
+          "nav": 980874.0171827803,
+          "cash": 980874.0171827803,
+          "shares": 0.0
+        },
+        "2022": {
+          "date": "2022-12-30",
+          "nav": 938554.8524206155,
+          "cash": 938554.8524206155,
+          "shares": 0.0
+        },
+        "2023": {
+          "date": "2023-12-29",
+          "nav": 925886.6106720255,
+          "cash": 925886.6106720255,
+          "shares": 0.0
+        },
+        "2024": {
+          "date": "2024-12-31",
+          "nav": 915206.5389690405,
+          "cash": 915206.5389690405,
+          "shares": 0.0
+        },
+        "2025": {
+          "date": "2025-12-31",
+          "nav": 886237.9264158455,
+          "cash": 886237.9264158455,
+          "shares": 0.0
+        },
+        "2026": {
+          "date": "2026-09-08",
+          "nav": 886237.9264158455,
+          "cash": 886237.9264158455,
+          "shares": 0.0
+        }
+      },
+      "average_exposure": 0.06191875481269954,
+      "train_nav": 980874.0171827803,
+      "validation_nav": 925886.6106720255,
+      "annual_results": [
+        {
+          "year": "2016",
+          "pnl": -8462.308518159902,
+          "return_pct": -0.8462308518159878
+        },
+        {
+          "year": "2017",
+          "pnl": 0.0,
+          "return_pct": 0.0
+        },
+        {
+          "year": "2018",
+          "pnl": -51173.23434847989,
+          "return_pct": -5.16099738699819
+        },
+        {
+          "year": "2019",
+          "pnl": 10520.130863660015,
+          "return_pct": 1.118729103791316
+        },
+        {
+          "year": "2020",
+          "pnl": 62865.76702236,
+          "return_pct": 6.611293086028747
+        },
+        {
+          "year": "2021",
+          "pnl": -32876.33783659991,
+          "return_pct": -3.243040821028509
+        },
+        {
+          "year": "2022",
+          "pnl": -42319.164762164815,
+          "return_pct": -4.314434271968171
+        },
+        {
+          "year": "2023",
+          "pnl": -12668.241748590022,
+          "return_pct": -1.34976040195387
+        },
+        {
+          "year": "2024",
+          "pnl": -10680.071702984977,
+          "return_pct": -1.1534967219401948
+        },
+        {
+          "year": "2025",
+          "pnl": -28968.61255319498,
+          "return_pct": -3.1652541060105954
+        },
+        {
+          "year": "2026",
+          "pnl": 0.0,
+          "return_pct": 0.0
+        }
+      ],
+      "return_pct": -11.376207358415448
+    },
+    {
+      "code": "600655",
+      "initial_capital": 1000000.0,
+      "cash": 595158.81192083,
+      "shares": 0.0,
+      "marked_nav": 595158.81192083,
+      "pnl": -404841.18807916995,
+      "fees": 643.6740791699999,
+      "cash_dividends": 195582.0,
+      "build_count": 1,
+      "add_count": 0,
+      "reduce_count": 0,
+      "exit_count": 1,
+      "unfilled_count": 0,
+      "max_drawdown_observed": 0.581570665974997,
+      "fractional_share_approximation": false,
+      "name": "豫园股份",
+      "strategy_version": "buy_hold_account_benchmark_v1",
+      "last_price": 4.66,
+      "end": "2026-09-08",
+      "first_date": "2015-06-30",
+      "last_date": "2026-09-08",
+      "feature_error": null,
+      "late_start": false,
+      "stale": false,
+      "rights_issue_present": false,
+      "action_status": "ok",
+      "action_count": 11,
+      "unexplained_gap_count": 0,
+      "final_cash": 595158.81192083,
+      "residual_value": 0.0,
+      "liquidation_complete": true,
+      "years": {
+        "2016": {
+          "date": "2016-12-19",
+          "nav": 1006228.6158713601,
+          "cash": 126.61587136005983,
+          "shares": 88100.0
+        },
+        "2017": {
+          "date": "2017-12-29",
+          "nav": 955130.6158713601,
+          "cash": 8936.61587136006,
+          "shares": 88100.0
+        },
+        "2018": {
+          "date": "2018-12-28",
+          "nav": 674091.6158713601,
+          "cash": 22151.61587136006,
+          "shares": 88100.0
+        },
+        "2019": {
+          "date": "2019-12-31",
+          "nav": 736642.6158713601,
+          "cash": 45938.61587136006,
+          "shares": 88100.0
+        },
+        "2020": {
+          "date": "2020-12-31",
+          "nav": 854696.6158713601,
+          "cash": 71487.61587136006,
+          "shares": 88100.0
+        },
+        "2021": {
+          "date": "2021-12-31",
+          "nav": 1007990.6158713602,
+          "cash": 100560.61587136006,
+          "shares": 88100.0
+        },
+        "2022": {
+          "date": "2022-12-30",
+          "nav": 801836.6158713601,
+          "cash": 131395.61587136006,
+          "shares": 88100.0
+        },
+        "2023": {
+          "date": "2023-12-29",
+          "nav": 709331.6158713601,
+          "cash": 162230.61587136006,
+          "shares": 88100.0
+        },
+        "2024": {
+          "date": "2024-12-31",
+          "nav": 745452.6158713601,
+          "cash": 178969.61587136006,
+          "shares": 88100.0
+        },
+        "2025": {
+          "date": "2025-12-31",
+          "nav": 647661.6158713601,
+          "cash": 195708.61587136006,
+          "shares": 88100.0
+        },
+        "2026": {
+          "date": "2026-09-08",
+          "nav": 595158.81192083,
+          "cash": 595158.81192083,
+          "shares": 0.0
+        }
+      },
+      "average_exposure": 0.8690796628787658,
+      "train_nav": 1007990.6158713602,
+      "validation_nav": 709331.6158713601,
+      "annual_results": [
+        {
+          "year": "2016",
+          "pnl": 6228.61587136006,
+          "return_pct": 0.6228615871360033
+        },
+        {
+          "year": "2017",
+          "pnl": -51098.0,
+          "return_pct": -5.078170029556439
+        },
+        {
+          "year": "2018",
+          "pnl": -281039.0,
+          "return_pct": -29.424143183140426
+        },
+        {
+          "year": "2019",
+          "pnl": 62551.0,
+          "return_pct": 9.279302475694484
+        },
+        {
+          "year": "2020",
+          "pnl": 118054.0,
+          "return_pct": 16.025953081788003
+        },
+        {
+          "year": "2021",
+          "pnl": 153294.00000000012,
+          "return_pct": 17.93548694980118
+        },
+        {
+          "year": "2022",
+          "pnl": -206154.00000000012,
+          "return_pct": -20.451976115054382
+        },
+        {
+          "year": "2023",
+          "pnl": -92505.0,
+          "return_pct": -11.53663953091919
+        },
+        {
+          "year": "2024",
+          "pnl": 36121.0,
+          "return_pct": 5.092258570151009
+        },
+        {
+          "year": "2025",
+          "pnl": -97791.0,
+          "return_pct": -13.11833883441298
+        },
+        {
+          "year": "2026",
+          "pnl": -52502.80395053001,
+          "return_pct": -8.106517765437292
+        }
+      ],
+      "return_pct": -40.484118807917
+    },
+    {
+      "code": "601111",
+      "initial_capital": 1000000.0,
+      "cash": 795029.7011272695,
+      "shares": 0.0,
+      "marked_nav": 795029.7011272695,
+      "pnl": -204970.29887273046,
+      "fees": 81642.64837273496,
+      "cash_dividends": 1430.324,
+      "build_count": 215,
+      "add_count": 85,
+      "reduce_count": 43,
+      "exit_count": 215,
+      "unfilled_count": 2,
+      "max_drawdown_observed": 0.21634987036757067,
+      "fractional_share_approximation": false,
+      "name": "中国国航",
+      "strategy_version": "pareto_daily_atoms_risk_v1",
+      "last_price": 5.86,
+      "end": "2026-09-08",
+      "first_date": "2016-05-25",
+      "last_date": "2026-09-08",
+      "feature_error": null,
+      "late_start": false,
+      "stale": false,
+      "rights_issue_present": false,
+      "action_status": "ok",
+      "action_count": 6,
+      "unexplained_gap_count": 0,
+      "final_cash": 795029.7011272695,
+      "residual_value": 0.0,
+      "liquidation_complete": true,
+      "years": {
+        "2016": {
+          "date": "2016-12-30",
+          "nav": 1000000.0,
+          "cash": 1000000.0,
+          "shares": 0.0
+        },
+        "2017": {
+          "date": "2017-12-29",
+          "nav": 958971.7812498506,
+          "cash": 958971.7812498506,
+          "shares": 0.0
+        },
+        "2018": {
+          "date": "2018-12-28",
+          "nav": 836415.8193801806,
+          "cash": 641595.8193801806,
+          "shares": 25500.0
+        },
+        "2019": {
+          "date": "2019-12-31",
+          "nav": 808093.7245016812,
+          "cash": 808093.7245016812,
+          "shares": 0.0
+        },
+        "2020": {
+          "date": "2020-12-31",
+          "nav": 811689.680742081,
+          "cash": 811689.680742081,
+          "shares": 0.0
+        },
+        "2021": {
+          "date": "2021-12-31",
+          "nav": 864608.4253474118,
+          "cash": 864608.4253474118,
+          "shares": 0.0
+        },
+        "2022": {
+          "date": "2022-12-30",
+          "nav": 793402.226065657,
+          "cash": 793402.226065657,
+          "shares": 0.0
+        },
+        "2023": {
+          "date": "2023-12-29",
+          "nav": 811107.0060359924,
+          "cash": 811107.0060359924,
+          "shares": 0.0
+        },
+        "2024": {
+          "date": "2024-12-31",
+          "nav": 817807.5900559434,
+          "cash": 817807.5900559434,
+          "shares": 0.0
+        },
+        "2025": {
+          "date": "2025-12-31",
+          "nav": 827425.6246569341,
+          "cash": 827425.6246569341,
+          "shares": 0.0
+        },
+        "2026": {
+          "date": "2026-09-08",
+          "nav": 795029.7011272695,
+          "cash": 795029.7011272695,
+          "shares": 0.0
+        }
+      },
+      "average_exposure": 0.04633908586231251,
+      "train_nav": 864608.4253474118,
+      "validation_nav": 811107.0060359924,
+      "annual_results": [
+        {
+          "year": "2016",
+          "pnl": 0.0,
+          "return_pct": 0.0
+        },
+        {
+          "year": "2017",
+          "pnl": -41028.21875014936,
+          "return_pct": -4.102821875014939
+        },
+        {
+          "year": "2018",
+          "pnl": -122555.96186967008,
+          "return_pct": -12.779934119640101
+        },
+        {
+          "year": "2019",
+          "pnl": -28322.094878499396,
+          "return_pct": -3.386126161445302
+        },
+        {
+          "year": "2020",
+          "pnl": 3595.956240399857,
+          "return_pct": 0.4449924719582832
+        },
+        {
+          "year": "2021",
+          "pnl": 52918.74460533075,
+          "return_pct": 6.519578338971876
+        },
+        {
+          "year": "2022",
+          "pnl": -71206.19928175479,
+          "return_pct": -8.235658732233976
+        },
+        {
+          "year": "2023",
+          "pnl": 17704.779970335425,
+          "return_pct": 2.231501171622674
+        },
+        {
+          "year": "2024",
+          "pnl": 6700.58401995094,
+          "return_pct": 0.8261035806727657
+        },
+        {
+          "year": "2025",
+          "pnl": 9618.034600990708,
+          "return_pct": 1.1760754874300838
+        },
+        {
+          "year": "2026",
+          "pnl": -32395.92352966452,
+          "return_pct": -3.915267132692013
+        }
+      ],
+      "return_pct": -20.497029887273047
+    },
+    {
+      "code": "601111",
+      "initial_capital": 1000000.0,
+      "cash": 831793.6441341508,
+      "shares": 0.0,
+      "marked_nav": 831793.6441341508,
+      "pnl": -168206.35586584918,
+      "fees": 9884.597365849997,
+      "cash_dividends": 2929.712,
+      "build_count": 24,
+      "add_count": 0,
+      "reduce_count": 25,
+      "exit_count": 24,
+      "unfilled_count": 0,
+      "max_drawdown_observed": 0.23569529275092796,
+      "fractional_share_approximation": false,
+      "name": "中国国航",
+      "strategy_version": "pareto_trend_hold_v2",
+      "last_price": 5.86,
+      "end": "2026-09-08",
+      "first_date": "2016-05-25",
+      "last_date": "2026-09-08",
+      "feature_error": null,
+      "late_start": false,
+      "stale": false,
+      "rights_issue_present": false,
+      "action_status": "ok",
+      "action_count": 6,
+      "unexplained_gap_count": 0,
+      "final_cash": 831793.6441341508,
+      "residual_value": 0.0,
+      "liquidation_complete": true,
+      "years": {
+        "2016": {
+          "date": "2016-12-30",
+          "nav": 1000000.0,
+          "cash": 1000000.0,
+          "shares": 0.0
+        },
+        "2017": {
+          "date": "2017-12-29",
+          "nav": 1011770.6212680403,
+          "cash": 778922.6212680403,
+          "shares": 18900.0
+        },
+        "2018": {
+          "date": "2018-12-28",
+          "nav": 980946.2409330404,
+          "cash": 980946.2409330404,
+          "shares": 0.0
+        },
+        "2019": {
+          "date": "2019-12-31",
+          "nav": 1028154.5845503206,
+          "cash": 688035.5845503206,
+          "shares": 35100.0
+        },
+        "2020": {
+          "date": "2020-12-31",
+          "nav": 921339.6256726206,
+          "cash": 921339.6256726206,
+          "shares": 0.0
+        },
+        "2021": {
+          "date": "2021-12-31",
+          "nav": 969388.2046632605,
+          "cash": 749355.2046632605,
+          "shares": 24100.0
+        },
+        "2022": {
+          "date": "2022-12-30",
+          "nav": 939682.5049822757,
+          "cash": 742522.5049822757,
+          "shares": 18600.0
+        },
+        "2023": {
+          "date": "2023-12-29",
+          "nav": 903887.8873872056,
+          "cash": 903887.8873872056,
+          "shares": 0.0
+        },
+        "2024": {
+          "date": "2024-12-31",
+          "nav": 897551.7550538557,
+          "cash": 693473.7550538557,
+          "shares": 25800.0
+        },
+        "2025": {
+          "date": "2025-12-31",
+          "nav": 869192.8621849709,
+          "cash": 638690.8621849709,
+          "shares": 24600.0
+        },
+        "2026": {
+          "date": "2026-09-08",
+          "nav": 831793.6441341508,
+          "cash": 831793.6441341508,
+          "shares": 0.0
+        }
+      },
+      "average_exposure": 0.09260039485225287,
+      "train_nav": 969388.2046632605,
+      "validation_nav": 903887.8873872056,
+      "annual_results": [
+        {
+          "year": "2016",
+          "pnl": 0.0,
+          "return_pct": 0.0
+        },
+        {
+          "year": "2017",
+          "pnl": 11770.621268040268,
+          "return_pct": 1.1770621268040182
+        },
+        {
+          "year": "2018",
+          "pnl": -30824.380334999878,
+          "return_pct": -3.0465779186559128
+        },
+        {
+          "year": "2019",
+          "pnl": 47208.34361728025,
+          "return_pct": 4.812531171165646
+        },
+        {
+          "year": "2020",
+          "pnl": -106814.95887770003,
+          "return_pct": -10.388997966139224
+        },
+        {
+          "year": "2021",
+          "pnl": 48048.578990639886,
+          "return_pct": 5.2150778770165385
+        },
+        {
+          "year": "2022",
+          "pnl": -29705.699680984835,
+          "return_pct": -3.0643760196467196
+        },
+        {
+          "year": "2023",
+          "pnl": -35794.61759507004,
+          "return_pct": -3.8092246482491654
+        },
+        {
+          "year": "2024",
+          "pnl": -6336.132333349902,
+          "return_pct": -0.7009865296088047
+        },
+        {
+          "year": "2025",
+          "pnl": -28358.89286888484,
+          "return_pct": -3.159583022283008
+        },
+        {
+          "year": "2026",
+          "pnl": -37399.218050820054,
+          "return_pct": -4.302752551005328
+        }
+      ],
+      "return_pct": -16.820635586584917
+    },
+    {
+      "code": "601111",
+      "initial_capital": 1000000.0,
+      "cash": 589957.74956127,
+      "shares": 0.0,
+      "marked_nav": 589957.74956127,
+      "pnl": -410042.25043873,
+      "fees": 768.38193873,
+      "cash_dividends": 35519.441999999995,
+      "build_count": 1,
+      "add_count": 0,
+      "reduce_count": 0,
+      "exit_count": 1,
+      "unfilled_count": 1,
+      "max_drawdown_observed": 0.5750550189784764,
+      "fractional_share_approximation": false,
+      "name": "中国国航",
+      "strategy_version": "buy_hold_account_benchmark_v1",
+      "last_price": 5.86,
+      "end": "2026-09-08",
+      "first_date": "2016-05-25",
+      "last_date": "2026-09-08",
+      "feature_error": null,
+      "late_start": false,
+      "stale": false,
+      "rights_issue_present": false,
+      "action_status": "ok",
+      "action_count": 6,
+      "unexplained_gap_count": 0,
+      "final_cash": 589957.74956127,
+      "residual_value": 0.0,
+      "liquidation_complete": true,
+      "years": {
+        "2016": {
+          "date": "2016-12-30",
+          "nav": 1000000.0,
+          "cash": 1000000.0,
+          "shares": 0.0
+        },
+        "2017": {
+          "date": "2017-12-29",
+          "nav": 1192679.60768896,
+          "cash": 11191.607688959954,
+          "shares": 95900.0
+        },
+        "2018": {
+          "date": "2018-12-28",
+          "nav": 754893.23068896,
+          "cash": 22217.230688959953,
+          "shares": 95900.0
+        },
+        "2019": {
+          "date": "2019-12-31",
+          "nav": 961392.78268896,
+          "cash": 32121.782688959953,
+          "shares": 95900.0
+        },
+        "2020": {
+          "date": "2020-12-31",
+          "nav": 754672.66068896,
+          "cash": 36381.66068895995,
+          "shares": 95900.0
+        },
+        "2021": {
+          "date": "2021-12-31",
+          "nav": 911948.6606889601,
+          "cash": 36381.66068895995,
+          "shares": 95900.0
+        },
+        "2022": {
+          "date": "2022-12-30",
+          "nav": 1052921.66068896,
+          "cash": 36381.66068895995,
+          "shares": 95900.0
+        },
+        "2023": {
+          "date": "2023-12-29",
+          "nav": 740287.66068896,
+          "cash": 36381.66068895995,
+          "shares": 95900.0
+        },
+        "2024": {
+          "date": "2024-12-31",
+          "nav": 794950.66068896,
+          "cash": 36381.66068895995,
+          "shares": 95900.0
+        },
+        "2025": {
+          "date": "2025-12-31",
+          "nav": 934964.6606889599,
+          "cash": 36381.66068895995,
+          "shares": 95900.0
+        },
+        "2026": {
+          "date": "2026-09-08",
+          "nav": 589957.74956127,
+          "cash": 589957.74956127,
+          "shares": 0.0
+        }
+      },
+      "average_exposure": 0.8900819017304625,
+      "train_nav": 911948.6606889601,
+      "validation_nav": 740287.66068896,
+      "annual_results": [
+        {
+          "year": "2016",
+          "pnl": 0.0,
+          "return_pct": 0.0
+        },
+        {
+          "year": "2017",
+          "pnl": 192679.60768895992,
+          "return_pct": 19.267960768895986
+        },
+        {
+          "year": "2018",
+          "pnl": -437786.377,
+          "return_pct": -36.70611739965044
+        },
+        {
+          "year": "2019",
+          "pnl": 206499.55200000003,
+          "return_pct": 27.354802454850002
+        },
+        {
+          "year": "2020",
+          "pnl": -206720.12199999997,
+          "return_pct": -21.502150392872288
+        },
+        {
+          "year": "2021",
+          "pnl": 157276.00000000012,
+          "return_pct": 20.840293837651245
+        },
+        {
+          "year": "2022",
+          "pnl": 140972.99999999988,
+          "return_pct": 15.45843599282195
+        },
+        {
+          "year": "2023",
+          "pnl": -312634.0,
+          "return_pct": -29.692047535182596
+        },
+        {
+          "year": "2024",
+          "pnl": 54663.0,
+          "return_pct": 7.384021496336568
+        },
+        {
+          "year": "2025",
+          "pnl": 140013.99999999988,
+          "return_pct": 17.612916992691584
+        },
+        {
+          "year": "2026",
+          "pnl": -345006.9111276899,
+          "return_pct": -36.90052957439697
+        }
+      ],
+      "return_pct": -41.004225043873
+    },
+    {
+      "code": "603135",
+      "initial_capital": 1000000.0,
+      "cash": 988119.408348026,
+      "shares": 0.0,
+      "marked_nav": 988119.408348026,
+      "pnl": -11880.591651974013,
+      "fees": 11524.325151974997,
+      "cash_dividends": 0.0,
+      "build_count": 43,
+      "add_count": 16,
+      "reduce_count": 9,
+      "exit_count": 43,
+      "unfilled_count": 0,
+      "max_drawdown_observed": 0.03308086307738516,
+      "fractional_share_approximation": false,
+      "name": "中重科技",
+      "strategy_version": "pareto_daily_atoms_risk_v1",
+      "last_price": 9.11,
+      "end": "2026-09-08",
+      "first_date": "2023-04-10",
+      "last_date": "2026-09-08",
+      "feature_error": null,
+      "late_start": true,
+      "stale": false,
+      "rights_issue_present": false,
+      "action_status": "ok",
+      "action_count": 3,
+      "unexplained_gap_count": 0,
+      "final_cash": 988119.408348026,
+      "residual_value": 0.0,
+      "liquidation_complete": true,
+      "years": {
+        "2023": {
+          "date": "2023-12-29",
+          "nav": 1000000.0,
+          "cash": 1000000.0,
+          "shares": 0.0
+        },
+        "2024": {
+          "date": "2024-12-31",
+          "nav": 1013176.6422270951,
+          "cash": 1013176.6422270951,
+          "shares": 0.0
+        },
+        "2025": {
+          "date": "2025-12-31",
+          "nav": 981925.8609306455,
+          "cash": 981925.8609306455,
+          "shares": 0.0
+        },
+        "2026": {
+          "date": "2026-09-08",
+          "nav": 988119.408348026,
+          "cash": 988119.408348026,
+          "shares": 0.0
+        }
+      },
+      "average_exposure": 0.0070650753363322456,
+      "train_nav": 1000000.0,
+      "validation_nav": 1000000.0,
+      "annual_results": [
+        {
+          "year": "2016",
+          "pnl": 0.0,
+          "return_pct": 0.0
+        },
+        {
+          "year": "2017",
+          "pnl": 0.0,
+          "return_pct": 0.0
+        },
+        {
+          "year": "2018",
+          "pnl": 0.0,
+          "return_pct": 0.0
+        },
+        {
+          "year": "2019",
+          "pnl": 0.0,
+          "return_pct": 0.0
+        },
+        {
+          "year": "2020",
+          "pnl": 0.0,
+          "return_pct": 0.0
+        },
+        {
+          "year": "2021",
+          "pnl": 0.0,
+          "return_pct": 0.0
+        },
+        {
+          "year": "2022",
+          "pnl": 0.0,
+          "return_pct": 0.0
+        },
+        {
+          "year": "2023",
+          "pnl": 0.0,
+          "return_pct": 0.0
+        },
+        {
+          "year": "2024",
+          "pnl": 13176.642227095086,
+          "return_pct": 1.3176642227095137
+        },
+        {
+          "year": "2025",
+          "pnl": -31250.781296449597,
+          "return_pct": -3.084435624942583
+        },
+        {
+          "year": "2026",
+          "pnl": 6193.547417380498,
+          "return_pct": 0.6307550970813924
+        }
+      ],
+      "return_pct": -1.1880591651974013
+    },
+    {
+      "code": "603135",
+      "initial_capital": 1000000.0,
+      "cash": 948860.0093729601,
+      "shares": 0.0,
+      "marked_nav": 948860.0093729601,
+      "pnl": -51139.99062703992,
+      "fees": 1590.6866270400003,
+      "cash_dividends": 0.0,
+      "build_count": 6,
+      "add_count": 0,
+      "reduce_count": 5,
+      "exit_count": 6,
+      "unfilled_count": 0,
+      "max_drawdown_observed": 0.07987230338223894,
+      "fractional_share_approximation": false,
+      "name": "中重科技",
+      "strategy_version": "pareto_trend_hold_v2",
+      "last_price": 9.11,
+      "end": "2026-09-08",
+      "first_date": "2023-04-10",
+      "last_date": "2026-09-08",
+      "feature_error": null,
+      "late_start": true,
+      "stale": false,
+      "rights_issue_present": false,
+      "action_status": "ok",
+      "action_count": 3,
+      "unexplained_gap_count": 0,
+      "final_cash": 948860.0093729601,
+      "residual_value": 0.0,
+      "liquidation_complete": true,
+      "years": {
+        "2023": {
+          "date": "2023-12-29",
+          "nav": 1000000.0,
+          "cash": 1000000.0,
+          "shares": 0.0
+        },
+        "2024": {
+          "date": "2024-12-31",
+          "nav": 989382.17730027,
+          "cash": 797120.17730027,
+          "shares": 21700.0
+        },
+        "2025": {
+          "date": "2025-12-31",
+          "nav": 986941.358317895,
+          "cash": 986941.358317895,
+          "shares": 0.0
+        },
+        "2026": {
+          "date": "2026-09-08",
+          "nav": 948860.0093729601,
+          "cash": 948860.0093729601,
+          "shares": 0.0
+        }
+      },
+      "average_exposure": 0.016779876295343457,
+      "train_nav": 1000000.0,
+      "validation_nav": 1000000.0,
+      "annual_results": [
+        {
+          "year": "2016",
+          "pnl": 0.0,
+          "return_pct": 0.0
+        },
+        {
+          "year": "2017",
+          "pnl": 0.0,
+          "return_pct": 0.0
+        },
+        {
+          "year": "2018",
+          "pnl": 0.0,
+          "return_pct": 0.0
+        },
+        {
+          "year": "2019",
+          "pnl": 0.0,
+          "return_pct": 0.0
+        },
+        {
+          "year": "2020",
+          "pnl": 0.0,
+          "return_pct": 0.0
+        },
+        {
+          "year": "2021",
+          "pnl": 0.0,
+          "return_pct": 0.0
+        },
+        {
+          "year": "2022",
+          "pnl": 0.0,
+          "return_pct": 0.0
+        },
+        {
+          "year": "2023",
+          "pnl": 0.0,
+          "return_pct": 0.0
+        },
+        {
+          "year": "2024",
+          "pnl": -10617.822699730052,
+          "return_pct": -1.0617822699730106
+        },
+        {
+          "year": "2025",
+          "pnl": -2440.818982374971,
+          "return_pct": -0.2467013292108411
+        },
+        {
+          "year": "2026",
+          "pnl": -38081.3489449349,
+          "return_pct": -3.8585219500618884
+        }
+      ],
+      "return_pct": -5.113999062703992
+    },
+    {
+      "code": "603135",
+      "initial_capital": 1000000.0,
+      "cash": 954642.3021986252,
+      "shares": 0.0,
+      "marked_nav": 954642.3021986252,
+      "pnl": -45357.69780137483,
+      "fees": 1065.635301375,
+      "cash_dividends": 21199.0,
+      "build_count": 1,
+      "add_count": 0,
+      "reduce_count": 0,
+      "exit_count": 1,
+      "unfilled_count": 1,
+      "max_drawdown_observed": 0.46636808258829443,
+      "fractional_share_approximation": false,
+      "name": "中重科技",
+      "strategy_version": "buy_hold_account_benchmark_v1",
+      "last_price": 9.11,
+      "end": "2026-09-08",
+      "first_date": "2023-04-10",
+      "last_date": "2026-09-08",
+      "feature_error": null,
+      "late_start": true,
+      "stale": false,
+      "rights_issue_present": false,
+      "action_status": "ok",
+      "action_count": 3,
+      "unexplained_gap_count": 0,
+      "final_cash": 954642.3021986252,
+      "residual_value": 0.0,
+      "liquidation_complete": true,
+      "years": {
+        "2023": {
+          "date": "2023-12-29",
+          "nav": 1000000.0,
+          "cash": 1000000.0,
+          "shares": 0.0
+        },
+        "2024": {
+          "date": "2024-12-31",
+          "nav": 914656.2020096252,
+          "cash": 15366.20200962515,
+          "shares": 101500.0
+        },
+        "2025": {
+          "date": "2025-12-31",
+          "nav": 956880.2020096253,
+          "cash": 22065.20200962515,
+          "shares": 101500.0
+        },
+        "2026": {
+          "date": "2026-09-08",
+          "nav": 954642.3021986252,
+          "cash": 954642.3021986252,
+          "shares": 0.0
+        }
+      },
+      "average_exposure": 0.23279748464967503,
+      "train_nav": 1000000.0,
+      "validation_nav": 1000000.0,
+      "annual_results": [
+        {
+          "year": "2016",
+          "pnl": 0.0,
+          "return_pct": 0.0
+        },
+        {
+          "year": "2017",
+          "pnl": 0.0,
+          "return_pct": 0.0
+        },
+        {
+          "year": "2018",
+          "pnl": 0.0,
+          "return_pct": 0.0
+        },
+        {
+          "year": "2019",
+          "pnl": 0.0,
+          "return_pct": 0.0
+        },
+        {
+          "year": "2020",
+          "pnl": 0.0,
+          "return_pct": 0.0
+        },
+        {
+          "year": "2021",
+          "pnl": 0.0,
+          "return_pct": 0.0
+        },
+        {
+          "year": "2022",
+          "pnl": 0.0,
+          "return_pct": 0.0
+        },
+        {
+          "year": "2023",
+          "pnl": 0.0,
+          "return_pct": 0.0
+        },
+        {
+          "year": "2024",
+          "pnl": -85343.79799037485,
+          "return_pct": -8.534379799037485
+        },
+        {
+          "year": "2025",
+          "pnl": 42224.00000000012,
+          "return_pct": 4.6163793463848135
+        },
+        {
+          "year": "2026",
+          "pnl": -2237.8998110000975,
+          "return_pct": -0.23387460690482698
+        }
+      ],
+      "return_pct": -4.535769780137483
+    },
+    {
+      "code": "603657",
+      "initial_capital": 1000000.0,
+      "cash": 968576.3991202033,
+      "shares": 0.0,
+      "marked_nav": 968576.3991202033,
+      "pnl": -31423.600879796664,
+      "fees": 49744.783379800014,
+      "cash_dividends": 1205.0,
+      "build_count": 159,
+      "add_count": 67,
+      "reduce_count": 27,
+      "exit_count": 159,
+      "unfilled_count": 9,
+      "max_drawdown_observed": 0.1417255112482389,
+      "fractional_share_approximation": false,
+      "name": "春光科技",
+      "strategy_version": "pareto_daily_atoms_risk_v1",
+      "last_price": 26.8,
+      "end": "2026-09-08",
+      "first_date": "2018-07-30",
+      "last_date": "2026-09-08",
+      "feature_error": null,
+      "late_start": true,
+      "stale": false,
+      "rights_issue_present": false,
+      "action_status": "ok",
+      "action_count": 7,
+      "unexplained_gap_count": 0,
+      "final_cash": 968576.3991202033,
+      "residual_value": 0.0,
+      "liquidation_complete": true,
+      "years": {
+        "2018": {
+          "date": "2018-12-28",
+          "nav": 1000000.0,
+          "cash": 1000000.0,
+          "shares": 0.0
+        },
+        "2019": {
+          "date": "2019-12-31",
+          "nav": 992261.7326422805,
+          "cash": 992261.7326422805,
+          "shares": 0.0
+        },
+        "2020": {
+          "date": "2020-12-31",
+          "nav": 985965.7214820907,
+          "cash": 985965.7214820907,
+          "shares": 0.0
+        },
+        "2021": {
+          "date": "2021-12-31",
+          "nav": 1072424.9996225312,
+          "cash": 838064.9996225312,
+          "shares": 9000.0
+        },
+        "2022": {
+          "date": "2022-12-30",
+          "nav": 1026384.7822220521,
+          "cash": 1026384.7822220521,
+          "shares": 0.0
+        },
+        "2023": {
+          "date": "2023-12-29",
+          "nav": 997058.6001230027,
+          "cash": 997058.6001230027,
+          "shares": 0.0
+        },
+        "2024": {
+          "date": "2024-12-31",
+          "nav": 983822.5435914629,
+          "cash": 831365.5435914629,
+          "shares": 8900.0
+        },
+        "2025": {
+          "date": "2025-12-31",
+          "nav": 994939.049863488,
+          "cash": 994939.049863488,
+          "shares": 0.0
+        },
+        "2026": {
+          "date": "2026-09-08",
+          "nav": 968576.3991202033,
+          "cash": 968576.3991202033,
+          "shares": 0.0
+        }
+      },
+      "average_exposure": 0.025388311610448303,
+      "train_nav": 1072424.9996225312,
+      "validation_nav": 997058.6001230027,
+      "annual_results": [
+        {
+          "year": "2016",
+          "pnl": 0.0,
+          "return_pct": 0.0
+        },
+        {
+          "year": "2017",
+          "pnl": 0.0,
+          "return_pct": 0.0
+        },
+        {
+          "year": "2018",
+          "pnl": 0.0,
+          "return_pct": 0.0
+        },
+        {
+          "year": "2019",
+          "pnl": -7738.26735771948,
+          "return_pct": -0.773826735771943
+        },
+        {
+          "year": "2020",
+          "pnl": -6296.011160189868,
+          "return_pct": -0.6345111328060926
+        },
+        {
+          "year": "2021",
+          "pnl": 86459.27814044058,
+          "return_pct": 8.76899432269067
+        },
+        {
+          "year": "2022",
+          "pnl": -46040.21740047913,
+          "return_pct": -4.2930943811160915
+        },
+        {
+          "year": "2023",
+          "pnl": -29326.182099049445,
+          "return_pct": -2.857230797553356
+        },
+        {
+          "year": "2024",
+          "pnl": -13236.056531539769,
+          "return_pct": -1.3275103920578846
+        },
+        {
+          "year": "2025",
+          "pnl": 11116.506272025057,
+          "return_pct": 1.1299300208596597
+        },
+        {
+          "year": "2026",
+          "pnl": -26362.650743284612,
+          "return_pct": -2.649674947113767
+        }
+      ],
+      "return_pct": -3.1423600879796663
+    },
+    {
+      "code": "603657",
+      "initial_capital": 1000000.0,
+      "cash": 1041424.1341772646,
+      "shares": 0.0,
+      "marked_nav": 1041424.1341772646,
+      "pnl": 41424.13417726464,
+      "fees": 5168.3608227350005,
+      "cash_dividends": 10354.0,
+      "build_count": 15,
+      "add_count": 0,
+      "reduce_count": 22,
+      "exit_count": 15,
+      "unfilled_count": 2,
+      "max_drawdown_observed": 0.12655517487262172,
+      "fractional_share_approximation": false,
+      "name": "春光科技",
+      "strategy_version": "pareto_trend_hold_v2",
+      "last_price": 26.8,
+      "end": "2026-09-08",
+      "first_date": "2018-07-30",
+      "last_date": "2026-09-08",
+      "feature_error": null,
+      "late_start": true,
+      "stale": false,
+      "rights_issue_present": false,
+      "action_status": "ok",
+      "action_count": 7,
+      "unexplained_gap_count": 0,
+      "final_cash": 1041424.1341772646,
+      "residual_value": 0.0,
+      "liquidation_complete": true,
+      "years": {
+        "2018": {
+          "date": "2018-12-28",
+          "nav": 1000000.0,
+          "cash": 1000000.0,
+          "shares": 0.0
+        },
+        "2019": {
+          "date": "2019-12-31",
+          "nav": 978624.8437129001,
+          "cash": 978624.8437129001,
+          "shares": 0.0
+        },
+        "2020": {
+          "date": "2020-12-31",
+          "nav": 955942.8719492998,
+          "cash": 955942.8719492998,
+          "shares": 0.0
+        },
+        "2021": {
+          "date": "2021-12-31",
+          "nav": 1071479.0692526198,
+          "cash": 847535.0692526198,
+          "shares": 8600.0
+        },
+        "2022": {
+          "date": "2022-12-30",
+          "nav": 1019722.8239814297,
+          "cash": 698138.8239814297,
+          "shares": 20200.0
+        },
+        "2023": {
+          "date": "2023-12-29",
+          "nav": 986692.1898490697,
+          "cash": 986692.1898490697,
+          "shares": 0.0
+        },
+        "2024": {
+          "date": "2024-12-31",
+          "nav": 1020653.0273334897,
+          "cash": 875048.0273334897,
+          "shares": 8500.0
+        },
+        "2025": {
+          "date": "2025-12-31",
+          "nav": 1086074.0655998648,
+          "cash": 1086074.0655998648,
+          "shares": 0.0
+        },
+        "2026": {
+          "date": "2026-09-08",
+          "nav": 1041424.1341772646,
+          "cash": 1041424.1341772646,
+          "shares": 0.0
+        }
+      },
+      "average_exposure": 0.05164112516886474,
+      "train_nav": 1071479.0692526198,
+      "validation_nav": 986692.1898490697,
+      "annual_results": [
+        {
+          "year": "2016",
+          "pnl": 0.0,
+          "return_pct": 0.0
+        },
+        {
+          "year": "2017",
+          "pnl": 0.0,
+          "return_pct": 0.0
+        },
+        {
+          "year": "2018",
+          "pnl": 0.0,
+          "return_pct": 0.0
+        },
+        {
+          "year": "2019",
+          "pnl": -21375.156287099933,
+          "return_pct": -2.137515628709996
+        },
+        {
+          "year": "2020",
+          "pnl": -22681.971763600246,
+          "return_pct": -2.3177392142983977
+        },
+        {
+          "year": "2021",
+          "pnl": 115536.19730331993,
+          "return_pct": 12.086098520482258
+        },
+        {
+          "year": "2022",
+          "pnl": -51756.24527119007,
+          "return_pct": -4.830355231044425
+        },
+        {
+          "year": "2023",
+          "pnl": -33030.63413235999,
+          "return_pct": -3.239177681969929
+        },
+        {
+          "year": "2024",
+          "pnl": 33960.837484420044,
+          "return_pct": 3.44188773700691
+        },
+        {
+          "year": "2025",
+          "pnl": 65421.03826637508,
+          "return_pct": 6.409723629321018
+        },
+        {
+          "year": "2026",
+          "pnl": -44649.93142260017,
+          "return_pct": -4.111131352532471
+        }
+      ],
+      "return_pct": 4.142413417726464
+    },
+    {
+      "code": "603657",
+      "initial_capital": 1000000.0,
+      "cash": 1506927.0820915,
+      "shares": 0.0,
+      "marked_nav": 1506927.0820915,
+      "pnl": 506927.08209150005,
+      "fees": 1465.3274085,
+      "cash_dividends": 91611.9,
+      "build_count": 1,
+      "add_count": 0,
+      "reduce_count": 0,
+      "exit_count": 1,
+      "unfilled_count": 1,
+      "max_drawdown_observed": 0.7311807499176752,
+      "fractional_share_approximation": true,
+      "name": "春光科技",
+      "strategy_version": "buy_hold_account_benchmark_v1",
+      "last_price": 26.8,
+      "end": "2026-09-08",
+      "first_date": "2018-07-30",
+      "last_date": "2026-09-08",
+      "feature_error": null,
+      "late_start": true,
+      "stale": false,
+      "rights_issue_present": false,
+      "action_status": "ok",
+      "action_count": 7,
+      "unexplained_gap_count": 0,
+      "final_cash": 1506927.0820915,
+      "residual_value": 0.0,
+      "liquidation_complete": true,
+      "years": {
+        "2018": {
+          "date": "2018-12-28",
+          "nav": 1000000.0,
+          "cash": 1000000.0,
+          "shares": 0.0
+        },
+        "2019": {
+          "date": "2019-12-31",
+          "nav": 1014388.8928604801,
+          "cash": 1684.8928604801185,
+          "shares": 41100.0
+        },
+        "2020": {
+          "date": "2020-12-31",
+          "nav": 1023430.8928604799,
+          "cash": 22234.89286048012,
+          "shares": 57539.99999999999
+        },
+        "2021": {
+          "date": "2021-12-31",
+          "nav": 1549346.49286048,
+          "cash": 51004.89286048012,
+          "shares": 57539.99999999999
+        },
+        "2022": {
+          "date": "2022-12-30",
+          "nav": 984303.69286048,
+          "cash": 68266.89286048012,
+          "shares": 57539.99999999999
+        },
+        "2023": {
+          "date": "2023-12-29",
+          "nav": 1011347.49286048,
+          "cash": 85528.89286048012,
+          "shares": 57539.99999999999
+        },
+        "2024": {
+          "date": "2024-12-31",
+          "nav": 1076943.0928604798,
+          "cash": 91282.89286048012,
+          "shares": 57539.99999999999
+        },
+        "2025": {
+          "date": "2025-12-31",
+          "nav": 1807988.7928604798,
+          "cash": 93296.79286048011,
+          "shares": 57539.99999999999
+        },
+        "2026": {
+          "date": "2026-09-08",
+          "nav": 1506927.0820915,
+          "cash": 1506927.0820915,
+          "shares": 0.0
+        }
+      },
+      "average_exposure": 0.6667169847053684,
+      "train_nav": 1549346.49286048,
+      "validation_nav": 1011347.49286048,
+      "annual_results": [
+        {
+          "year": "2016",
+          "pnl": 0.0,
+          "return_pct": 0.0
+        },
+        {
+          "year": "2017",
+          "pnl": 0.0,
+          "return_pct": 0.0
+        },
+        {
+          "year": "2018",
+          "pnl": 0.0,
+          "return_pct": 0.0
+        },
+        {
+          "year": "2019",
+          "pnl": 14388.892860480119,
+          "return_pct": 1.4388892860480063
+        },
+        {
+          "year": "2020",
+          "pnl": 9041.999999999767,
+          "return_pct": 0.8913741133838915
+        },
+        {
+          "year": "2021",
+          "pnl": 525915.6000000001,
+          "return_pct": 51.38750487881707
+        },
+        {
+          "year": "2022",
+          "pnl": -565042.7999999999,
+          "return_pct": -36.469750478912566
+        },
+        {
+          "year": "2023",
+          "pnl": 27043.79999999993,
+          "return_pct": 2.7475056932284803
+        },
+        {
+          "year": "2024",
+          "pnl": 65595.59999999986,
+          "return_pct": 6.485960608303909
+        },
+        {
+          "year": "2025",
+          "pnl": 731045.7,
+          "return_pct": 67.88155333800061
+        },
+        {
+          "year": "2026",
+          "pnl": -301061.71076897974,
+          "return_pct": -16.651746512911725
+        }
+      ],
+      "return_pct": 50.692708209150005
+    },
+    {
+      "code": "605599",
+      "initial_capital": 1000000.0,
+      "cash": 962069.8525343784,
+      "shares": 0.0,
+      "marked_nav": 962069.8525343784,
+      "pnl": -37930.14746562159,
+      "fees": 38084.318965625025,
+      "cash_dividends": 24660.0,
+      "build_count": 101,
+      "add_count": 44,
+      "reduce_count": 16,
+      "exit_count": 101,
+      "unfilled_count": 0,
+      "max_drawdown_observed": 0.10880721001359547,
+      "fractional_share_approximation": false,
+      "name": "菜百股份",
+      "strategy_version": "pareto_daily_atoms_risk_v1",
+      "last_price": 15.0,
+      "end": "2026-09-08",
+      "first_date": "2021-09-09",
+      "last_date": "2026-09-08",
+      "feature_error": null,
+      "late_start": true,
+      "stale": false,
+      "rights_issue_present": false,
+      "action_status": "ok",
+      "action_count": 5,
+      "unexplained_gap_count": 0,
+      "final_cash": 962069.8525343784,
+      "residual_value": 0.0,
+      "liquidation_complete": true,
+      "years": {
+        "2021": {
+          "date": "2021-12-31",
+          "nav": 1000000.0,
+          "cash": 1000000.0,
+          "shares": 0.0
+        },
+        "2022": {
+          "date": "2022-12-30",
+          "nav": 1019660.5724679555,
+          "cash": 518804.57246795547,
+          "shares": 49200.0
+        },
+        "2023": {
+          "date": "2023-12-29",
+          "nav": 973756.9798018913,
+          "cash": 973756.9798018913,
+          "shares": 0.0
+        },
+        "2024": {
+          "date": "2024-12-31",
+          "nav": 947714.2561192071,
+          "cash": 673044.2561192071,
+          "shares": 24200.0
+        },
+        "2025": {
+          "date": "2025-12-31",
+          "nav": 967559.7459596778,
+          "cash": 967559.7459596778,
+          "shares": 0.0
+        },
+        "2026": {
+          "date": "2026-09-08",
+          "nav": 962069.8525343784,
+          "cash": 962069.8525343784,
+          "shares": 0.0
+        }
+      },
+      "average_exposure": 0.02263212741150912,
+      "train_nav": 1000000.0,
+      "validation_nav": 973756.9798018913,
+      "annual_results": [
+        {
+          "year": "2016",
+          "pnl": 0.0,
+          "return_pct": 0.0
+        },
+        {
+          "year": "2017",
+          "pnl": 0.0,
+          "return_pct": 0.0
+        },
+        {
+          "year": "2018",
+          "pnl": 0.0,
+          "return_pct": 0.0
+        },
+        {
+          "year": "2019",
+          "pnl": 0.0,
+          "return_pct": 0.0
+        },
+        {
+          "year": "2020",
+          "pnl": 0.0,
+          "return_pct": 0.0
+        },
+        {
+          "year": "2021",
+          "pnl": 0.0,
+          "return_pct": 0.0
+        },
+        {
+          "year": "2022",
+          "pnl": 19660.572467955528,
+          "return_pct": 1.9660572467955495
+        },
+        {
+          "year": "2023",
+          "pnl": -45903.59266606427,
+          "return_pct": -4.501850312301537
+        },
+        {
+          "year": "2024",
+          "pnl": -26042.723682684125,
+          "return_pct": -2.6744582296069908
+        },
+        {
+          "year": "2025",
+          "pnl": 19845.48984047072,
+          "return_pct": 2.0940372809981733
+        },
+        {
+          "year": "2026",
+          "pnl": -5489.893425299437,
+          "return_pct": -0.5673958066387152
+        }
+      ],
+      "return_pct": -3.7930147465621586
+    },
+    {
+      "code": "605599",
+      "initial_capital": 1000000.0,
+      "cash": 1338856.9306356653,
+      "shares": 0.0,
+      "marked_nav": 1338856.9306356653,
+      "pnl": 338856.9306356653,
+      "fees": 3008.801864335,
+      "cash_dividends": 29860.0,
+      "build_count": 7,
+      "add_count": 0,
+      "reduce_count": 18,
+      "exit_count": 7,
+      "unfilled_count": 0,
+      "max_drawdown_observed": 0.06716394493343453,
+      "fractional_share_approximation": false,
+      "name": "菜百股份",
+      "strategy_version": "pareto_trend_hold_v2",
+      "last_price": 15.0,
+      "end": "2026-09-08",
+      "first_date": "2021-09-09",
+      "last_date": "2026-09-08",
+      "feature_error": null,
+      "late_start": true,
+      "stale": false,
+      "rights_issue_present": false,
+      "action_status": "ok",
+      "action_count": 5,
+      "unexplained_gap_count": 0,
+      "final_cash": 1338856.9306356653,
+      "residual_value": 0.0,
+      "liquidation_complete": true,
+      "years": {
+        "2021": {
+          "date": "2021-12-31",
+          "nav": 1000000.0,
+          "cash": 1000000.0,
+          "shares": 0.0
+        },
+        "2022": {
+          "date": "2022-12-30",
+          "nav": 1012993.8072527,
+          "cash": 559983.8072527,
+          "shares": 44500.0
+        },
+        "2023": {
+          "date": "2023-12-29",
+          "nav": 1151918.631111565,
+          "cash": 818382.631111565,
+          "shares": 22400.0
+        },
+        "2024": {
+          "date": "2024-12-31",
+          "nav": 1110885.913170875,
+          "cash": 830540.913170875,
+          "shares": 24700.0
+        },
+        "2025": {
+          "date": "2025-12-31",
+          "nav": 1202266.2434008154,
+          "cash": 742269.2434008153,
+          "shares": 28100.0
+        },
+        "2026": {
+          "date": "2026-09-08",
+          "nav": 1338856.9306356653,
+          "cash": 1338856.9306356653,
+          "shares": 0.0
+        }
+      },
+      "average_exposure": 0.059496699874545984,
+      "train_nav": 1000000.0,
+      "validation_nav": 1151918.631111565,
+      "annual_results": [
+        {
+          "year": "2016",
+          "pnl": 0.0,
+          "return_pct": 0.0
+        },
+        {
+          "year": "2017",
+          "pnl": 0.0,
+          "return_pct": 0.0
+        },
+        {
+          "year": "2018",
+          "pnl": 0.0,
+          "return_pct": 0.0
+        },
+        {
+          "year": "2019",
+          "pnl": 0.0,
+          "return_pct": 0.0
+        },
+        {
+          "year": "2020",
+          "pnl": 0.0,
+          "return_pct": 0.0
+        },
+        {
+          "year": "2021",
+          "pnl": 0.0,
+          "return_pct": 0.0
+        },
+        {
+          "year": "2022",
+          "pnl": 12993.807252699975,
+          "return_pct": 1.2993807252700051
+        },
+        {
+          "year": "2023",
+          "pnl": 138924.82385886507,
+          "return_pct": 13.71428165347206
+        },
+        {
+          "year": "2024",
+          "pnl": -41032.717940689996,
+          "return_pct": -3.5621194789682953
+        },
+        {
+          "year": "2025",
+          "pnl": 91380.33022994036,
+          "return_pct": 8.225896930235388
+        },
+        {
+          "year": "2026",
+          "pnl": 136590.6872348499,
+          "return_pct": 11.361101418640839
+        }
+      ],
+      "return_pct": 33.88569306356653
+    },
+    {
+      "code": "605599",
+      "initial_capital": 1000000.0,
+      "cash": 1839054.4896947052,
+      "shares": 0.0,
+      "marked_nav": 1839054.4896947052,
+      "pnl": 839054.4896947052,
+      "fees": 1571.767805295,
+      "cash_dividends": 281694.0,
+      "build_count": 1,
+      "add_count": 0,
+      "reduce_count": 0,
+      "exit_count": 1,
+      "unfilled_count": 1,
+      "max_drawdown_observed": 0.45917161431223835,
+      "fractional_share_approximation": false,
+      "name": "菜百股份",
+      "strategy_version": "buy_hold_account_benchmark_v1",
+      "last_price": 15.0,
+      "end": "2026-09-08",
+      "first_date": "2021-09-09",
+      "last_date": "2026-09-08",
+      "feature_error": null,
+      "late_start": true,
+      "stale": false,
+      "rights_issue_present": false,
+      "action_status": "ok",
+      "action_count": 5,
+      "unexplained_gap_count": 0,
+      "final_cash": 1839054.4896947052,
+      "residual_value": 0.0,
+      "liquidation_complete": true,
+      "years": {
+        "2021": {
+          "date": "2021-12-31",
+          "nav": 1000000.0,
+          "cash": 1000000.0,
+          "shares": 0.0
+        },
+        "2022": {
+          "date": "2022-12-30",
+          "nav": 1078615.9492412652,
+          "cash": 553.9492412650725,
+          "shares": 105900.0
+        },
+        "2023": {
+          "date": "2023-12-29",
+          "nav": 1626118.949241265,
+          "cash": 49267.949241265065,
+          "shares": 105900.0
+        },
+        "2024": {
+          "date": "2024-12-31",
+          "nav": 1325362.9492412652,
+          "cash": 123397.94924126507,
+          "shares": 105900.0
+        },
+        "2025": {
+          "date": "2025-12-31",
+          "nav": 1933228.9492412652,
+          "cash": 199645.94924126507,
+          "shares": 105900.0
+        },
+        "2026": {
+          "date": "2026-09-08",
+          "nav": 1839054.4896947052,
+          "cash": 1839054.4896947052,
+          "shares": 0.0
+        }
+      },
+      "average_exposure": 0.3675319728388476,
+      "train_nav": 1000000.0,
+      "validation_nav": 1626118.949241265,
+      "annual_results": [
+        {
+          "year": "2016",
+          "pnl": 0.0,
+          "return_pct": 0.0
+        },
+        {
+          "year": "2017",
+          "pnl": 0.0,
+          "return_pct": 0.0
+        },
+        {
+          "year": "2018",
+          "pnl": 0.0,
+          "return_pct": 0.0
+        },
+        {
+          "year": "2019",
+          "pnl": 0.0,
+          "return_pct": 0.0
+        },
+        {
+          "year": "2020",
+          "pnl": 0.0,
+          "return_pct": 0.0
+        },
+        {
+          "year": "2021",
+          "pnl": 0.0,
+          "return_pct": 0.0
+        },
+        {
+          "year": "2022",
+          "pnl": 78615.94924126519,
+          "return_pct": 7.861594924126525
+        },
+        {
+          "year": "2023",
+          "pnl": 547502.9999999998,
+          "return_pct": 50.75977231609934
+        },
+        {
+          "year": "2024",
+          "pnl": -300755.99999999977,
+          "return_pct": -18.495325950191422
+        },
+        {
+          "year": "2025",
+          "pnl": 607866.0,
+          "return_pct": 45.864115965214424
+        },
+        {
+          "year": "2026",
+          "pnl": -94174.45954655996,
+          "return_pct": -4.871355748294615
+        }
+      ],
+      "return_pct": 83.90544896947051
+    }
+  ],
+  "limitations": [
+    "current cached universe, survivorship bias",
+    "not all stocks have ten-year history",
+    "Sina ex-date cash/share availability approximation; no dividend tax",
+    "rights issues not modeled: all-history flagged accounts held in cash",
+    "failed/unverified actions and malformed histories held in cash",
+    "retrospective quality screening, not a point-in-time investable universe",
+    "opening 4.8% gap conservative limit proxy",
+    "daily OHLC cannot certify fills or official limit status",
+    "unexplained >25% opening gaps quarantine later signals",
+    "zero interest on idle cash; no principal guarantee",
+    "same frozen full-pool fronts, prices/actions, account fees and deadline",
+    "risk parameters reused without reoptimization; sample is not a full-market result",
+    "benchmark buys once after first eligible close; no reinvestment or risk exits",
+    "legacy Web buyhold has a different horizon/accounting; not the benchmark here"
+  ]
+}

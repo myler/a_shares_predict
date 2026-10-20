@@ -44,6 +44,8 @@ from engine import (
 
 
 STRATEGY_VERSION = 'pareto_daily_atoms_risk_v1'
+TREND_STRATEGY_VERSION = 'pareto_trend_hold_v2'
+HOLD_POLICY = dict(trend_window=120, exit_confirmation=3, risk_buffer=.10)
 OBJECTIVE_NAMES = (
     'M_DIF_DEA', 'M_DIF_ZERO', 'M_DIF_SLOPE_5', 'M_BAR_TREND_3',
     'M_LOW_REPAIR', 'M_TOP_WEAK',
@@ -309,6 +311,23 @@ def risk_statistics(closes, window=63, confidence=.95) -> dict:
                 or not np.all(np.isfinite(daily_es[window:]))):
             raise ValueError('closes produce nonfinite risk statistics')
     return {'annual_vol': annual_vol, 'daily_es': daily_es}
+
+
+def holding_trend(closes):
+    """Causal MA120 entry filter and three-close trend-break exit, not a score."""
+    prices = _real_array(closes, 'closes', 1).astype(np.float64, copy=False)
+    if np.any(prices <= 0):
+        raise ValueError('closes must be positive')
+    window = HOLD_POLICY['trend_window']
+    confirmation = HOLD_POLICY['exit_confirmation']
+    average = np.full(len(prices), np.nan)
+    if len(prices) >= window:
+        average[window - 1:] = sliding_window_view(prices, window).mean(axis=1)
+    below = prices < average
+    exit_signal = np.zeros(len(prices), dtype=bool)
+    if len(prices) >= confirmation:
+        exit_signal[confirmation - 1:] = sliding_window_view(below, confirmation).all(axis=1)
+    return dict(average=average, entry=prices >= average, exit=exit_signal)
 
 
 def risk_target(front_layer, gate_pass, annual_vol, daily_es, config=RiskConfig()) -> float:

@@ -14,8 +14,8 @@ import numpy as np
 import live_data
 import pareto_web
 import fusion_snapshot
-from pareto_strategy import (make_objectives, risk_statistics, risk_target,
-                             RiskConfig, STRATEGY_VERSION)
+from pareto_strategy import (holding_trend, make_objectives, risk_statistics, risk_target,
+                             RiskConfig, STRATEGY_VERSION, TREND_STRATEGY_VERSION)
 from pareto_backtest import aligned_actions, causal_adjusted_prices, MAINBOARD
 
 
@@ -207,9 +207,19 @@ def precaution_decision(holding, reasons):
 
 
 def _decision(holding, verified, eligible, gate, comparison, vol, es, cap,
-              risk, rsi, obv_flow, reasons):
+              risk, rsi, obv_flow, reasons, trend=None):
     if not verified or not eligible:
         return precaution_decision(holding, reasons)
+    if trend is not None and holding:
+        if not np.isfinite(vol) or not np.isfinite(es) or not np.isfinite(trend['average']):
+            return precaution_decision(holding, reasons)
+        if cap <= 0 or trend['exit']:
+            return dict(label='退出信号', strength=5 if cap <= 0 else 3, kind='signal',
+                        reasons=list(reasons), strength_reason=(
+                            '有效风险上限为零是硬约束。' if cap <= 0 else
+                            '3星：权息连续收盘连续3根低于各自MA120，确认中期趋势破坏；不是下跌概率。'))
+        return dict(label='持有候选', strength=3, kind='signal', reasons=list(reasons),
+                    strength_reason='3星：中期趋势退出未触发；F1和RSI/OBV只限制新仓，不因落选卖出，不据此加仓。')
     if not gate:
         severity = max((rsi - 92.) / 8., (-.6 - obv_flow) / .4, 0.)
         strength = max(1, min(5, int(np.ceil(5 * severity))))
@@ -218,6 +228,9 @@ def _decision(holding, verified, eligible, gate, comparison, vol, es, cap,
     elif comparison['status'] == 'dominated':
         strength, label = 3, '退出信号' if holding else '不买入'
         basis = '3星：已证实存在同日严格支配者；支配关系没有收益幅度，不另推断强弱。'
+    elif trend is not None and not trend['entry']:
+        strength, label = 3, '不买入'
+        basis = '3星：权息连续收盘低于MA120，不满足中期趋势入场条件；不是下跌概率。'
     elif not np.isfinite(vol) or not np.isfinite(es) or comparison['status'] != 'front1':
         return precaution_decision(holding, reasons)
     elif cap <= 0:
@@ -268,6 +281,9 @@ def analyze_stock(code, holding=False):
     objectives = make_objectives(*adjusted.T)
     stats = risk_statistics(adjusted[:, 3], context['risk'].risk_window, context['risk'].es_confidence)
     i = len(dates)-1
+    trend_series = holding_trend(adjusted[:, 3])
+    trend = dict(average=float(trend_series['average'][i]),
+                 entry=bool(trend_series['entry'][i]), exit=bool(trend_series['exit'][i]))
     eligible = bool(objectives['eligible'][i])
     gate = bool(objectives['gate_pass'][i])
     jumps = []
@@ -283,7 +299,7 @@ def analyze_stock(code, holding=False):
     comparison = compare_same_day(code, str(dates[i]), objectives['votes'][i], context) if verified and eligible and gate else dict(
         status='unknown', compared=0, expected=0, coverage='权息、资格或门禁未通过，未进行前沿比较', dominators=[], date=str(dates[i]))
     vol, es = float(stats['annual_vol'][i]), float(stats['daily_es'][i])
-    conditional_cap = risk_target(1, verified and eligible and gate, vol, es, context['risk'])
+    conditional_cap = risk_target(1, verified and eligible and (holding or gate), vol, es, context['risk'])
     # The risk budget may be displayed conditionally; unknown F1 is NOT a buy.
     if not verified:
         action, symbol, css, reason = '暂不下买卖结论', '⚠️', 'warn', '权息核验未通过或存在未建模配股'
@@ -333,12 +349,23 @@ def analyze_stock(code, holding=False):
             reasons.append('波动率或历史ES缺少有效值，不能确认风险预算。')
         elif gate and conditional_cap <= 0:
             reasons.append('有效风险参数给出的条件风险上限为零。')
+    if verified and eligible:
+        reasons.append('权息连续收盘连续3根低于各自MA120，触发趋势退出。' if trend['exit'] else
+                       'MA120趋势退出未触发；已有持仓不因短期F1落选或入场门禁失败而清仓。' if holding else
+                       '权息连续收盘不低于MA120，趋势入场条件通过。' if trend['entry'] else
+                       '权息连续收盘低于MA120，不满足趋势入场条件。')
     decision = _decision(holding, verified, eligible, gate, comparison, vol, es,
-                         conditional_cap, context['risk'], rsi, obv_flow, reasons or [reason])
+                         conditional_cap, context['risk'], rsi, obv_flow, reasons or [reason], trend)
+    if decision['kind'] == 'signal':
+        action = '建仓候选' if decision['label'] == '买入候选' else decision['label']
+        positive = decision['label'] in ('买入候选', '持有候选')
+        symbol, css = ('✅', 'buy') if positive else ('❌', 'sell')
+        reason = decision['strength_reason']
     if dates[-1] < today and css in ('buy', 'sell'):
         action = f'截至{dates[-1]}的{action}'
     warnings.append('未提供持股数量、成本、净值高点和冷静期状态，无法计算实际加减仓金额或个人账户回撤退出；候选须核对这些约束。')
     return dict(code=code, name=fresh['name'] or code, holding=bool(holding), fresh=fresh,
+                strategy_version=TREND_STRATEGY_VERSION, trend=trend,
                 dates=dates, raw=raw, adjusted=adjusted, votes=objectives['votes'],
                 eligible=eligible, gate=gate, verified_actions=verified, rsi=float(objectives['rsi'][i]),
                 obv_flow=float(objectives['obv_flow'][i]), annual_vol=vol, daily_es=es,

@@ -17,7 +17,8 @@ from zipfile import BadZipFile
 import numpy as np
 
 from capital_account import AccountConfig
-from pareto_strategy import OBJECTIVE_NAMES, STRATEGY_VERSION, RiskConfig, risk_target
+from pareto_strategy import (HOLD_POLICY, OBJECTIVE_NAMES, STRATEGY_VERSION,
+                             TREND_STRATEGY_VERSION, RiskConfig, risk_target)
 
 ROOT = Path(__file__).resolve().parent
 RUN_DIR = Path(os.environ.get('PARETO_RUN_DIR') or ROOT / 'output' / 'pareto_mainboard_20260910')
@@ -87,8 +88,11 @@ def _load_run():
         raise ReportError(MISSING_RUN)
     summary = _json(folder, 'summary.json')
     manifest = _json(folder, 'manifest.json')
-    if any(item['version'] != STRATEGY_VERSION for item in (manifest, summary)):
+    if (manifest['version'] not in (STRATEGY_VERSION, TREND_STRATEGY_VERSION)
+            or summary['version'] != manifest['version']):
         raise ReportError('多维回测版本不匹配，请使用当前策略重新生成完整产物。')
+    if manifest['version'] == TREND_STRATEGY_VERSION and manifest.get('holding_policy') != HOLD_POLICY:
+        raise ReportError('持仓策略参数与当前版本不一致。')
     if tuple(manifest['objective_names']) != tuple(OBJECTIVE_NAMES):
         raise ReportError('多维回测版本不匹配：34 维原子名称或顺序不同。')
     for key in ('start', 'requested_end', 'effective_end'):
@@ -171,11 +175,22 @@ def _table(headers, rows, css='trades'):
             + '</tbody></table>')
 
 
-def render_methodology(risk=None, account=None):
+def render_methodology(risk=None, account=None, version=TREND_STRATEGY_VERSION):
     """Shared homepage/report documentation, with model or frozen run defaults."""
     parameter_label = '模型默认参数（本次实际参数以分析结果为准）' if risk is None else '本轮冻结参数'
     risk = risk or RiskConfig()
     account = account or AccountConfig()
+    if version == TREND_STRATEGY_VERSION:
+        position_rule = ('v2趋势持仓：建仓须同日F1、资格及RSI/OBV门禁通过，权息连续收盘不低于MA120。'
+                         '首次建仓使用风险上限的90%；持有期间不因F1落选或入场门禁失败退出，不自动补仓。'
+                         '连续3根权息连续收盘低于各自MA120时，下一市场日尝试退出；风险及质量硬约束仍生效。'
+                         '持仓超过当日风险上限才调减至上限的90%，降低碎片交易；开盘跳空和整手可能使实际风险暂时超限。'
+                         '参数固定，未按002371调参；改动已参考历史结果，不是独立盲测或盈利保证。')
+        zero_rule = '缺失风险或资格未通过时回测目标为0；当前证据不足时仅保守处置。非F1及入场门禁只禁止新仓，不强制趋势持仓清仓。'
+    else:
+        position_rule = ('v1冻结规则：min [0.5 λ σ² (w − wcap)² + c± |w − wprev|]，'
+                         '硬约束 0 ≤ w ≤ wcap；目标为0强制exit，不因费用而继续持有。')
+        zero_rule = '缺失风险、非 F1、资格或门禁未通过时目标为 0。'
     return f'''
     <p class="method-note">每日 Pareto34 原子：34 个独立维度各投 +1 / 0 / −1，不先合并共识、不加权、不按收益挑 Top-N。
     同一市场日符合资格及门禁的股票比较非支配关系，全部第一前沿 F1 保留；F1 不等于满仓。
@@ -185,11 +200,11 @@ def render_methodology(risk=None, account=None):
     缺历史、停牌、失败账户和闲置现金仍计入全部本金；闲置现金零利息，不保本。</p>
     <div class="formula-section"><h4>动态风险预算（不是 F1 = 100%）</h4>
     <div class="formula-math">wcap = min(1, σTarget / σ, ESbudget / ES95)；若配置 max_weight 更低，再取其上限。<br>
-    min [0.5 λ σ² (w − wcap)² + c± |w − wprev|]，硬约束 0 ≤ w ≤ wcap；目标为 0 强制 exit，不因费用而继续持有。</div>
+    {position_rule}</div>
     <p class="hint">{parameter_label}：σTarget={_percent(risk.annual_vol_target)}；ESbudget={_percent(risk.es_budget)}；
     λ={_decimal(risk.tracking_penalty)}；max_weight={_percent(risk.max_weight)}；风险窗口 {_text(risk.risk_window)} 个收益日，
     历史 ES 置信度 {_percent(risk.es_confidence)}（默认 ES95）。波动率为简单收益样本标准差 × √252，
-    ES 为窗口最差尾部的非负日亏损均值；缺失风险、非 F1、资格或门禁未通过时目标为 0。
+    ES 为窗口最差尾部的非负日亏损均值；{zero_rule}
     风险分母下限 1e−8；成本优化的方差下限 1e−8。c± 为买卖两侧比例费用代理，不是给 34 维加权。
     Moreira–Muir 波动管理与 cvxportfolio 风险/成本优化仅提供概念参考，不为本策略公式、参数或盈利背书。</p></div>
     <div class="formula-section"><h4>历史回测账本执行与假设（非当前个人持仓）</h4>
@@ -385,7 +400,7 @@ def _stock(folder, manifest, summary, risk, config, code):
             + '<h3>年度收益</h3><p class="hint">按账户年末记录相对前一记录计算，首笔相对初始本金；'
             '年度有缺口时不插补、不冒充连续单年收益。末年可能不足一年，收益包含标记残值。</p>'
             + _table(('年份', '记录日期', '权益', '本期盈亏', '本期收益率', '现金', '股份'), annual)
-            + _ledgers(folder, code) + render_methodology(risk, config) + _limitations(manifest, summary))
+            + _ledgers(folder, code) + render_methodology(risk, config, manifest['version']) + _limitations(manifest, summary))
 
 
 def _population(folder, manifest, summary, risk, config, n):
@@ -430,7 +445,7 @@ def _population(folder, manifest, summary, risk, config, n):
             + _table(('代码', '股票', '本金', '现金', '残值', '权益', '盈亏', '清仓完成', '个股缓存末日', '数据质量'), accounts, 'scan-table')
             + '<h3>风险参数试验（不是股票排名）</h3>'
             + _table(('年化波动目标', '训练期盈亏', '验证期盈亏', '验证末权益', '完整回放截止', '训练期选优'), trials)
-            + render_methodology(risk, config) + _limitations(manifest, summary))
+            + render_methodology(risk, config, manifest['version']) + _limitations(manifest, summary))
 
 
 def _render(view, *args):

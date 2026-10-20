@@ -15,7 +15,7 @@ from fusion_analysis import analyze_stock, precaution_decision
 from fusion_chart import render_chart
 from live_data import RefreshError, SHANGHAI
 from pareto_backtest import MAINBOARD
-from pareto_strategy import OBJECTIVE_NAMES
+from pareto_strategy import OBJECTIVE_NAMES, TREND_STRATEGY_VERSION, holding_trend
 from pareto_web import _decimal, _money, _number, _percent, _same, _table, _text
 
 
@@ -135,9 +135,20 @@ def _validate_analysis(a, code):
                 and not actions['metadata'].get('live_recommendation_blocked', True))
     if not verified and a['css'] != 'warn':
         raise ValueError('unverified action conclusion')
+    trend = None
+    if a.get('strategy_version') == TREND_STRATEGY_VERSION:
+        expected_trend = holding_trend(np.asarray(a['adjusted'])[:, 3])
+        trend = a['trend']
+        if (trend['entry'] != bool(expected_trend['entry'][-1])
+                or trend['exit'] != bool(expected_trend['exit'][-1])
+                or not np.isclose(trend['average'], expected_trend['average'][-1], equal_nan=True)):
+            raise ValueError('inconsistent holding trend')
+    held_trend = bool(trend is not None and a['holding'] and not trend['exit']
+                      and np.isfinite(trend['average']))
     if a['css'] == 'buy' and not (
-            verified and a['verified_actions'] and a['eligible'] and a['gate']
-            and a['comparison']['status'] == 'front1'
+            verified and a['verified_actions'] and a['eligible']
+            and (held_trend or (a['gate'] and a['comparison']['status'] == 'front1'
+                               and (trend is None or trend['entry'])))
             and np.isfinite(a['annual_vol']) and np.isfinite(a['daily_es'])
             and _number(a['conditional_cap']) > 0):
         raise ValueError('unconfirmed F1 cannot be a buy')
@@ -157,7 +168,17 @@ def _validate_analysis(a, code):
             '退出信号' if a['holding'] else '不买入')
         if not (verified and a['verified_actions'] and a['eligible']) or decision['label'] != expected:
             raise ValueError('invalid signal decision')
-        if a['css'] != 'buy' and a['gate'] and a['comparison']['status'] != 'dominated' and not (
+        if trend is not None and a['holding']:
+            if not np.isfinite(a['annual_vol']) or not np.isfinite(a['daily_es']):
+                raise ValueError('missing holding risk evidence')
+            expected_holding = ('退出信号' if trend['exit'] or _number(a['conditional_cap']) == 0
+                                else '持有候选')
+            if decision['label'] != expected_holding:
+                raise ValueError('entry gate cannot trigger a holding exit')
+            return
+        trend_negative = bool(trend is not None and (
+            trend['exit'] if a['holding'] else not trend['entry']))
+        if a['css'] != 'buy' and not trend_negative and a['gate'] and a['comparison']['status'] != 'dominated' and not (
             a['comparison']['status'] == 'front1'
             and np.isfinite(a['annual_vol']) and np.isfinite(a['daily_es'])
                 and _number(a['conditional_cap']) == 0):
@@ -170,6 +191,7 @@ def _current(a, holding):
               'dominated': '不在 F1：存在同日严格支配者',
               'unknown': 'F1 未知：不能确认，不据此买入'}.get(comparison['status'], 'F1 未知')
     rows = [
+        ('当前策略版本', _text(a.get('strategy_version'))),
         ('联网核验时间 checked_at（非行情日期）', _text(fresh['checked_at'])),
         ('来源最新完整日线日期', _text(fresh['latest_date'])),
         ('行情提供方 provider', _text(fresh['provider'])),
@@ -188,6 +210,9 @@ def _current(a, holding):
         ('当前持仓选项', ('已持仓' if holding else '未持仓')
          + '；仅影响当前动作，不改变历史账户'),
     ]
+    if 'trend' in a:
+        rows.append(('MA120 持仓趋势（权息连续价）', _diagnostic(a['trend']['average'])
+                     + ('；连续3根跌破，退出' if a['trend']['exit'] else '；未触发趋势退出')))
     return ('<div class="current-analysis"><h3>当前分析</h3>'
             + _scroll(('项目', '本次联网分析'), rows, 'overview')
             + '<p class="hint">核验日不等于行情日；只取得来源最新已完成日线，不称盘中实时价。'
@@ -250,10 +275,13 @@ def _annual(account):
 def _history(context, code):
     """Use only this stock's account; never replace it with population totals."""
     manifest = context.get('manifest') or {}
-    date_rows = [('回测起始（冻结清单）', _text(manifest.get('start'))),
+    date_rows = [('历史策略版本（与当前诊断分开）', _text(manifest.get('version'))),
+                 ('回测起始（冻结清单）', _text(manifest.get('start'))),
                  ('回测请求截止', _text(manifest.get('requested_end'))),
                  ('回测有效截止', _text(manifest.get('effective_end')))]
     opening = '<div class="historical-summary"><h3>历史回测摘要</h3>'
+    if manifest.get('version') != TREND_STRATEGY_VERSION:
+        opening += '<p class="method-note">以下收益及买卖标记属于旧版冻结账户，不是当前v2持仓策略的收益。</p>'
     missing = '<p class="hint">暂无该股可用的完整历史账户；不推算收益，不用全市场汇总代替。</p>'
     account = context.get('account')
     if not account:

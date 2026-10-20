@@ -27,7 +27,7 @@ import numpy as np
 
 import pareto_backtest as runner
 from capital_account import AccountConfig
-from pareto_strategy import OBJECTIVE_NAMES, STRATEGY_VERSION, RiskConfig
+from pareto_strategy import HOLD_POLICY, OBJECTIVE_NAMES, STRATEGY_VERSION, RiskConfig
 
 
 PRINCIPAL = 1_000_000.
@@ -307,6 +307,106 @@ class TestAggregate(unittest.TestCase):
 
 
 class TestReplay(SnapshotCase):
+    def test_trend_v2_does_not_liquidate_on_transient_front_or_entry_gate_loss(self):
+        calendar = sessions(count=180)
+        prices = 10. * 1.002 ** np.arange(len(calendar))
+        layers = np.where(np.arange(len(calendar)) % 2, 5, 1)
+        gates = np.arange(len(calendar)) % 3 != 1
+        folder = self.fixture(calendar, [dict(
+            code='600000', raw=ohlcv(prices), layers=layers, gates=gates)])
+        manifest = runner.read_json(folder / 'manifest.json')
+        manifest['version'] = 'pareto_trend_hold_v2'
+        manifest['holding_policy'] = dict(HOLD_POLICY)
+        self.write_json(folder / 'manifest.json', manifest)
+        summary, _, ledger = self.replay(folder)
+        orders = fills(ledger)
+        self.assertEqual(summary['build_count'], 1)
+        self.assertEqual(summary['exit_count'], 1)
+        self.assertEqual(orders[-1]['reason'], 'scheduled_deadline')
+        self.assertTrue(all(row['target_weight'] > 0 for row in orders[:-1]))
+
+    def test_trend_v2_preserves_next_open_risk_and_trend_exits(self):
+        calendar = sessions(count=200)
+        for crash, expected_reason in ((False, 'trend_exit'), (True, 'risk_exit')):
+            prices = np.full(len(calendar), 10.)
+            prices[145:] = 1. if crash else 9.9
+            folder = self.fixture(calendar, [dict(code='600000', raw=ohlcv(prices))])
+            _, _, ledger = runner.replay_stock(
+                folder, '600000', 0, RiskConfig(), record_ledger=True,
+                strategy_version=runner.TREND_STRATEGY_VERSION)
+            exits = [row for row in fills(ledger) if row['event'] == 'exit']
+            self.assertEqual(exits[0]['reason'], expected_reason)
+            self.assertGreater(exits[0]['day'], exits[0]['signal_day'])
+            self.assertEqual(exits[0]['signal_day'], str(calendar[145 if crash else 147]))
+
+    def test_trend_v2_never_adds_when_risk_reduction_opens_below_target(self):
+        calendar = sessions(count=180)
+        prices = np.full(len(calendar), 10.)
+        prices[130:] = 6.
+        volatility = np.full(len(calendar), .5)
+        volatility[129:] = .6
+        folder = self.fixture(calendar, [dict(code='600000', raw=ohlcv(prices), annual_vol=volatility)])
+        result, _, ledger = runner.replay_stock(
+            folder, '600000', 0, RiskConfig(), record_ledger=True,
+            strategy_version=runner.TREND_STRATEGY_VERSION)
+        self.assertEqual(result['add_count'], 0)
+        self.assertFalse(any(row.get('reason') == 'holding_risk_cap' and row.get('side') == 'buy'
+                             and row['event'] in FILL_EVENTS for row in ledger))
+
+    def test_trend_v2_retains_principal_when_trend_inputs_are_corrupt(self):
+        calendar = sessions(count=180)
+        raw = ohlcv(np.full(len(calendar), 10.))
+        raw[140, 3] = np.nan
+        folder = self.fixture(calendar, [dict(code='600000', raw=raw)])
+        result, curve, ledger = runner.replay_stock(
+            folder, '600000', 0, RiskConfig(), record_ledger=True,
+            strategy_version=runner.TREND_STRATEGY_VERSION)
+        self.assertTrue(result['feature_error'])
+        self.assertEqual(result['marked_nav'], PRINCIPAL)
+        self.assertEqual(fills(ledger), [])
+        np.testing.assert_array_equal(curve, PRINCIPAL)
+
+    def test_offline_comparison_keeps_failed_principal_and_source_unchanged(self):
+        calendar = sessions(count=180)
+        folder = self.fixture(calendar, [dict(code='600000'), dict(
+            code='600001', history=dict(status='error'))])
+        manifest = runner.read_json(folder / 'manifest.json')
+        self.write_json(folder / 'summary.json', dict(version=manifest['version'],
+                                                     selected_risk=asdict(RiskConfig())))
+        before = {str(path.relative_to(folder)): hashlib.sha256(path.read_bytes()).hexdigest()
+                  for path in folder.rglob('*') if path.is_file()}
+        output = self.root / 'comparison'
+        report = runner.compare_frozen(folder, output, ['600000', '600001'])
+        self.assertTrue(report['complete'])
+        self.assertEqual(len(report['results']), 6)
+        for row in report['results']:
+            self.assertAlmostEqual(row['marked_nav'], row['final_cash'] + row['residual_value'])
+            if row['code'] == '600001':
+                self.assertEqual(row['marked_nav'], PRINCIPAL)
+        after = {str(path.relative_to(folder)): hashlib.sha256(path.read_bytes()).hexdigest()
+                 for path in folder.rglob('*') if path.is_file()}
+        self.assertEqual(before, after)
+        with self.assertRaises(ValueError):
+            runner.compare_frozen(folder, output, ['600000'])
+
+    def test_v2_complete_run_reads_and_policy_mismatch_preserves_completion(self):
+        import pareto_web
+        folder = self.fixture(sessions(count=270))
+        manifest = runner.read_json(folder / 'manifest.json')
+        manifest.update(version=runner.TREND_STRATEGY_VERSION, holding_policy=dict(HOLD_POLICY))
+        self.write_json(folder / 'manifest.json', manifest)
+        result = self.run_fixture(folder)
+        self.assertEqual(result['version'], runner.TREND_STRATEGY_VERSION)
+        with patch.object(pareto_web, 'RUN_DIR', folder):
+            loaded = pareto_web._load_run()
+        self.assertEqual(loaded[2]['version'], runner.TREND_STRATEGY_VERSION)
+        complete = (folder / 'summary.json').read_bytes()
+        manifest['holding_policy']['trend_window'] = 60
+        self.write_json(folder / 'manifest.json', manifest)
+        with self.assertRaisesRegex(ValueError, 'holding policy'):
+            self.run_fixture(folder)
+        self.assertEqual((folder / 'summary.json').read_bytes(), complete)
+
     def test_dynamic_zero_to_f1_volatility_build_add_reduce_exit_next_open(self):
         calendar = sessions()
         layers = np.full(len(calendar), 5, dtype=np.int8)

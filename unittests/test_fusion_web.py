@@ -19,7 +19,7 @@ import numpy as np
 import fusion_web as web
 from fusion_chart import render_chart as real_render_chart
 from live_data import RefreshError
-from pareto_strategy import OBJECTIVE_NAMES, RiskConfig
+from pareto_strategy import OBJECTIVE_NAMES, RiskConfig, TREND_STRATEGY_VERSION, holding_trend
 
 
 PNG = ('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8'
@@ -118,6 +118,32 @@ def fixture(n=300):
 
 
 class TestFusionWeb(unittest.TestCase):
+    def test_v2_holding_without_front_is_valid_but_cannot_be_an_entry(self):
+        trend = holding_trend(self.a['adjusted'][:, 3])
+        self.a.update(strategy_version=TREND_STRATEGY_VERSION,
+                      trend=dict(average=float(trend['average'][-1]), entry=True, exit=False),
+                      holding=True, css='buy', action='持有候选', symbol='✅',
+                      decision=dict(label='持有候选', strength=3, kind='signal',
+                                    reasons=['趋势退出未触发，不据此加仓'], strength_reason='趋势持仓'))
+        web._validate_analysis(self.a, '000001')
+        self.a['holding'] = False
+        self.a['decision']['label'] = '买入候选'
+        with self.assertRaises(ValueError):
+            web._validate_analysis(self.a, '000001')
+        self.a['holding'] = True
+        self.a['decision']['label'] = '持有候选'
+        self.a['css'] = 'sell'
+        self.a['decision']['label'] = '退出信号'
+        self.a['gate'] = False
+        with self.assertRaises(ValueError):
+            web._validate_analysis(self.a, '000001')
+        self.a['gate'] = True
+        self.a['conditional_cap'] = 0.
+        web._validate_analysis(self.a, '000001')
+        self.a['trend']['exit'] = True
+        with self.assertRaises(ValueError):
+            web._validate_analysis(self.a, '000001')
+
     def setUp(self):
         temp = TemporaryDirectory()
         self.addCleanup(temp.cleanup)
