@@ -1,0 +1,145 @@
+{
+  "version": "pareto_trend_hold_v2",
+  "start": "2016-09-10",
+  "requested_end": "2026-09-10",
+  "effective_end": "2026-09-08",
+  "selected_risk": {
+    "annual_vol_target": 0.1,
+    "es_budget": 0.02,
+    "risk_window": 63,
+    "es_confidence": 0.95,
+    "tracking_penalty": 5.0,
+    "max_weight": 1.0
+  },
+  "risk_selection": "frozen_source",
+  "totals": {
+    "account_count": 3330,
+    "initial_capital": 3330000000.0,
+    "final_cash": 3318919978.7571077,
+    "residual_marked_value": 735462.0,
+    "final_equity": 3319655440.7571077,
+    "pnl": -10344559.242892265,
+    "cash_minus_all_principal": -11080021.242892265,
+    "fully_liquidated_count": 3327,
+    "profitable_accounts": 1347,
+    "losing_accounts": 1763,
+    "fees": 18425549.358735416,
+    "cash_dividends": 27850835.566796,
+    "action_fetch_failures": 25,
+    "rights_issue_accounts": 71,
+    "feature_errors": 0,
+    "unexplained_gap_accounts": 95,
+    "stale_accounts": 144,
+    "late_start_accounts": 1041,
+    "build_count": 52258,
+    "add_count": 0,
+    "reduce_count": 55975,
+    "exit_count": 52255
+  },
+  "annual_results": [
+    {
+      "year": "2016",
+      "date": "2016-12-30",
+      "final_equity": 3331508854.0384893,
+      "pnl": 1508854.0384893417,
+      "return_pct": 0.04531093208677284
+    },
+    {
+      "year": "2017",
+      "date": "2017-12-29",
+      "final_equity": 3321956833.4263554,
+      "pnl": -9552020.61213398,
+      "return_pct": -0.28671755143483413
+    },
+    {
+      "year": "2018",
+      "date": "2018-12-28",
+      "final_equity": 3274166597.915634,
+      "pnl": -47790235.51072121,
+      "return_pct": -1.4386169931482562
+    },
+    {
+      "year": "2019",
+      "date": "2019-12-31",
+      "final_equity": 3289069398.0901923,
+      "pnl": 14902800.174558163,
+      "return_pct": 0.45516316072753416
+    },
+    {
+      "year": "2020",
+      "date": "2020-12-31",
+      "final_equity": 3296186501.5428376,
+      "pnl": 7117103.452645302,
+      "return_pct": 0.216386539511082
+    },
+    {
+      "year": "2021",
+      "date": "2021-12-31",
+      "final_equity": 3343326202.1826186,
+      "pnl": 47139700.639781,
+      "return_pct": 1.430128441388745
+    },
+    {
+      "year": "2022",
+      "date": "2022-12-30",
+      "final_equity": 3284754659.596299,
+      "pnl": -58571542.58631945,
+      "return_pct": -1.7518943424689515
+    },
+    {
+      "year": "2023",
+      "date": "2023-12-29",
+      "final_equity": 3271454405.6767097,
+      "pnl": -13300253.91958952,
+      "return_pct": -0.40490859433697235
+    },
+    {
+      "year": "2024",
+      "date": "2024-12-31",
+      "final_equity": 3256682297.5202594,
+      "pnl": -14772108.156450272,
+      "return_pct": -0.45154559179603204
+    },
+    {
+      "year": "2025",
+      "date": "2025-12-31",
+      "final_equity": 3325961449.4652076,
+      "pnl": 69279151.9449482,
+      "return_pct": 2.12729230596731
+    },
+    {
+      "year": "2026",
+      "date": "2026-09-08",
+      "final_equity": 3319655440.7571115,
+      "pnl": -6306008.708096027,
+      "return_pct": -0.18959957305307862
+    }
+  ],
+  "trials": [
+    {
+      "vol_target": 0.1,
+      "train_pnl": 13326202.182620525,
+      "validation_pnl": -71871796.50591326,
+      "validation_end_nav": 3271454405.6767073,
+      "scope_end": "2026-09-08"
+    }
+  ],
+  "holdout_start_equity": 3271454405.6767073,
+  "holdout_2024_onward_pnl": 48201035.08040047,
+  "limitations": [
+    "current cached universe, survivorship bias",
+    "not all stocks have ten-year history",
+    "Sina ex-date cash/share availability approximation; no dividend tax",
+    "rights issues not modeled: all-history flagged accounts held in cash",
+    "failed/unverified actions and malformed histories held in cash",
+    "retrospective quality screening, not a point-in-time investable universe",
+    "opening 4.8% gap conservative limit proxy",
+    "daily OHLC cannot certify fills or official limit status",
+    "unexplained >25% opening gaps quarantine later signals",
+    "zero interest on idle cash; no principal guarantee",
+    "Full frozen-universe replay of the improved original fusion strategy; no refreshed prices or recomputed fronts.",
+    "Risk target inherited unchanged from the original training selection. One fixed-risk evaluation, not a new parameter search.",
+    "Holding rules were designed after viewing historical results; this is not a blind holdout or a principal guarantee."
+  ],
+  "verdict": "unverified_research_not_principal_protected"
+}

@@ -117,10 +117,11 @@ class TestPageContract(OfflineWebCase):
         single = web.PAGE.split('<div id="tab-analyze">', 1)[1].split('<!-- ══════════ Tab 2:', 1)[0]
         for text in ('每次分析均联网刷新本股', '来源最新已完成日线',
                      '1至5星规则支持强度', '非盈利概率', '缺少行情、权息、资格或风险证据',
-                     'v2缺F1不能买入', '不因落选清仓', '不代表v2新收益',
+                     '缺F1不能买入', '不因落选清仓', '历史摘要、年度收益及买卖标记使用同一完成账本',
                      '已持仓暂缓调仓', '不冒充已确认的交易信号', '历史回测期限'):
             self.assertIn(text, single)
         self.assertNotIn('只读', single)
+        self.assertNotIn('v2', single)
         overview = web.PAGE.split('<div id="tab-scan"', 1)[1].split('<script>', 1)[0]
         for text in ('历史回测只读', '不联网、不刷新缓存，不重跑',
                      '请求区间和有效截止', '本轮冻结报告',

@@ -21,9 +21,9 @@ from pareto_strategy import (HOLD_POLICY, OBJECTIVE_NAMES, STRATEGY_VERSION,
                              TREND_STRATEGY_VERSION, RiskConfig, risk_target)
 
 ROOT = Path(__file__).resolve().parent
-RUN_DIR = Path(os.environ.get('PARETO_RUN_DIR') or ROOT / 'output' / 'pareto_mainboard_20260910')
+RUN_DIR = Path(os.environ.get('PARETO_RUN_DIR') or ROOT / 'output' / 'pareto_current_20261021')
 MISSING_RUN = ('尚无完成的多维回测，请先运行 pareto_backtest.py --output '
-               'output/pareto_mainboard_20260910，并等待 summary.json 完成。'
+               'output/pareto_current_20261021，并等待 summary.json 完成。'
                '自定义运行目录仅由服务端 PARETO_RUN_DIR 配置。')
 
 
@@ -181,14 +181,14 @@ def render_methodology(risk=None, account=None, version=TREND_STRATEGY_VERSION):
     risk = risk or RiskConfig()
     account = account or AccountConfig()
     if version == TREND_STRATEGY_VERSION:
-        position_rule = ('v2趋势持仓：建仓须同日F1、资格及RSI/OBV门禁通过，权息连续收盘不低于MA120。'
+        position_rule = ('融合策略趋势持仓：建仓须同日F1、资格及RSI/OBV门禁通过，权息连续收盘不低于MA120。'
                          '首次建仓使用风险上限的90%；持有期间不因F1落选或入场门禁失败退出，不自动补仓。'
                          '连续3根权息连续收盘低于各自MA120时，下一市场日尝试退出；风险及质量硬约束仍生效。'
                          '持仓超过当日风险上限才调减至上限的90%，降低碎片交易；开盘跳空和整手可能使实际风险暂时超限。'
                          '参数固定，未按002371调参；改动已参考历史结果，不是独立盲测或盈利保证。')
         zero_rule = '缺失风险或资格未通过时回测目标为0；当前证据不足时仅保守处置。非F1及入场门禁只禁止新仓，不强制趋势持仓清仓。'
     else:
-        position_rule = ('v1冻结规则：min [0.5 λ σ² (w − wcap)² + c± |w − wprev|]，'
+        position_rule = ('归档历史规则：min [0.5 λ σ² (w − wcap)² + c± |w − wprev|]，'
                          '硬约束 0 ≤ w ≤ wcap；目标为0强制exit，不因费用而继续持有。')
         zero_rule = '缺失风险、非 F1、资格或门禁未通过时目标为 0。'
     return f'''
@@ -224,15 +224,17 @@ def render_methodology(risk=None, account=None, version=TREND_STRATEGY_VERSION):
 def _header(manifest, title):
     return (f'<h2>{_text(title)}</h2><p class="method-note">完成运行的本地历史快照，不联网、不刷新、不重算前沿。'
             f'回测起始 {_text(manifest["start"])}；请求截止 {_text(manifest["requested_end"])}；'
-            f'有效截止日期 {_text(manifest["effective_end"])}。旧缓存并非实时推荐，不能当作今日买卖建议。</p>'
-            f'<p class="hint">策略版本：{_text(manifest["version"])}</p>')
+            f'有效截止日期 {_text(manifest["effective_end"])}。旧缓存并非实时推荐，不能当作今日买卖建议。</p>')
 
 
 def _limitations(manifest, summary):
     items = list(dict.fromkeys(manifest['limitations'] + summary['limitations']))
+    selection = ('风险参数沿用原训练期冻结选择，本次仅评估该固定参数，不重新选优。'
+                 if summary.get('risk_selection') == 'frozen_source' else
+                 '仅训练期货币盈亏选择风险参数，同分取较低波动目标，验证期不参与选优。')
     return (f'<h3>研究边界</h3><p class="hint">训练期截至 {_text(manifest["train_end"])}，'
             f'之后至 {_text(manifest["validation_end"])} 为验证期；'
-            '仅训练期货币盈亏选择风险参数，同分取较低波动目标，验证期不参与选优，2024 年起为设计上的留出分段。'
+            f'{selection}2024 年起为设计上的留出分段。'
             '本轮已经多次查看后段结果，不是完全独立盲测；不能看过后调参再冒充新留出验证。'
             '各 trial 与最终账户连续运行完整区间、共用同一有效截止日；训练/验证切点只读净值，不额外清仓或重置账户。'
             '所选 trial 验证末权益须等于最终留出期起点权益。'

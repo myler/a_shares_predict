@@ -191,7 +191,7 @@ def _current(a, holding):
               'dominated': '不在 F1：存在同日严格支配者',
               'unknown': 'F1 未知：不能确认，不据此买入'}.get(comparison['status'], 'F1 未知')
     rows = [
-        ('当前策略版本', _text(a.get('strategy_version'))),
+        ('当前策略', '融合策略'),
         ('联网核验时间 checked_at（非行情日期）', _text(fresh['checked_at'])),
         ('来源最新完整日线日期', _text(fresh['latest_date'])),
         ('行情提供方 provider', _text(fresh['provider'])),
@@ -275,13 +275,13 @@ def _annual(account):
 def _history(context, code):
     """Use only this stock's account; never replace it with population totals."""
     manifest = context.get('manifest') or {}
-    date_rows = [('历史策略版本（与当前诊断分开）', _text(manifest.get('version'))),
+    date_rows = [('历史账户规则', '融合策略趋势持仓' if manifest.get('version') == TREND_STRATEGY_VERSION else '归档历史规则'),
                  ('回测起始（冻结清单）', _text(manifest.get('start'))),
                  ('回测请求截止', _text(manifest.get('requested_end'))),
                  ('回测有效截止', _text(manifest.get('effective_end')))]
     opening = '<div class="historical-summary"><h3>历史回测摘要</h3>'
-    if manifest.get('version') != TREND_STRATEGY_VERSION:
-        opening += '<p class="method-note">以下收益及买卖标记属于旧版冻结账户，不是当前v2持仓策略的收益。</p>'
+    if manifest and manifest.get('version') != TREND_STRATEGY_VERSION:
+        opening += '<p class="method-note">服务配置指定了归档历史账户，以下收益及成交标记不属于当前融合策略规则。</p>'
     missing = '<p class="hint">暂无该股可用的完整历史账户；不推算收益，不用全市场汇总代替。</p>'
     account = context.get('account')
     if not account:

@@ -377,7 +377,7 @@ class TestParetoWeb(unittest.TestCase):
     def test_shared_model_documentation(self):
         html = pareto_web.render_methodology()
         for text in ('34 个独立维度', '1,000,000.00 元', 'wcap = min(1, σTarget / σ, ESbudget / ES95)',
-                     'v2趋势持仓', 'MA120', '不自动补仓', '15.00%', '20 个市场日 cooldown',
+                     '融合策略趋势持仓', 'MA120', '不自动补仓', '15.00%', '20 个市场日 cooldown',
                      '最后 5 个市场日', 'T+1', '5.00 元', '5bp', 'cash dividend on ex-date',
                      '下一市场交易日开盘', '配股未建模', '未计红利税', '保守隔离', 'eligible=false',
                      '全期禁止买入', '不重置本金、不前填交易信号'):

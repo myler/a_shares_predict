@@ -1,0 +1,417 @@
+# A 股多维策略研究 · 融合策略趋势持仓
+
+面向 A 股的策略分析与历史回放工具，提供融合策略、长线持有和巴芒基本面研究。融合策略使用34个独立三值原子、同日非支配前沿及单股现金/股份账户，将建仓条件、趋势持仓和风险约束分开处理。
+
+建仓要求同日F1、资格及入场门禁通过，且权息连续收盘不低于MA120；已有持仓不因F1落选或入场门禁变化自动清仓。连续3根收盘低于各自MA120时触发趋势退出，仓位使用风险上限的90%，超过新上限才调减，不自动补仓。
+
+默认历史目录为 `output/pareto_current_20261021`，历史总览、单股摘要、年度收益、成交表和图表标记共用完成账本。可通过服务端 `PARETO_RUN_DIR` 指定其他完整运行目录。
+
+项目用于研究与辅助分析，不提供自动下单或保本承诺。历史回放依赖数据覆盖及费用、权息、成交模型，不能据此保证未来收益。
+
+## 入口边界
+
+前端恰有两个标签：**「策略分析」／「融合策略回测总览」**。第一标签恰有三个选项：**「融合策略」（`pareto`，默认）／「长线持有」（`buyhold`）／「巴芒基本面研究」（`value`）**。
+
+| 用途 | 实际入口 | 行为与边界 |
+|---|---|---|
+| 默认单股融合分析 | Web `/analyze?code=000651&strategy=pareto`；省略策略也默认 `pareto` | [fusion_web.py](fusion_web.py) → [fusion_analysis.py](fusion_analysis.py) → [live_data.py](live_data.py) 的 `refresh_stock()`；每次联网刷新并定向更新目标股票，再算 34 原子、门禁及条件风险；附独立历史账户摘要，不重跑回测 |
+| 独立当前截面采集 | [fusion_snapshot.py](fusion_snapshot.py) | 固定历史股票池的新行情／权息，独立完成后供当前分析只读比较；不写生产数据库、不重跑或改写历史报告 |
+| 融合策略回测总览 | Web `/pareto-summary?n=5` | [pareto_web.py](pareto_web.py) 只读完整报告，全部独立账户资金汇总；N 仅按代码顺序截断展示，不排名、不裁掉 F1、不改变总本金 |
+| 长线持有／巴芒基本面研究 | Web `/analyze` 的 `buyhold`／`value` | 保留旧长线展示与独立财务初筛，不走上述融合刷新链，不能套用其数据与账户保证 |
+| 多维研究运行 | [pareto_backtest.py](pareto_backtest.py) | 快照行情、解析权息、计算每日 34 维 F1、连续回放独立账户 |
+| 保留旧加权融合 | CLI `predict`、API 默认 `comprehensive`、独立引擎 | [engine.py](engine.py) 四维加权＋18 项辅助共识；**不是 Pareto34**，已无对应 Web 策略入口 |
+| 保留旧加权海选 | 独立 [scan_composite.py](scan_composite.py) | [factors.py](factors.py) 横截面排名加权；可能联网取报价，不是 S* 或 Pareto34；Web `/scan` 已删除 |
+| 保留独立研究 | [money_backtest4.py](money_backtest4.py)、[money_pareto_backtest.py](money_pareto_backtest.py) 等 | 旧双路径资金/5 因子 Pareto 实验，未接入默认多维入口，不能当作新策略业绩 |
+
+Web 已删除 `comprehensive`、MACD、`multi` 的策略分派及相应旧处理方法：这些策略值返回 400，`/scan` 返回 404；不是仅隐藏控件。模板内部沿用 `tab-scan`／`runScan()` 名称，但只请求 `/pareto-summary`，不表示旧海选路由仍在。
+
+历史报告目录仅由服务端 `PARETO_RUN_DIR` 配置，默认指向本轮输出；HTTP 参数不能指定报告、数据库或证据路径。总览缺少完成标记、版本不兼容或产物不完整时提示不可用，不自动重跑。单股当前诊断可在历史报告缺失时继续，但须注明无历史收益及使用模型默认风险参数；同日比较能否确认另看独立当前截面，**不回落旧加权策略**。[pareto_web.py](pareto_web.py) 的 `render_stock_report()` 仍保留为内部只读历史报告 helper，**不是第一标签的 HTTP 入口**。项目没有自动下单功能。
+
+## 第一标签：单股联网更新、条件诊断与历史分开展示
+
+### 行情更新与证据
+
+- 每次有效主板股票分析先调用 `refresh_stock()`；只刷新该股，不刷新全市场。按新浪→腾讯不复权→东方财富不复权尝试公开行情源，每源一次；全部失败时显示失败原因及1星保守处置（未持仓不买入／已持仓暂缓调仓），不拿缓存、历史报告或旧图充当本次成功结果。
+- 刷新前以只读连接保存目标股票旧行情及元数据；每次生成独立证据目录，保存原始响应字节、SHA256、请求／失败信息、成交量归一化依据和接受结果。验证后用 `BEGIN IMMEDIATE` 重查目标未被并发修改，再仅对该代码的行情和股票元数据事务 UPSERT。**保留响应窗口之外的旧历史**，提交后读取完整目标历史；不清库、不初始化表、不更新其他股票或旧分红缓存、不改冻结报告。
+- `checked_at` 是带时区的联网核验时间，**不是行情日期**；`latest_date`／`date` 才是实际最新已完成日线。时钟转上海时区，15:00 前剔除当日临时日线，拒绝未来日期和无效 OHLCV。来源末日不得早于缓存真实 `MAX(date)`；同日核验／修正允许，但不能称新增交易日。未核验节假日或停牌日历，来源只返回昨日或更早日线时须明确按该日期诊断，不冒称今日行情。
+- 有历史时，排除缓存末日，至少取得 3 对正成交量重叠日；所有缓存／来源量比须在 1% 容差内一致支持 **1、100 或 0.01** 中唯一倍数。混杂、未知或不足则拒绝该源，不拼接不明单位；无历史时按来源已知股／手单位转股。有历史则保留既有量单位，不把全库重新标为股。
+- 每次行情刷新成功后，按该代码**重新请求** EM 有日期分红（2015-01-01～上海核验日）、全部未注明除权日的已实施分红、无日期过滤的配股生命周期数据，并核验分页及行情覆盖；不复用市场冻结快照，不调用新浪权息采集。权息失败、未知或存在未建模配股时禁止买卖结论，只可显示带警告的原价诊断。**权息失败不会撤销此前已提交的行情更新**；提交后的证据写入失败也不能宣称事务已回滚。
+- EM 仅在**第一页**且同时为整数 `code=9201`、`success=false`、显式 `result=null`、精确消息「返回数据为空」时，按已知源格式规范化为空结果；原始响应、SHA256 和页证据照常保留。其他错误、字段缺失、非精确消息或后续页哨兵均不能当空。空结果只表示本次来源无记录，不证明历史没有分红／配股。权息端点拒绝／限流后停止后续权息请求，不自动重试或绕过。
+
+### 条件结论、持仓与结果布局
+
+- 当前分析复用回测的 **34 原子、资格／门禁、波动率及历史 ES**；权息通过后使用同一因果连续化价格计算信号，不计算 $S^*$ 或合成总分。完整报告可用时采用本轮冻结所选 **10%** 波动目标；报告不可用时明确标注模型默认 **15%**，不能冒充训练所选参数。
+- 优先只读独立当前截面，与固定池中**精确同日**、有效、预热完成且通过门禁的股票比较；这不是当日所有上市股票或盘中实时全市场。不存在该日当前截面时才检查冻结历史同日文件；缺失或损坏则F1未知，不给买入候选，也不沿用旧前沿。v2已有持仓独立按本股权息连续趋势和风险判断，不因F1缺失、落选或入场门禁失败自动卖出；持有候选不授权加仓。新截面可超过历史有效截止2026-09-08；历史截止和最后5日退出不应用于当前持仓。
+- 「已持仓」可勾选；下一次分析据此区分建仓候选／持有候选，或不买入／退出信号等条件解释。该输入只有布尔值，缺少持股数量、成本、净值高点和冷静期状态，**不能计算实际增减仓、执行目标或个人账户回撤退出**。显示的条件风险上限不是实际仓位，F1 未知时不能据此买入。
+- UI 在已持仓时显示「计算分红」选项；勾选后附本次新取得权息的每股表与近 12 个日历月简单现金合计，口径为税前元／各次权息前股，不是股息率或统一初始股收益。渲染器也允许独立展示该附表；开关不影响必要权息核验，也**不增减历史账本已入账分红或历史总收益**。
+- 结果顺序：先显示操作方向、1至5星规则支持强度、具体依据及「非盈利概率」说明，再并列当前分析与历史摘要，分开列核验时间、行情日期、回测请求／有效截止；随后按 **M6／F5／P2／Q3／Aux18** 展示全部 34 原子、诊断统计、历史年度收益及最近 **20 次实际成交账本事件**。这些是回测 filled 事件，不是实盘订单，也不是最近 20 条混合流水。
+- 最后为三面板图：不复权价格（含 MA20／MA60 及可用历史成交标记）、权息连续化价格 MACD、34 行独立信号热图，**没有聚合评分面板**。仅热图可等距抽样到最多 1000 列并标明；价格、MACD 和成交保留完整分辨率。历史截止之后不推断新成交；权息失败须注明 MACD 改用原价，仅供诊断。图表失败保留诊断，不重刷、不替换旧图。
+
+### 操作结论与星级（2026-10-21）
+
+`fusion_analysis` 另输出 `decision`：`label`、`strength`（1～5整数）、`kind`（`signal`／`precaution`）、`reasons` 与 `strength_reason`。旧 `action` 保留内部兼容，Web 主结论使用 `decision`。星级不重新加权34原子、不改变冻结回测、不是盈利概率、预期收益或经过收益校准的置信度；各方向不能横向当作买入排名。
+
+| 条件 | 未持仓／已持仓 | 星级依据 |
+|---|---|---|
+| 行情、权息、资格或风险数据不足 | 不买入／暂缓调仓 | 固定1星保守处置；不是看空信号，不自动卖出 |
+| F1未知 | 不买入／独立判断持仓趋势 | 未持仓1星保守处置；已有持仓不需要新F1，不据此加仓 |
+| 有效信号违反RSI或OBV入场门禁 | 不买入／独立判断持仓趋势 | 未持仓按门禁超限比例分1至5星；不把门禁失败当退出 |
+| 同日被严格支配或收盘低于MA120 | 不买入／独立判断持仓趋势 | 未持仓固定3星；不虚构支配关系收益幅度 |
+| 有效风险上限为零 | 不买入／退出信号 | 5星硬约束；缺失风险仍为1星保守处置 |
+| 已持仓且趋势连续3根跌破MA120 | 退出信号 | 固定3星趋势规则，不是下跌概率 |
+| 已持仓、数据及风险有效且趋势退出未触发 | 持有候选 | 固定3星；不因风险上限变化自动补仓，不是实际调仓指令 |
+| 未持仓、F1/资格/门禁/风险/MA120入场全部通过 | 买入候选 | 风险上限占最大上限比例，按20%一档向上取整为1至5星 |
+
+缺少截面与指标失败分别解释：本股行情日超过冻结有效截止、又无该日独立当前截面时，34原子仍正常计算，不能说因子计算中断；单股HTTP请求不会自行采集整个股票池。资格不足列明日线数／251根要求、零成交量、RSI缺失及跳空日期，门禁列实际RSI／OBV值。输出、分红近12月窗口均按上海日期解释。行情已提交但后续步骤失败时明确披露，不能假称回滚。
+
+### 独立当前截面（2026-10-20）
+
+用户已另行授权采集既有冻结池的当前行情和权息，结果仅存独立目录。`fusion_snapshot` 以只读连接获取逐股旧历史作连续指标及成交量单位核验，先冻结完整 EM 市场权息，再逐股请求公开日线；计算复用原有34原子和资格／门禁，不改策略、不写生产数据库、不运行账户回放。行情与权息不是交易所同步事务快照，保留各自日期、核验时间及原始证据。
+
+- 默认目录为 `output/fusion_current`，可用服务器环境变量 `FUSION_SNAPSHOT_DIR` 指定；无HTTP路径参数。每轮新建带时间和UUID的目录，保存请求、原始响应／SHA256、旧历史、合并行情及特征。完成后原子发布按**实际行情日期**索引的指针，读取时核对哈希、版本、股票池及资格。
+- 完成表示全池已处理，不等于所有股票有同日行情。请求失败仍占固定池并标为未知：没有支配者时不能确认F1；已找到有效同日严格支配者时可判定不在F1。来源成功但末日较早、未通过资格／门禁／权息者排除于当日可比集合，不前填。只有2015年前历史的响应仅验证日期覆盖并标 `history_only`，不将其中旧OHLC当作有效信号，也不据此宣称退市。至少有一只其他有效同日股票且无未知行情，才能确认F1。
+- `status.json` 记录采集阶段、进度及结果。失败不覆盖既有按日完成指针，日期不匹配的旧截面不会自动挪用；进程异常终止时以服务退出状态和日志核查，不凭进度文件判断完成。拒绝／限流停止后续请求，不重试或绕过；正在途中的其他并发请求可能结束。
+- 同一上海采集日可用 `--resume <generation>` 续处理已完成但存在失败的最新版本：校验原指针哈希、股票池、数据源和权息证据；成功记录及完整权息只读复用，旧原始响应可离线重算，其余失败行情重新请求。结果存新目录，原版本不覆写。拒绝跨日、过期版本或访问拒绝后的续采，不将重处理时间冒充原始采集时间。
+
+在Ubuntu01仓库根目录运行（Windows先使用 `wsl -d Ubuntu01 --cd /home/myl/a_shares_predict`）：
+
+```bash
+.venv/bin/python fusion_snapshot.py --workers 2
+.venv/bin/python fusion_snapshot.py --workers 2 --resume <generation>
+```
+
+每日维护采用用户级 [service](deploy/a-shares-fusion-snapshot.service) 和 [timer](deploy/a-shares-fusion-snapshot.timer)，默认安装位置为当前用户的 `~/a_shares_predict`。工作日上海时间 **18:30** 新采一轮，无失败自动重启；文件锁阻止同时采集。配置和管理无需提权：
+
+```bash
+systemctl --user link "$PWD/deploy/a-shares-fusion-snapshot.service" "$PWD/deploy/a-shares-fusion-snapshot.timer"
+systemctl --user enable --now a-shares-fusion-snapshot.timer
+systemctl --user list-timers a-shares-fusion-snapshot.timer
+journalctl --user -u a-shares-fusion-snapshot.service -n 50 --no-pager
+systemctl --user disable --now a-shares-fusion-snapshot.timer
+```
+
+WSL／用户服务未运行时不能准点采集，`Persistent=true` 在恢复后补一次错过的触发；未核验节假日历，工作日节假日仍可能取得较旧日线。收盘后新截面未完成前、新行情日期超出已有截面时仍显示明确的一星保守处置，不冒充当日F1。采集不依赖Web运行，HTTP请求本身只刷新目标股票。
+
+## 当前多维方法：34 原子 → 同日前沿 → 风险仓位
+
+### 独立维度与非支配关系
+
+[pareto_strategy.py](pareto_strategy.py) 的 `make_objectives()` 输出 34 列 +1/0/−1（看多/中性/看空），不是先聚合 M/F/P/Q 或辅助共识后再做 Pareto：
+
+| 来源 | 列数 | 原子规则 |
+|---|---:|---|
+| MACD | 6 | DIF/DEA、零轴、5 日 DIF 斜率、3 日 BAR 趋势、底部修复、顶部衰弱 |
+| 多因子 | 5 | RSI、K/D、J 极值、布林位置、WR 极值 |
+| 价格位置/趋势 | 2 | 250 日价格区间位置、250 日涨跌幅 |
+| 量能/价格代理 | 3 | OBV 净流、量价背离、波动率/价格机构行为代理；不是实际资金流 |
+| 辅助指标 | 18 | DMI、CCI、BIAS(6)、BIAS(12)、EXPMA、BBI、TRIX、VR、BR、AR、CR、DMA、DPO、MTM、SKDJ、LWR、ENE、LON，各自保留方向，不反向合并成 A |
+
+“独立”指单独作为比较坐标，**不指统计独立**。三值化保留原规则方向及分支优先级，但丢失原始幅度和强弱差异，不能称“保留所有信息”。
+
+令 $\mathcal U_t$ 为同日有有效行情、含当日至少 251 根日线、正成交量且通过资格与门禁的股票集合。门禁为 RSI≤92、OBV 5 日净流≥−60%；不再使用旧 M/F 加权分数门禁。权息隔离和跳空隔离先限制资格。统一按各维越大越优：
+
+$$
+\mathbf x_{i,t}\in\{-1,0,+1\}^{34},\qquad
+i\succ_t j\iff(\forall k,\ x_{i,t,k}\ge x_{j,t,k})\land(\exists k,\ x_{i,t,k}>x_{j,t,k})
+$$
+
+$$
+F_{1,t}=\{i\in\mathcal U_t:\nexists j\in\mathcal U_t,\ j\succ_t i\}
+$$
+
+`daily_front_layers()` 可计算前四层，**本轮运行器只计算 F1**，其他标签不代表已精确分层。相同向量同层，全部 F1 保留，不加权、不做拥挤距离或 Top-N 截断。高维中不可比较的股票可能很多，前沿不提供唯一最优解，也不保证优于旧加权策略。
+
+### 波动率、ES 与成本跟踪
+
+本节的每日目标/成本跟踪公式描述v1冻结执行规则及共享风险估计。v2沿用波动率/ES风险上限，但F1和门禁只约束新仓，持有/退出改用MA120规则，风险仓位使用90%缓冲且不自动补仓，详见文首及v2对照报告。
+
+用截至当日收盘的权息连续化价格计算简单日收益 $r$，窗口 $L=63$，置信度 $\alpha=0.95$：
+
+$$
+\sigma_{i,t}=\sqrt{252}\,\mathrm{std}_{\mathrm{ddof}=1}(r_{i,t-L+1:t}),\qquad
+ES_{i,t}=\frac1K\sum_{k=1}^{K}\ell_{(k)},\quad
+\ell=\max(0,-r),\quad K=\lceil L(1-\alpha)\rceil=4
+$$
+
+$\ell_{(k)}$ 按亏损从大到小排序，盈利日保留零亏损，不是仅对下跌日取均值。仅 F1、资格/门禁通过、风险值有效且未触发账户退出/冷静期时，目标风险上限为：
+
+$$
+\bar w_{i,t}=\min\left(w_{\max},\frac{\sigma_{\rm target}}{\max(\sigma_{i,t},10^{-8})},\frac{b_{ES}}{\max(ES_{i,t},10^{-8})}\right)
+$$
+
+其他情况目标为 0。每只股票的 $w$ 是其**自身账户权益比例**，不跨股归一化、不借用其他账户现金，不加杠杆。默认 $w_{\max}=1$、$b_{ES}=0.02$；`RiskConfig` 默认年化波动目标 15%，**本轮训练选择 10%**，二者不能混称。
+
+运行器调用 `optimal_rebalance_weight(..., risk_cap=desired)`，将收盘实际仓位 $w_{\rm prev}$ 调向风险上限：
+
+$$
+w^*_{i,t}=\underset{0\le w\le\bar w_{i,t}}{\arg\min}\left[
+\frac{\lambda}{2}\max(\sigma_{i,t}^2,10^{-8})(w-\bar w_{i,t})^2
++c_b(w-w_{\rm prev})_++c_s(w_{\rm prev}-w)_+\right],\quad\lambda=5
+$$
+
+其中 $(z)_+=\max(z,0)$。比例费用形成不对称不交易带，但目标为 0 是硬退出，不因省费用继续持仓。费用代理包括佣金、滑点、固定过户费代理及分期卖出印花税；实际最低佣金、日期费率、整手与现金约束由账本结算。此处标量优化的是**仓位跟踪与交易成本**，不是将 34 个信号再次加权。
+
+概念参考：[Moreira 与 Muir《Volatility Managed Portfolios》，NBER w22208](https://www.nber.org/papers/w22208) 支持高波动时降低风险暴露的研究思路；[cvxportfolio 优化策略文档](https://www.cvxportfolio.com/en/stable/optimization_policies.html) 说明风险、成本和约束的联合建模。它们不是本项目 ES 公式、参数或收益的验证；本项目是 NumPy 实现，不是直接运行这些文献/库的策略，**引用不构成有效性背书**。
+
+### 模块职责与执行约束
+
+| 模块 | 职责 |
+|---|---|
+| [pareto_strategy.py](pareto_strategy.py) | 34 维原子、非支配层、滚动风险统计、风险目标、成本跟踪；纯计算 |
+| [capital_account.py](capital_account.py) | `Account` 现金/股份账本、整手、T+1、费用、权息、回撤状态与逐笔记录；不取数据 |
+| [pareto_backtest.py](pareto_backtest.py) | 只读备份源库、冻结股票池/日历/参数，预处理、每日 F1、训练选参、全期连续账户及汇总产物 |
+| [action_fallback.py](action_fallback.py) / [action_snapshot.py](action_snapshot.py) | 前者批量冻结东方财富（EM）权息并交叉核验配股，后者保留独立新浪快照工具；运行器不调用新浪下载 |
+| [live_data.py](live_data.py) | 单股每次在线行情／权息核验、原始证据与 SHA256、保留历史的定向事务 UPSERT；不做策略判断 |
+| [fusion_snapshot.py](fusion_snapshot.py) | 独立当前固定池采集、原子发布、同日续采及只读精确日期比较；生产源库只读，历史回测不变 |
+| [fusion_analysis.py](fusion_analysis.py) | 先刷新，再用共享34原子／门禁／风险计算当前诊断；优先当前同日截面，缺失时检查历史同日文件；历史账户独立读取 |
+| [fusion_web.py](fusion_web.py) | 当前结论、独立历史摘要、34 指标分组、年度／最近成交、可选新分红表的 HTML；不重复刷新 |
+| [fusion_chart.py](fusion_chart.py) | 内存三面板 PNG、仅标记历史实际成交；渲染锁保护 Matplotlib，不取数据、不写输出文件 |
+| [pareto_web.py](pareto_web.py) | 完成产物、资金恒等式校验、只读全量总览；保留内部 `render_stock_report()` 和共享方法说明 |
+| [web.py](web.py)、[templates/page.html](templates/page.html) | 两标签／三选项及 HTML 路由，第一标签融合刷新、第二标签只读；旧技术策略 Web 路由已删除 |
+
+以下执行约束属于历史独立账户回放，不是当前持仓布尔输入可执行的个人订单：
+
+- **时序**：收盘信号→下一市场交易日真实开盘价尝试成交；停牌后的过期非零目标不续用，退出请求可续行。成交用不复权价，权息连续化价格仅供信号，不回写过去信号。
+- **账户**：每只股票独立 100 万元，闲置现金零利息；买入/非零目标调减按 100 股整手，目标 0 尝试卖出全部可卖股份。净值回撤 15% 触发退出及随后 20 个市场日禁买，不保证最大实际回撤止于 15%；退出后风险峰值可重置，不能称全期本金底线。
+- **截止**：预先规定最后 5 个市场日禁买并尝试退出，公共截止日另可尝试收盘清仓；不把陈旧个股末日当作预知的清仓日。停牌、T+1、成交限制可能留下股份，按最后有效价标记残值，不当现金。
+- **费用**：双边佣金 0.03%、每笔最低 5 元，买卖各 5bp 不利滑点；卖出印花税 2023-08-28 前 0.1%、此后 0.05%；双边过户费 2022-04-29 前统一假设 0.002%、此后 0.001%，不是完整历史费率复原。
+- **权息**：现金分红近似除权日到账、送转近似当日可用；缺失日事件映射到下一有效日线，未计红利税，零碎股出售为近似。配股未建模；权息错误/未核验或有配股历史的账户全期禁买但保留本金。既有新浪成功现金事件保留、EM 校验配股，不等于双源分红一致或历史完整。
+- **数据/成交限制**：未解释的绝对开盘跳空>25% 后禁止新信号；缺失/无效行情只延续估值、不前填信号。开盘不利跳空≥4.8% 作为保守涨跌停代理，无历史 ST/官方限价、无成交量参与上限，日线不能证明真实可成交。
+
+## 安装与启动
+
+推荐在 Linux / WSL 的项目目录内创建独立环境：
+
+```bash
+python3 -m venv .venv
+.venv/bin/python -m pip install -r requirements.txt
+.venv/bin/python web.py 8099
+```
+
+打开 **http://localhost:8099**。Web 默认端口是 8080，上例指定 8099。当前服务监听所有网卡，没有鉴权；仅用于可信环境，不要直接暴露公网。
+
+如果 Ubuntu 提示缺少 `ensurepip`，需先补齐与 Python 版本匹配的 venv 支持。已有系统 pip（≥22.3）时，也可无提权安装到独立环境：
+
+```bash
+python3 -m venv --without-pip .venv
+python3 -m pip --python .venv/bin/python install pip -r requirements.txt
+```
+
+- 核心、图表及 Web 依赖：[requirements.txt](requirements.txt)（NumPy、Matplotlib、pandas）。
+- 财务/龙虎榜/资金流采集另需 [requirements-research.txt](requirements-research.txt)（requests、AkShare）：
+
+```bash
+.venv/bin/python -m pip install -r requirements-research.txt
+```
+
+系统没有中文字体时图表可能缺字。依赖暂未锁定版本；安装成功不等于历史实验可复现。
+
+### 融合分析与只读历史报告启动
+
+已有完成报告只需启动 Web，无须回测。以下在 Linux / WSL 仓库根目录执行：
+
+```bash
+PARETO_RUN_DIR=output/pareto_current_20261021 .venv/bin/python web.py 8099
+```
+
+首页加载仅展示方法；`/pareto-summary?n=5` 仅读报告。**访问默认 `/analyze?code=000651` 会联网并更新该股数据库**，不再是只读个股历史页；仅阅读历史时不要访问此路由，应读已完成产物或内部历史 helper。`refresh=0`／`force=0` 不会把它切成离线模式。
+
+### 完整多维回放：仅明确要求时运行
+
+回放不是浏览报告，也不是修复报告缺失的自动步骤。使用新输出目录，复用本轮已冻结权息的示例：
+
+```bash
+.venv/bin/python -B pareto_backtest.py --output output/pareto_mainboard_new_run --action-snapshot output/action_fallback_market_2015_20260910 --start 2016-09-10 --end 2026-09-10 --workers 8
+```
+
+Windows PowerShell 对应命令（同样使用新的运行目录）：
+
+```powershell
+wsl -d Ubuntu01 --cd /home/myl/a_shares_predict -- .venv/bin/python -B pareto_backtest.py --output output/pareto_mainboard_new_run --action-snapshot output/action_fallback_market_2015_20260910 --start 2016-09-10 --end 2026-09-10 --workers 8
+```
+
+- `--action-snapshot` **可选**：完整冻结目录复用时不发 HTTP；覆盖日期须匹配 2015-01-01～请求截止日。省略时自动在运行输出内建立 EM 市场批量快照，一次分页取全市场后按代码匹配，**不触发新浪逐股采集，不靠重试冲击新浪限流**。目录尚未完整冻结时也可能继续公开 EM 请求，不能称无条件离线。
+- EM 遇访问拒绝/限流保留失败证据，不绕过限制、不自动重试；权息未核验仍按隔离口径保留本金。旧新浪成功快照及原失败证据不覆盖，解析结果另存。
+- 行情来自源缓存的只读一致性备份，不刷新生产库。`--source` 可指定源库，`--limit` 仅供小样本冒烟；日期/股票池已冻结的目录续跑不因新参数自动换样本。新数据或策略版本应使用新输出目录。
+- 新运行记录源路径、limit 和 2015-01-01 特征/权息覆盖起点；不支持更早起始。续跑日期、limit、已记录源路径不符会拒绝，冻结源库字节哈希也须匹配。原生产库同路径内容变动不影响已冻结输入，续跑不重新读取它；旧清单缺少的路径字段不能追溯验证。
+- `--cached-actions` 只是禁用本轮批量解析的诊断选项；缓存补出的权息标记 `cache_unverified`，不能据此开展可信交易。正常运行不要用它代替冻结权息。
+- 运行器会重建完成汇总，不能把“重跑”当作只读浏览；等待新运行的最终汇总完成后再读。已有本轮 [output/pareto_mainboard_20260910/summary.json](output/pareto_mainboard_20260910/summary.json) 不因浏览或单股刷新而重建。首页方法说明读取模型默认值，历史报告及有完整报告的当前分析读取该次所选参数。
+
+### 保留的旧 CLI、海选与独立初筛
+
+```bash
+# 旧加权融合预测：不是 Pareto34；不回测、不出图、不抓分红
+.venv/bin/python run_cli.py predict 000651
+
+# 独立财务质量初筛：非买卖信号
+.venv/bin/python run_cli.py bmfund 601888
+
+# 旧加权横截面海选：先有本地 K 线缓存，再按报价过滤
+.venv/bin/python scan_composite.py -n 5 --max-pe 100 --min-price 5
+
+# 保留旧 JSON 服务，默认 comprehensive，不由 web.py 提供
+.venv/bin/python api.py 8100
+```
+
+注意：[run_cli.py](run_cli.py) **直接传股票代码、`chart`、`backtest`、`json` 仍是旧 MACD 路径**；`multi` 是旧多因子共振，`predict` 是旧加权融合，均未改为 Pareto34。
+
+## 独立旧加权引擎／CLI predict／API comprehensive（非 Web 选项）
+
+实现：[engine.py](engine.py) 的 `_score_comprehensive()`、`predict_comprehensive()`、`backtest_comprehensive()`；CLI `predict` 只预测，旧 API 仍独立调用预测／回测。当前 Web 已不接受 `comprehensive`。以下评分、门槛与建议表**均不适用于 Pareto34**，没有资金流 Z、龙虎榜双路径或分级仓位。
+
+### 评分
+
+$$S=0.40M+0.30F+0.15P+0.15Q$$
+
+$$A=\frac{N_{看多}-N_{看空}}{18}\times100,\qquad S^*=S-0.08A$$
+
+四维各从 50 分起算，总分不额外裁剪。A 范围 −100～100，最大修正 ±8 分：偏空共识加分、偏多共识减分。分数不是概率。
+
+| 维度 | 权重 | 输入与含义 |
+|---|---:|---|
+| M：MACD 核心 | 40% | DIF/DEA 多空、零轴、5 日斜率、3 日 BAR 趋势、前高/前低动能比较 |
+| F：多因子确认 | 30% | RSI(14)、KDJ(9,3,3)、Bollinger(20,2)、WR(10) |
+| P：价格位置/趋势 | 15% | 250 日价格区间位置与价格涨幅，**不是财报或估值** |
+| Q：量能 | 15% | OBV 5 日净量能流、量价背离、年化波动率代理，**不是实际主力资金流** |
+
+18 项辅助指标：DMI、CCI、BIAS(6/12)、EXPMA、BBI、TRIX、VR、BR、AR、CR、DMA、DPO、MTM、SKDJ、LWR、ENE、LON。各投 +1/0/−1，不改变质量门禁。
+
+预测至少需要 60 根日线；完整价格位置项需要更长历史。具体加减分见旧 CLI 输出，以引擎实现为准，不对应当前 Web 的 34 原子详情。
+
+### 买入门禁
+
+任一条件触发即否决买入：
+
+- OBV 5 日净量能流 **<−60%**；
+- RSI **>92**；
+- M **<35** 且 F **<40**。
+
+### 旧引擎回测规则（传入开盘价时）
+
+| 动作 | 旧加权条件 |
+|---|---|
+| 买入 | S* **≥69** 且通过全部门禁 |
+| 止损卖出 | 含费用的浮动价差收益 **<−12%** |
+| 止盈卖出 | 含费用的浮动价差收益 **>+15%** |
+| 低分卖出 | S* **<35** |
+| 获利回吐卖出 | 浮动价差收益 **>12%** 且 S* **<50** |
+| 背离/形态卖出 | 顶背离；持仓超过 10 个交易日后每 5 日检查 M 顶/头肩顶破颈线、看跌吞没 |
+
+- 传入 `opens` 时买卖为收盘信号、次日开盘成交，**不是盘中触价立即成交**，实际卖价不保证等于阈值。旧 API 未传 `opens`，其执行退化为次日收盘，见 API 边界。
+- 比例费用：双边佣金各 0.03%、卖出印花税 0.05%。未完整建模历史税率、最低佣金、滑点和涨跌停成交限制。
+- 引擎输出按单笔持仓配对的交易列表，**没有 25%→100% 分级仓位**；汇总由调用方决定，旧 API 简单相加，不是复利或独立账户收益。
+- 期末未平仓不强制清仓、不计入已完成交易列表；只汇总该列表不是完整资金账户净值。
+
+### 旧加权建议不等于回测订单
+
+预测根据最新评分和“已持仓”布尔值给建议，**没有实际买入成本或仓位输入**。“减持/增持”不代表实施了分仓，也不能替代成本相关止损。
+
+| 前提 | S* | 未持仓 | 已持仓 |
+|---|---:|---|---|
+| 通过门禁 | ≥70 | 买入 | 增持 |
+| 通过门禁 | 69～<70 | 买入 | 拿住 |
+| 通过门禁 | 50～<69 | 观望 | 减持 |
+| 通过门禁 | 40～<50 | 不买 | 减持 |
+| 通过门禁 | <40 | 不买 | 卖出 |
+| 门禁否决 | 任意 | 观望 | 观望 |
+
+## 保留旧加权 Top-N 横截面海选
+
+[scan_composite.py](scan_composite.py) 的 `run_scan()` 保留为独立旧海选 CLI／研究工具，Web `/scan` 及对应方法已移除，不由当前融合分析或回测总览调用：
+
+1. 从缓存选择沪深主板代码（600/601/603/605/000/001/002/003），至少 300 根日线。
+2. [factors.py](factors.py) 计算 **13 个技术因子，其中 12 个有权重**。
+3. 每个因子横截面百分位排名，缺失项填中性 50；按带正负号的固定 ICIR 权重加权，再除以权重绝对值之和。
+4. 获取腾讯报价，过滤无有效价格、PE≤0 或超上限、低于最低价的股票，按分数取前 N 只。
+
+- 分数是**横截面相对分**，不是 S*、不是 0～100 概率，不能套用融合 69 分门槛。
+- 低波、低 ATR、低成交额、均值回归等项参与评分。低成交额是流动性代理，不能直接当真实小市值。
+- 独立 CLI 默认 N=20；PE 默认上限 100、最低价默认 5 元，均可调整。当前 Web 总览的 N=5 只是历史账户展示数，与海选无关。
+- 海选不自动刷新全市场 K 线；不同股票的因子日期、报价日期可能不一致，应逐行查看因子日期。
+- 权重来自历史样本内研究；配套资金回测尚有调仓时点等问题，**未证明能取得稳定收益**。
+- 当前 Web 不再提供旧海选标签或 `/scan` 服务；保留脚本不表示 Web 路由仍存在。
+
+## 保留长线持有与独立财务初筛
+
+### 长线持有
+
+从缓存起始日收盘买入，展示到缓存末日的价格变化；勾选分红后额外展示每股现金分红。
+
+**旧长线路径限制**：尚未正确累乘送转股份、完善分红日期上限；涉及送转或缓存陈旧时，总收益可能错误，不能作为经校验的持有基准。
+
+旧加权融合已完成交易可以事后补记现金分红与送转股份，但尚未将权益事件纳入其回测中的成本/止损状态。此问题不能与新独立账户账本混称；旧汇总现金分红以元/初始股解释，不复权价不能与前复权收益重复相加。
+
+### 巴芒基本面研究
+
+[fundamentals.py](fundamentals.py) 使用东方财富财务摘要年报，检查扣非盈利、经营现金流转化、ROE、杠杆和收入趋势。
+
+不参与 Pareto34 或旧加权融合评分，不输出买卖信号或 DCF 目标价；金融机构需专用方法。少于三份年报不作结论，但尚未严格检查三份是否连续三年。初筛不能替代原始年报、审计、治理与护城河研究。
+
+## 保留旧 JSON API 与小程序的边界
+
+启动 [api.py](api.py) 后可访问：
+
+- http://localhost:8100/api/analyze?code=000651&strategy=comprehensive
+- http://localhost:8100/api/analyze?code=000651&strategy=buyhold&dividend=1
+- http://localhost:8100/api/analyze?code=601888&strategy=value
+- http://localhost:8100/api/health
+
+API 支持 `holding=1`、`dividend=1`，默认策略仍为旧加权 `comprehensive`，没有 Pareto34 JSON 接口，也不走新的单股融合刷新链。当前 Web 分析与历史总览路由均返回 HTML。
+
+**尚未统一**：API 旧融合路径未传真实 `opens`，回测退化为次日收盘成交；汇总用逐笔价差简单相加，非复利／完整含分红账户收益，也未使用 Pareto 独立账户。不能假定其与当前 Web 历史报告数值相同；已不存在可供比较的旧 Web `comprehensive` 路由。小程序使用独立旧 JavaScript 引擎，不是 Pareto34 或 Python 旧加权策略的等价实现。
+
+## 保留的脚本与用途
+
+| 类别 | 文件 | 状态 |
+|---|---|---|
+| 入口 | [run_cli.py](run_cli.py)、[web.py](web.py)、[api.py](api.py) | 模式差异见上文 |
+| 核心 | [engine.py](engine.py)、[fetcher.py](fetcher.py)、[db.py](db.py)、[plotting.py](plotting.py)、[fundamentals.py](fundamentals.py) | 计算、数据、缓存、绘图、初筛 |
+| 保留旧加权海选 | [scan_composite.py](scan_composite.py)、[factors.py](factors.py) | 独立 CLI／研究工具，不再由 Web 导入 |
+| 旧 S* 快照海选 | [scan_top_n.py](scan_top_n.py)、[build_features.py](build_features.py) | 独立工具，不是上述旧横截面 Top-N 算法 |
+| 基线 | [batch_backtest.py](batch_backtest.py)、[mainboard_baseline.py](mainboard_baseline.py) | 100 股面板/主板全量任务，非实盘业绩 |
+| 双路径实验 | [money_backtest4.py](money_backtest4.py) | 保留最新版本；加仓抢占止损、费用/权息等问题待修 |
+| 海选资金实验 | [money_scan_backtest.py](money_scan_backtest.py)、[money_pareto_backtest.py](money_pareto_backtest.py) | 调仓资金重叠、样本内权重等问题待修 |
+| 龙虎榜研究 | [lhb_pick.py](lhb_pick.py)、[lhb_factor_analysis.py](lhb_factor_analysis.py)、[lhb_lianban_height.py](lhb_lianban_height.py) | 事件/标签/历史时点待校验 |
+| 资金流研究 | [fund_flow_analysis.py](fund_flow_analysis.py)、[fund_flow_backtest.py](fund_flow_backtest.py) | 次日收益等问题待修 |
+| 财务采集 | [collect_fundamentals.py](collect_fundamentals.py)、[collect_financials_all.py](collect_financials_all.py)、[fetch_shares.py](fetch_shares.py) | 研究输入，不直接参与融合评分 |
+| 市场采集 | [collect_market_data.py](collect_market_data.py)、[collect_lhb_10y.py](collect_lhb_10y.py)、[collect_lhb_resume.py](collect_lhb_resume.py)、[retry_fundflow.sh](retry_fundflow.sh) | 有破坏性入口，见下方警告 |
+| 复权原型 | [build_adj_factors.py](build_adj_factors.py) | 未接入当前策略，不表示数据已复权 |
+| 小程序 | [wechat_app/app.js](wechat_app/app.js) | 独立旧策略，未与 Python 对齐 |
+
+新多维模块职责见前文。旧 [money_backtest4.py](money_backtest4.py) 保留评分叠加资金流、龙虎榜路径与分级仓位实验；旧 [money_pareto_backtest.py](money_pareto_backtest.py) 的 `non_dominated_set()` / `crowding_distance()` 比较低波、低 ATR、低成交额、接近 MA20、60 日反转这 5 项目标。后者 F1 不足 N 时跳过整期、未补后续层，调仓资金时序待修；不是每日 34 原子策略。低成交额不等于实际小市值；未被默认 Web 导入不代表工具废弃。
+
+## 数据安全与待修问题
+
+**不要为尝试命令而直接运行全量采集或删除缓存。** 本地 SQLite 包含行情、财务、龙虎榜、资金流、冻结股票池和任务元数据，不保证能无损重抓。
+
+- [collect_market_data.py](collect_market_data.py) 的 `lhb` 模式和 [collect_lhb_10y.py](collect_lhb_10y.py) **会先 DROP 龙虎榜表**，网络失败也可能丢旧数据。改成增量前先作一致性备份。
+- **第一标签融合分析获准定向更新目标股票数据库**，取代该入口原先的只读约束；新刷新先保留目标旧数据与来源证据，再事务 UPSERT，保留窗口外历史。**2026-10-20另获准独立采集既有固定池当前行情／权息**，仅存新截面目录；不授权批量改写生产数据库、其他表、清库或冻结回测／报告。失败时不以旧缓存冒充新行情。
+- 旧 [fetcher.py](fetcher.py) 的普通 K 线／分红缓存仍不自动更新，`fetch_kline(force_refresh=True)` 仍可能替换该股旧历史、缩短窗口，**该旧刷新截断问题没有全面修复**。不能把新 `live_data` 的保留历史保证套给旧入口，也不能恢复已被覆盖的历史。
+- 旧行情获取仍按缓存→新浪→腾讯不复权→东方财富不复权回退；腾讯数组已修正为 **date/open/close/high/low/volume** 的 OHLC 映射，不再列为当前待修错位。旧 API 汇总、旧长线／融合权益风控、旧 MACD 前视、财务可得时点等仍待修；新账本并未修复所有旧路径，Pareto 权息／成交近似也须披露。
+- Pareto 回测仍从源库只读一致性备份，运行输入、全量本金及数值产物不因单股刷新而改变；新数据版本必须新建运行目录。第二标签仅读已完成报告，不借刷新重写历史审计证据。
+- [db.py](db.py) 的读函数会走读写建表连接。旧基线 `--replay-cached` 虽不联网、不改回测摘要，底层仍可能建表/设置 WAL，**不是真正只读连接**；严格审查使用 SQLite URI `mode=ro` 和 `query_only`，不调用生产初始化，也不能恢复已覆盖的历史。
+- 不把样本内回放当样本外验证；费用、权息、未成交、退市、期末持仓和资金占用都需明确统计口径。
+
+详细证据及优先级见 [AUDIT_2026-09-09.md](AUDIT_2026-09-09.md)。
+
+## 开发与验证
+
+当前实现对应的测试职责如下：
+
+| 测试 | 契约范围 |
+|---|---|
+| [unittests/test_live_data.py](unittests/test_live_data.py) | 目标事务／历史保留／并发与失败、原始响应哈希、上海日线截止、成交量单位、新权息分页与精确空响应 |
+| [unittests/test_fusion_snapshot.py](unittests/test_fusion_snapshot.py) | 当前同日F1、失败不自封前沿、陈旧行情排除、只读源库、版本／哈希／股票池、完整发布、同日续采与限流停止 |
+| [unittests/test_fusion_analysis.py](unittests/test_fusion_analysis.py) | 每次先刷新、共享原子／门禁／风险、精确同日比较与 F1 未知、历史期限不限制新行情、持仓布尔边界、星级分档与缺证据保守处置 |
+| [unittests/test_fusion_web.py](unittests/test_fusion_web.py) | 星级与原因、上海日期及分红窗口、34 原子分组、历史资金／年度／最近 20 次成交、分红开关不改历史、错误不回落及已提交状态 |
+| [unittests/test_fusion_chart.py](unittests/test_fusion_chart.py) | 三面板、仅历史成交标记、热图抽样、输入校验、内存绘图及渲染清理 |
+| [unittests/test_web.py](unittests/test_web.py) | 恰好两标签／三选项、旧路由及方法移除、持仓／分红交互、刷新委托与总览只读、文档链接 |
+| [unittests/test_fetcher.py](unittests/test_fetcher.py)、[unittests/test_pareto_web.py](unittests/test_pareto_web.py) | 腾讯不复权 OHLC 映射与旧获取契约；内部历史 helper／全量总览及资金校验 |
+
+```bash
+.venv/bin/python -m unittest discover -s unittests -v
+```
+
+单元测试使用临时数据库与模拟网络，完整验证需阻止真实网络和生产缓存连接。真实刷新验收与单元测试分开，仅针对明确授权的个股或独立固定池采集；不将测试视为生产数据更新授权。不为通过旧字符串断言而恢复错误文案；原子／前沿、账户、权息解析及运行器的验证边界仍保留。
+
+维护约定见 [CLAUDE.md](CLAUDE.md)。Pareto 首页方法说明读取模型默认参数，报告及有完整历史上下文的当前分析读取冻结所选参数；不再维护已删除旧 Web 策略的页面阈值。修改时同步相应 README、Web 解释与契约测试，不混用新旧规则。历史审计证据链接固定到当时提交，不修改为当前代码链接。

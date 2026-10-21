@@ -118,6 +118,20 @@ def fixture(n=300):
 
 
 class TestFusionWeb(unittest.TestCase):
+    def test_current_history_summary_and_chart_share_the_completed_ledger(self):
+        context = self.a['history']
+        context['manifest']['version'] = TREND_STRATEGY_VERSION
+        context['ledger'] = context['ledger'][:4]
+        context['account'].update(build_count=1, add_count=1, reduce_count=1, exit_count=1,
+                                  final_cash=293260., marked_nav=298260., pnl=98260.)
+        html, dom = self.render()
+        self.assertIn('49.13%', dom.find(css='historical-summary')[0].text)
+        self.assertIn('共 4 次，展示最近 4 次', html)
+        self.assertIs(self.chart.call_args.kwargs['history']['ledger'], context['ledger'])
+        self.assertEqual(self.chart.call_args.kwargs['history']['end'], '2026-09-08')
+        self.assertNotIn('旧版冻结账户', html)
+        self.assertNotIn('策略版本', html)
+
     def test_v2_holding_without_front_is_valid_but_cannot_be_an_entry(self):
         trend = holding_trend(self.a['adjusted'][:, 3])
         self.a.update(strategy_version=TREND_STRATEGY_VERSION,

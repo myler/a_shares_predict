@@ -27,7 +27,7 @@ Use the supplied intent to distinguish current analysis from history; clarify on
 
 Current analysis and new runs use `pareto_trend_hold_v2`; the 34-atom feature/snapshot version remains `pareto_daily_atoms_risk_v1`. Entry still requires exact-day F1, eligibility, RSI/OBV gates and valid risk, plus action-continuous close >= MA120. Existing holdings do not exit merely for lost F1, missing peers or failed entry gates: three consecutive closes below their causal MA120 trigger a trend exit. Valid local data/risk are still required; missing actions/quotes/eligibility/risk remain a one-star precaution. Trend holding/exit decisions are three stars; a valid zero risk cap is a five-star exit. A hold candidate never authorizes adding shares.
 
-v2 builds at 90% of the risk cap, trims to 90% only when above the new cap, and never automatically tops up. Account drawdown/cooldown, quality isolation, next-open execution and T+1 remain. New manifests freeze `holding_policy`; old runs retain their own execution version. The default historical report is still v1 and its returns/markers must not be relabeled v2. Historical rules below describe v1 wherever they require daily F1 for continued holding.
+The improved original fusion strategy builds at 90% of the risk cap, trims to 90% only when above the new cap, and never automatically tops up. Account drawdown/cooldown, quality isolation, next-open execution and T+1 remain. Internal execution identifiers protect frozen provenance; they are not separate user strategy options. New manifests freeze `holding_policy`; old runs remain archived without relabeling returns. Default history is now the completed `output/pareto_current_20261021`: all 3330 accounts replayed offline from the original inputs and inherited 10% risk target, without retuning. Summary, annual results, fills, chart markers and population totals use this one run. Full return remains -0.3106%; 002371 is49.13% with66 fills. See `reports/fusion_20261021/README.md` for full verification and limitations.
 
 For authorized offline paired sample testing, use `.venv/bin/python -B pareto_backtest.py --compare-frozen <completed-run> --output <new-directory> --codes 002371,...`. This reads frozen features and the original full-universe fronts, never SQLite or HTTP, and compares v1/v2/same-ledger buyhold without a whole-market rerun. Existing output directories are rejected. See `reports/pareto_trend_20261021/README.md`: 13-stock sample improved -6.42% to +9.47%, three worsened; 002371 improved 1.59% to49.13% but still badly lagged the full-exposure benchmark. Not blind, principal-protected or full-market validation. The legacy `pareto_report.py` exporter remains v1-only.
 
@@ -75,19 +75,19 @@ Use `.venv/bin/python fusion_snapshot.py --workers 2` inside Ubuntu01 at the rep
 
 - `/pareto-summary?n=5` shows full-population totals; N only truncates display in code order, not a ranking, F1 selection or change to total principal. No network, cache refresh or account replay.
 - [../../../pareto_web.py](../../../pareto_web.py) retains `render_stock_report()` as an internal historical helper, not the first-tab HTTP handler. For individual history-only questions, read completed local artifacts/helper, not `/analyze`.
-- Report directory is only the server's `PARETO_RUN_DIR`, never an HTTP path parameter; default is the completed 2026-09-10 run. HTTP cannot set DB/evidence directories either.
+- Report directory is only the server's `PARETO_RUN_DIR`, never an HTTP path parameter; default is `output/pareto_current_20261021`, still with historical effective cutoff2026-09-08. The old run is archival only. HTTP cannot set DB/evidence directories either.
 - Require final summary completion marker and compatible complete artifacts; report missing/incomplete history as unavailable, never regenerate automatically or fall back to weighted scoring. Current fresh diagnostics may continue separately without history, with the limitations above.
 
 When Web viewing is requested and no suitable server is running, start it against the existing completed run. Inside WSL:
 
 ```bash
-PARETO_RUN_DIR=output/pareto_mainboard_20260910 .venv/bin/python web.py 8099
+PARETO_RUN_DIR=output/pareto_current_20261021 .venv/bin/python web.py 8099
 ```
 
 From Windows PowerShell:
 
 ```powershell
-wsl -d Ubuntu01 --cd /home/myl/a_shares_predict -- env PARETO_RUN_DIR=output/pareto_mainboard_20260910 .venv/bin/python web.py 8099
+wsl -d Ubuntu01 --cd /home/myl/a_shares_predict -- env PARETO_RUN_DIR=output/pareto_current_20261021 .venv/bin/python web.py 8099
 ```
 
 Use http://localhost:8099 with the intended route: homepage and `/pareto-summary` do not refresh; `/analyze` with `pareto` does. The server listens on all interfaces without authentication; use only in a trusted environment, not on the public Internet. Do not automatically open an analysis URL just to verify a historical-only server startup.
